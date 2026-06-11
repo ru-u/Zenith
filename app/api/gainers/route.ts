@@ -24,7 +24,11 @@ export async function GET() {
 
   let rows = await getCachedGainers(admin, dateKey);
   let asOf = latestScrapedAt(rows);
-  const fresh = rows.length > 0 && !isDataStale(asOf, FRESHNESS_MINUTES);
+  // Once the EOD cron finalizes a day, freeze it — never re-scrape/overwrite,
+  // so the finalized snapshot is permanent (evening page views won't clobber it).
+  const alreadyFinal = rows.some((r) => r.is_final);
+  const fresh =
+    rows.length > 0 && (alreadyFinal || !isDataStale(asOf, FRESHNESS_MINUTES));
 
   if (!fresh) {
     // Thundering-herd guard: only the caller that wins the atomic claim fetches.

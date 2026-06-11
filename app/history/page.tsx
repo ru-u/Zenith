@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTodayET } from "@/lib/market-calendar";
 import { HistoryBrowser } from "@/components/history/HistoryBrowser";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +13,16 @@ export default async function HistoryPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login?next=/history");
 
-  // One row per finalized day (rank = 1) → distinct dates, newest first.
+  // Past trading days = any date before today. We don't gate on is_final
+  // because intraday on-demand writes can flip that flag; a date before today
+  // is inherently the final record (we never re-fetch past dates).
+  // rank = 1 gives one row per date.
   const admin = createAdminClient();
+  const today = getTodayET();
   const { data } = await admin
     .from("daily_gainers")
     .select("date")
-    .eq("is_final", true)
+    .lt("date", today)
     .eq("rank", 1)
     .order("date", { ascending: false })
     .limit(60);
