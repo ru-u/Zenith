@@ -11,7 +11,6 @@ import {
   getTodayET,
   getMarketStatus,
   getMarketSession,
-  isTradingDay,
   isDataStale,
 } from "@/lib/market-calendar";
 
@@ -30,16 +29,14 @@ export async function GET() {
   let asOf = latestScrapedAt(rows);
 
   const alreadyFinal = rows.some((r) => r.is_final);
-  const session = getMarketSession();
-  const marketActive =
-    session === "open" || session === "pre-market" || session === "after-hours";
 
-  // Only scrape on a trading day during an active session, when the day isn't
-  // already finalized and the cache is stale. This prevents weekend/holiday/
-  // overnight pollution and freezes a finalized day permanently.
+  // Only scrape during the REGULAR session (9:30 AM–4:00 PM ET) — never
+  // pre-market or after-hours, since DECA orders execute at the close. Outside
+  // those hours (and on weekends/holidays) we serve the last stored day, and a
+  // finalized day stays frozen.
+  const isOpen = getMarketSession() === "open";
   const shouldFetch =
-    isTradingDay() &&
-    marketActive &&
+    isOpen &&
     !alreadyFinal &&
     (rows.length === 0 || isDataStale(asOf, FRESHNESS_MINUTES));
 

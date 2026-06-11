@@ -44,6 +44,17 @@ export function secondsUntilCloseET(date: Date = new Date()): number | null {
   return diff > 0 ? diff : null;
 }
 
+/**
+ * Seconds until the 9:30 AM ET open on a trading day, or null on
+ * weekends/holidays or once the market has opened.
+ */
+export function secondsUntilOpenET(date: Date = new Date()): number | null {
+  if (!isTradingDay(date)) return null;
+  const { hour, minute, second } = etParts(date);
+  const diff = (9 * 3600 + 30 * 60) - (hour * 3600 + minute * 60 + second);
+  return diff > 0 ? diff : null;
+}
+
 /** Today's date in ET as a YYYY-MM-DD key. */
 export function getTodayET(date: Date = new Date()): string {
   // en-CA renders as YYYY-MM-DD.
