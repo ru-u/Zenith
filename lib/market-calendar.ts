@@ -10,6 +10,7 @@ function etParts(date: Date) {
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hour12: false,
   });
   const parts = Object.fromEntries(
@@ -26,9 +27,21 @@ function etParts(date: Date) {
   };
   return {
     weekday: weekdayMap[parts.weekday as string] ?? 0,
-    hour: Number(parts.hour),
+    hour: Number(parts.hour) % 24, // some runtimes render midnight as "24"
     minute: Number(parts.minute),
+    second: Number(parts.second),
   };
+}
+
+/**
+ * Seconds until the 4:00 PM ET close on a weekday, or null if it's the weekend
+ * or already past the close. (US market holidays are not modeled in the MVP.)
+ */
+export function secondsUntilCloseET(date: Date = new Date()): number | null {
+  const { weekday, hour, minute, second } = etParts(date);
+  if (weekday === 0 || weekday === 6) return null;
+  const diff = 16 * 3600 - (hour * 3600 + minute * 60 + second);
+  return diff > 0 ? diff : null;
 }
 
 /** Today's date in ET as a YYYY-MM-DD key. */

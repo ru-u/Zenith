@@ -90,7 +90,7 @@ export function GainersHero() {
             The day&apos;s biggest market gainers, ranked highest to lowest.
           </p>
         </div>
-        {data && <MarketStatusBadge status={data.status} />}
+        {data && <MarketStatusBadge asOf={data.asOf} />}
       </div>
 
       {/* Single ranked row, #1 → #5 left to right. */}
