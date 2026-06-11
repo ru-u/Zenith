@@ -34,12 +34,12 @@ function etParts(date: Date) {
 }
 
 /**
- * Seconds until the 4:00 PM ET close on a weekday, or null if it's the weekend
- * or already past the close. (US market holidays are not modeled in the MVP.)
+ * Seconds until the 4:00 PM ET close on a trading day, or null on
+ * weekends/holidays or once past the close.
  */
 export function secondsUntilCloseET(date: Date = new Date()): number | null {
-  const { weekday, hour, minute, second } = etParts(date);
-  if (weekday === 0 || weekday === 6) return null;
+  if (!isTradingDay(date)) return null;
+  const { hour, minute, second } = etParts(date);
   const diff = 16 * 3600 - (hour * 3600 + minute * 60 + second);
   return diff > 0 ? diff : null;
 }
@@ -53,6 +53,23 @@ export function getTodayET(date: Date = new Date()): string {
 /** Format any Date as a YYYY-MM-DD key in ET. */
 export function formatDateKey(date: Date): string {
   return getTodayET(date);
+}
+
+// US equity market holidays (NYSE/Nasdaq) as ET date keys. Maintain yearly.
+const US_MARKET_HOLIDAYS = new Set<string>([
+  // 2026
+  "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+  "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+  // 2027
+  "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31",
+  "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
+]);
+
+/** A regular US trading day: a weekday that isn't a market holiday. */
+export function isTradingDay(date: Date = new Date()): boolean {
+  const { weekday } = etParts(date);
+  if (weekday === 0 || weekday === 6) return false;
+  return !US_MARKET_HOLIDAYS.has(getTodayET(date));
 }
 
 /** True when cached rows are older than the freshness threshold. */
@@ -70,12 +87,12 @@ export type MarketSession =
   | "pre-market"
   | "open"
   | "after-hours"
-  | "closed"; // nights + weekends (holidays not modeled in MVP)
+  | "closed"; // nights, weekends, and market holidays
 
 /** Current US equities session, derived from ET wall-clock. */
 export function getMarketSession(date: Date = new Date()): MarketSession {
-  const { weekday, hour, minute } = etParts(date);
-  if (weekday === 0 || weekday === 6) return "closed";
+  if (!isTradingDay(date)) return "closed";
+  const { hour, minute } = etParts(date);
   const mins = hour * 60 + minute;
   const open = 9 * 60 + 30; // 9:30 AM ET
   const close = 16 * 60; // 4:00 PM ET

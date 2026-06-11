@@ -4,7 +4,7 @@ import { getProvider, ProviderError } from "@/lib/marketdata";
 import { persistGainers } from "@/lib/gainers";
 import { updateStreaks } from "@/lib/streaks";
 import { generateAndStoreTopAnalyses } from "@/lib/claude";
-import { getTodayET } from "@/lib/market-calendar";
+import { getTodayET, isTradingDay } from "@/lib/market-calendar";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,8 +25,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
   const dateKey = getTodayET();
+
+  // No-op on weekends/holidays (Vercel's weekday cron still fires on holidays).
+  if (!isTradingDay()) {
+    return NextResponse.json({ ok: true, skipped: "non-trading day", date: dateKey });
+  }
+
+  const admin = createAdminClient();
 
   try {
     const gainers = await getProvider().getTopGainers(FETCH_LIMIT);

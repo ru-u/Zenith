@@ -67,6 +67,19 @@ export async function getCachedGainers(
   return data ?? [];
 }
 
+/** Most recent date that has stored gainers (for non-trading-day fallback). */
+export async function getLatestGainersDate(
+  client: SupabaseClient<Database>,
+): Promise<string | null> {
+  const { data } = await client
+    .from("daily_gainers")
+    .select("date")
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ date: string }>();
+  return data?.date ?? null;
+}
+
 /** Most recent scraped_at among a date's rows (drives the freshness check). */
 export function latestScrapedAt(rows: DailyGainer[]): string | null {
   let latest: string | null = null;

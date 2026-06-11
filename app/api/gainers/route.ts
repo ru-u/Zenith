@@ -3,12 +3,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
 import {
   getCachedGainers,
+  getLatestGainersDate,
   latestScrapedAt,
   persistGainers,
 } from "@/lib/gainers";
 import {
   getTodayET,
   getMarketStatus,
+  getMarketSession,
+  isTradingDay,
   isDataStale,
 } from "@/lib/market-calendar";
 
@@ -22,15 +25,25 @@ export async function GET() {
   const admin = createAdminClient();
   const dateKey = getTodayET();
 
+  let servedDate = dateKey;
   let rows = await getCachedGainers(admin, dateKey);
   let asOf = latestScrapedAt(rows);
-  // Once the EOD cron finalizes a day, freeze it — never re-scrape/overwrite,
-  // so the finalized snapshot is permanent (evening page views won't clobber it).
-  const alreadyFinal = rows.some((r) => r.is_final);
-  const fresh =
-    rows.length > 0 && (alreadyFinal || !isDataStale(asOf, FRESHNESS_MINUTES));
 
-  if (!fresh) {
+  const alreadyFinal = rows.some((r) => r.is_final);
+  const session = getMarketSession();
+  const marketActive =
+    session === "open" || session === "pre-market" || session === "after-hours";
+
+  // Only scrape on a trading day during an active session, when the day isn't
+  // already finalized and the cache is stale. This prevents weekend/holiday/
+  // overnight pollution and freezes a finalized day permanently.
+  const shouldFetch =
+    isTradingDay() &&
+    marketActive &&
+    !alreadyFinal &&
+    (rows.length === 0 || isDataStale(asOf, FRESHNESS_MINUTES));
+
+  if (shouldFetch) {
     // Thundering-herd guard: only the caller that wins the atomic claim fetches.
     // `as never` works around supabase-js overload resolution against our
     // hand-written Functions type; the runtime args are correct.
@@ -52,15 +65,30 @@ export async function GET() {
         console.error("[/api/gainers] provider error:", err.message);
       }
     }
-    // Losers (and post-failure) fall through with whatever cache we have.
+  }
+
+  // Nothing for today (weekend/holiday/before the first scrape of a new day) —
+  // serve the most recent stored day so the page isn't empty, WITHOUT creating
+  // a row for a non-trading day.
+  if (rows.length === 0) {
+    const latest = await getLatestGainersDate(admin);
+    if (latest && latest !== dateKey) {
+      rows = await getCachedGainers(admin, latest);
+      asOf = latestScrapedAt(rows);
+      servedDate = latest;
+    }
   }
 
   const isFinal = rows.some((r) => r.is_final);
-  const status = getMarketStatus({ isFinal, scrapedAt: asOf, isToday: true });
+  const status = getMarketStatus({
+    isFinal,
+    scrapedAt: asOf,
+    isToday: servedDate === dateKey,
+  });
 
   return NextResponse.json(
     {
-      date: dateKey,
+      date: servedDate,
       asOf,
       stale: isDataStale(asOf, FRESHNESS_MINUTES),
       status,
