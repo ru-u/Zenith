@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Lock, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, Lock, Sparkles } from "lucide-react";
 import { RiskLevelBadge } from "./RiskLevelBadge";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGainers } from "@/hooks/useGainers";
@@ -107,11 +108,33 @@ export function AIAnalysisCard() {
     enabled: isPro && !!date,
   });
 
+  const [collapsed, setCollapsed] = useState(false);
+
   const header = (
-    <div className="flex items-center gap-2">
-      <Sparkles className="h-4 w-4 text-brand" />
-      <h2 className="text-lg font-semibold tracking-tight">AI short theses</h2>
-      <span className="text-xs text-muted-foreground">· top movers</span>
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-4 w-4 text-brand" />
+        <h2 className="text-lg font-semibold tracking-tight">AI short theses</h2>
+        <span className="text-xs text-muted-foreground">· top movers</span>
+      </div>
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {collapsed ? (
+          <>
+            <ChevronDown className="h-3.5 w-3.5" />
+            Show more
+          </>
+        ) : (
+          <>
+            <ChevronUp className="h-3.5 w-3.5" />
+            Show less
+          </>
+        )}
+      </button>
     </div>
   );
 
@@ -119,7 +142,9 @@ export function AIAnalysisCard() {
     return (
       <section className="flex flex-col gap-3">
         {header}
-        <div className="glass h-40 animate-pulse rounded-2xl" />
+        {!collapsed && (
+          <div className="glass h-40 animate-pulse rounded-2xl" />
+        )}
       </section>
     );
   }
@@ -129,7 +154,8 @@ export function AIAnalysisCard() {
     return (
       <section className="flex flex-col gap-3">
         {header}
-        <div className="relative overflow-hidden rounded-2xl">
+        {!collapsed && (
+          <div className="relative overflow-hidden rounded-2xl">
           <div
             className="pointer-events-none grid auto-rows-fr select-none grid-cols-2 gap-3 blur-sm lg:grid-cols-3"
             aria-hidden
@@ -156,6 +182,7 @@ export function AIAnalysisCard() {
             </Link>
           </div>
         </div>
+        )}
       </section>
     );
   }
@@ -169,7 +196,8 @@ export function AIAnalysisCard() {
   return (
     <section className="flex flex-col gap-3">
       {header}
-      {ordered.length > 0 ? (
+      {!collapsed &&
+        (ordered.length > 0 ? (
         <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-3">
           {ordered.map((a, i) => (
             <AnalysisTile key={a.ticker} a={a} featured={i === 0} />
@@ -179,7 +207,7 @@ export function AIAnalysisCard() {
         <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
           Theses are generated after each market close. Check back shortly.
         </div>
-      )}
+        ))}
     </section>
   );
 }
