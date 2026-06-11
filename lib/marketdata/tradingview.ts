@@ -14,6 +14,14 @@ const SCAN_URL = "https://scanner.tradingview.com/america/scan";
 // major exchanges (client-side guard backing the payload filter).
 const ALLOWED_EXCHANGE = /^(NASDAQ|NYSE):/;
 
+// Common stock only — exclude ETFs/funds, ADRs/DRs, preferreds, warrants,
+// units, structured products. (d[8] = type, d[9] = typespecs.)
+function isCommonStock(entry: { d: unknown[] }): boolean {
+  const type = entry.d[8];
+  const specs = entry.d[9];
+  return type === "stock" && Array.isArray(specs) && specs.includes("common");
+}
+
 // Column order matters — the response `d` array maps positionally to this list.
 const COLUMNS = [
   "name", // 0  ticker symbol
@@ -22,9 +30,10 @@ const COLUMNS = [
   "change", // 3  change %
   "volume", // 4
   "relative_volume_10d_calc", // 5
-  "market_cap_basic", // 6  market cap (null for ETFs)
+  "market_cap_basic", // 6  market cap
   "sector", // 7
-  "aum", // 8  ETF assets-under-management (market-cap analog for funds)
+  "type", // 8  security type: stock | fund | dr | structured | ...
+  "typespecs", // 9  e.g. ["common"], ["preferred"]
 ] as const;
 
 // Realistic UA — TradingView blocks obvious bots. (MVP only; the provider swap
@@ -96,8 +105,7 @@ function mapRow(entry: { s: string; d: unknown[] }): RawGainer {
     changePercent: toNum(d[3]),
     volume: toNum(d[4]),
     relativeVolume: toNum(d[5]),
-    // Fall back to AUM for funds/ETFs, which have no market_cap_basic.
-    marketCap: toNum(d[6]) ?? toNum(d[8]),
+    marketCap: toNum(d[6]),
     sector: (d[7] as string) ?? null,
   };
 }
@@ -113,6 +121,7 @@ export const tradingViewProvider: MarketDataProvider = {
         const json = await postScan(limit);
         const raw = (json.data ?? [])
           .filter((e) => ALLOWED_EXCHANGE.test(e.s))
+          .filter(isCommonStock)
           .map(mapRow);
         return rankAndFilter(raw, limit);
       } catch (err) {
