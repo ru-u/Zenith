@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,31 +10,50 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useGainers } from "@/hooks/useGainers";
 import { useFiltersStore } from "@/stores/filtersStore";
 
-const ALL = "__all__";
-const CHANGE_TIERS = [25, 50, 100, 200];
+const ANY = "any";
+
+// $3 (min tradeable price) and $25M (min market cap) are the product floors.
+const PRICE_OPTIONS = [
+  { v: ANY, label: "Any price" },
+  { v: "3", label: "≥ $3" },
+  { v: "5", label: "≥ $5" },
+  { v: "10", label: "≥ $10" },
+  { v: "20", label: "≥ $20" },
+  { v: "50", label: "≥ $50" },
+];
+
+const CAP_OPTIONS = [
+  { v: ANY, label: "Any market cap" },
+  { v: "25000000", label: "≥ $25M" },
+  { v: "100000000", label: "≥ $100M" },
+  { v: "500000000", label: "≥ $500M" },
+  { v: "1000000000", label: "≥ $1B" },
+  { v: "10000000000", label: "≥ $10B" },
+];
+
+// value→label maps so base-ui resolves the trigger label without opening first.
+const itemsOf = (opts: { v: string; label: string }[]) =>
+  Object.fromEntries(opts.map((o) => [o.v, o.label]));
+const PRICE_ITEMS = itemsOf(PRICE_OPTIONS);
+const CAP_ITEMS = itemsOf(CAP_OPTIONS);
+
+const TRIGGER = "h-9 w-[160px] border-white/10 bg-white/5";
+const CONTENT = "w-(--anchor-width) border border-white/10 bg-popover";
 
 export function FilterBar() {
-  const { data } = useGainers();
   const {
-    sector,
     search,
-    minChangePercent,
-    setSector,
+    minPrice,
+    minMarketCap,
     setSearch,
-    setMinChangePercent,
+    setMinPrice,
+    setMinMarketCap,
     reset,
   } = useFiltersStore();
 
-  const sectors = useMemo(() => {
-    const set = new Set<string>();
-    for (const g of data?.gainers ?? []) if (g.sector) set.add(g.sector);
-    return [...set].sort();
-  }, [data]);
-
-  const hasFilters = sector != null || search !== "" || minChangePercent != null;
+  const hasFilters = search !== "" || minPrice != null || minMarketCap != null;
 
   return (
     <div className="glass flex flex-wrap items-center gap-2 rounded-xl p-2">
@@ -50,36 +68,34 @@ export function FilterBar() {
       </div>
 
       <Select
-        value={sector ?? ALL}
-        onValueChange={(v) => setSector(v === ALL ? null : v)}
+        items={PRICE_ITEMS}
+        value={minPrice != null ? String(minPrice) : ANY}
+        onValueChange={(v) => setMinPrice(v === ANY ? null : Number(v))}
       >
-        <SelectTrigger className="w-[170px] border-white/10 bg-white/5">
-          <SelectValue placeholder="Sector" />
+        <SelectTrigger className={TRIGGER}>
+          <SelectValue placeholder="Price" />
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>All sectors</SelectItem>
-          {sectors.map((s) => (
-            <SelectItem key={s} value={s}>
-              {s}
+        <SelectContent className={CONTENT} alignItemWithTrigger={false}>
+          {PRICE_OPTIONS.map((o) => (
+            <SelectItem key={o.v} value={o.v}>
+              {o.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
 
       <Select
-        value={minChangePercent != null ? String(minChangePercent) : ALL}
-        onValueChange={(v) =>
-          setMinChangePercent(v === ALL ? null : Number(v))
-        }
+        items={CAP_ITEMS}
+        value={minMarketCap != null ? String(minMarketCap) : ANY}
+        onValueChange={(v) => setMinMarketCap(v === ANY ? null : Number(v))}
       >
-        <SelectTrigger className="w-[140px] border-white/10 bg-white/5">
-          <SelectValue placeholder="Min change" />
+        <SelectTrigger className={TRIGGER}>
+          <SelectValue placeholder="Market cap" />
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>Any change</SelectItem>
-          {CHANGE_TIERS.map((t) => (
-            <SelectItem key={t} value={String(t)}>
-              ≥ +{t}%
+        <SelectContent className={CONTENT} alignItemWithTrigger={false}>
+          {CAP_OPTIONS.map((o) => (
+            <SelectItem key={o.v} value={o.v}>
+              {o.label}
             </SelectItem>
           ))}
         </SelectContent>

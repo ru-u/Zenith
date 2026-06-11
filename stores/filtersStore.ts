@@ -1,21 +1,21 @@
 import { create } from "zustand";
 
 interface FiltersState {
-  sector: string | null;
   search: string;
-  minChangePercent: number | null;
-  setSector: (sector: string | null) => void;
+  minPrice: number | null;
+  minMarketCap: number | null;
   setSearch: (search: string) => void;
-  setMinChangePercent: (min: number | null) => void;
+  setMinPrice: (n: number | null) => void;
+  setMinMarketCap: (n: number | null) => void;
   reset: () => void;
 }
 
 export const useFiltersStore = create<FiltersState>((set) => ({
-  sector: null,
   search: "",
-  minChangePercent: null,
-  setSector: (sector) => set({ sector }),
+  minPrice: null,
+  minMarketCap: null,
   setSearch: (search) => set({ search }),
-  setMinChangePercent: (minChangePercent) => set({ minChangePercent }),
-  reset: () => set({ sector: null, search: "", minChangePercent: null }),
+  setMinPrice: (minPrice) => set({ minPrice }),
+  setMinMarketCap: (minMarketCap) => set({ minMarketCap }),
+  reset: () => set({ search: "", minPrice: null, minMarketCap: null }),
 }));

@@ -10,7 +10,7 @@ export default function Home() {
       <AIAnalysisCard />
       <section className="flex flex-col gap-3">
         <FilterBar />
-        <GainersTable limit={20} />
+        <GainersTable limit={50} />
       </section>
     </main>
   );

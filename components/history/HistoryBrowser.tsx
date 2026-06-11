@@ -110,7 +110,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
                 <TableHead>Company</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Change</TableHead>
-                <TableHead className="text-right">Volume</TableHead>
+                <TableHead className="text-right">Market Cap</TableHead>
                 <TableHead className="text-right">Rel. Vol</TableHead>
                 <TableHead>Sector</TableHead>
               </TableRow>

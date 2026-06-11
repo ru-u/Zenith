@@ -15,20 +15,18 @@ import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { useFiltersStore } from "@/stores/filtersStore";
 
-export function GainersTable({ limit = 20 }: { limit?: number }) {
+export function GainersTable({ limit = 50 }: { limit?: number }) {
   const { data, isLoading, isError } = useGainers();
   const { data: streaks } = useStreaks();
-  const { sector, search, minChangePercent } = useFiltersStore();
+  const { search, minPrice, minMarketCap } = useFiltersStore();
 
   const rows = useMemo(() => {
     const all = data?.gainers ?? [];
     const q = search.trim().toUpperCase();
     return all
-      .filter((g) => (sector ? g.sector === sector : true))
+      .filter((g) => (minPrice != null ? (g.price ?? 0) >= minPrice : true))
       .filter((g) =>
-        minChangePercent != null
-          ? (g.change_percent ?? 0) >= minChangePercent
-          : true,
+        minMarketCap != null ? (g.market_cap ?? 0) >= minMarketCap : true,
       )
       .filter((g) =>
         q
@@ -37,7 +35,7 @@ export function GainersTable({ limit = 20 }: { limit?: number }) {
           : true,
       )
       .slice(0, limit);
-  }, [data, sector, search, minChangePercent, limit]);
+  }, [data, search, minPrice, minMarketCap, limit]);
 
   return (
     <div className="glass overflow-hidden rounded-2xl">
@@ -49,7 +47,7 @@ export function GainersTable({ limit = 20 }: { limit?: number }) {
             <TableHead>Company</TableHead>
             <TableHead className="text-right">Price</TableHead>
             <TableHead className="text-right">Change</TableHead>
-            <TableHead className="text-right">Volume</TableHead>
+            <TableHead className="text-right">Market Cap</TableHead>
             <TableHead className="text-right">Rel. Vol</TableHead>
             <TableHead>Sector</TableHead>
           </TableRow>

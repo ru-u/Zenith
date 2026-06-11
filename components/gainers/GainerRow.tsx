@@ -4,7 +4,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { StreakBadge } from "./StreakBadge";
 import type { DailyGainer } from "@/lib/supabase/types";
 import {
-  formatCompact,
+  formatMarketCap,
   formatPercent,
   formatPrice,
   formatRelVolume,
@@ -45,7 +45,7 @@ export function GainerRow({
         {formatPercent(gainer.change_percent)}
       </TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">
-        {formatCompact(gainer.volume)}
+        {formatMarketCap(gainer.market_cap)}
       </TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">
         {formatRelVolume(gainer.relative_volume)}
