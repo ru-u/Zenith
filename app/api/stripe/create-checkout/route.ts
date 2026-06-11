@@ -26,6 +26,18 @@ export async function POST() {
 
   // Reuse or create the Stripe customer, persisting the id for the webhook path.
   let customerId = profile?.stripe_customer_id ?? null;
+
+  // Validate the stored customer — it can be stale (created under a different
+  // key/mode, e.g. after a live↔test switch). Recreate if it no longer resolves.
+  if (customerId) {
+    try {
+      const existing = await stripe.customers.retrieve(customerId);
+      if ("deleted" in existing && existing.deleted) customerId = null;
+    } catch {
+      customerId = null;
+    }
+  }
+
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: user.email ?? undefined,
