@@ -22,8 +22,9 @@ const COLUMNS = [
   "change", // 3  change %
   "volume", // 4
   "relative_volume_10d_calc", // 5
-  "market_cap_basic", // 6
+  "market_cap_basic", // 6  market cap (null for ETFs)
   "sector", // 7
+  "aum", // 8  ETF assets-under-management (market-cap analog for funds)
 ] as const;
 
 // Realistic UA — TradingView blocks obvious bots. (MVP only; the provider swap
@@ -95,7 +96,8 @@ function mapRow(entry: { s: string; d: unknown[] }): RawGainer {
     changePercent: toNum(d[3]),
     volume: toNum(d[4]),
     relativeVolume: toNum(d[5]),
-    marketCap: toNum(d[6]),
+    // Fall back to AUM for funds/ETFs, which have no market_cap_basic.
+    marketCap: toNum(d[6]) ?? toNum(d[8]),
     sector: (d[7] as string) ?? null,
   };
 }
