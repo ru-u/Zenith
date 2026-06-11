@@ -11,14 +11,14 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
-// Heat tint by change magnitude (proxy until Pro AI risk levels are wired in).
-function heat(changePercent: number | null): string {
-  const c = changePercent ?? 0;
-  if (c >= 100) return "from-rose-500/30";
-  if (c >= 50) return "from-orange-500/25";
-  if (c >= 25) return "from-amber-400/20";
-  return "from-brand/25";
-}
+// One distinct hover-glow gradient per card (by rank), not by magnitude.
+const GRADIENTS = [
+  "from-brand/30",
+  "from-fuchsia-500/25",
+  "from-cyan-400/25",
+  "from-emerald-400/25",
+  "from-amber-400/25",
+];
 
 function HeroCard({
   gainer,
@@ -29,39 +29,46 @@ function HeroCard({
   streak?: number;
   index: number;
 }) {
+  const change = gainer.change_percent ?? 0;
+  // Big runners get no decimals + comma grouping so they fit inside the card.
+  const decimals = Math.abs(change) >= 100 ? 0 : 2;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.06, ease: "easeOut" }}
-      className="group relative"
+      className="group relative h-full"
     >
       <div
         className={cn(
           "absolute -inset-px rounded-2xl bg-gradient-to-br to-transparent opacity-0 blur transition-opacity duration-300 group-hover:opacity-100",
-          heat(gainer.change_percent),
+          GRADIENTS[index % GRADIENTS.length],
         )}
         aria-hidden
       />
-      <div className="glass-strong relative flex flex-col gap-3 rounded-2xl p-5">
-        <div className="flex items-center justify-between">
-          <span className="text-lg font-semibold tracking-tight">
+      <div className="glass-strong relative flex h-full flex-col gap-2 overflow-hidden rounded-2xl p-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-base font-semibold tracking-tight">
             {gainer.ticker}
           </span>
           <StreakBadge count={streak} />
         </div>
-        <p className="line-clamp-1 text-xs text-muted-foreground">
-          {gainer.company_name ?? " "}
+
+        <p className="truncate text-xs text-muted-foreground">
+          {gainer.company_name ?? " "}
         </p>
-        <div className="flex items-end justify-between">
-          <span className="flex items-center gap-1 text-2xl font-bold text-up">
-            <TrendingUp className="h-5 w-5" />
-            <CountUp value={gainer.change_percent ?? 0} prefix="+" suffix="%" />
-          </span>
-          <span className="text-sm tabular-nums text-muted-foreground">
-            {formatPrice(gainer.price)}
+
+        <div className="mt-auto flex min-w-0 items-baseline gap-1.5">
+          <TrendingUp className="h-4 w-4 shrink-0 text-up" />
+          <span className="min-w-0 text-2xl font-bold leading-none text-up tabular-nums">
+            <CountUp value={change} prefix="+" suffix="%" decimals={decimals} />
           </span>
         </div>
+
+        <p className="text-sm tabular-nums text-muted-foreground">
+          {formatPrice(gainer.price)}
+        </p>
       </div>
     </motion.div>
   );
@@ -70,7 +77,7 @@ function HeroCard({
 export function GainersHero() {
   const { data } = useGainers();
   const { data: streaks } = useStreaks();
-  const top = (data?.gainers ?? []).slice(0, 6);
+  const top = (data?.gainers ?? []).slice(0, 5);
 
   return (
     <section className="flex flex-col gap-5">
@@ -80,16 +87,17 @@ export function GainersHero() {
             Today&apos;s top short candidates
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            The day&apos;s biggest market gainers, ranked.
+            The day&apos;s biggest market gainers, ranked highest to lowest.
           </p>
         </div>
         {data && <MarketStatusBadge status={data.status} />}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Single ranked row, #1 → #5 left to right. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {top.length === 0
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="glass h-[136px] animate-pulse rounded-2xl" />
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="glass h-[150px] animate-pulse rounded-2xl" />
             ))
           : top.map((g, i) => (
               <HeroCard

@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     // must not fail the cron, since gainers + streaks already persisted).
     let analyses = 0;
     try {
-      analyses = await generateAndStoreTopAnalyses(admin, gainers, dateKey, 6);
+      analyses = await generateAndStoreTopAnalyses(admin, gainers, dateKey, 5);
     } catch (aiErr) {
       console.error("[cron/run-eod] AI step:", (aiErr as Error)?.message);
     }

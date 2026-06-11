@@ -24,7 +24,11 @@ export function CountUp({
   const mv = useMotionValue(reduce ? value : 0);
   const text = useTransform(
     mv,
-    (v) => `${prefix}${v.toFixed(decimals)}${suffix}`,
+    (v) =>
+      `${prefix}${v.toLocaleString("en-US", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}${suffix}`,
   );
 
   useEffect(() => {

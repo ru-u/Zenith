@@ -6,36 +6,77 @@ import { Lock, Sparkles } from "lucide-react";
 import { RiskLevelBadge } from "./RiskLevelBadge";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGainers } from "@/hooks/useGainers";
+import { cn } from "@/lib/utils";
 import type { AIAnalysis } from "@/lib/supabase/types";
 
-function AnalysisTile({ a }: { a: AIAnalysis }) {
+function AnalysisTile({ a, featured }: { a: AIAnalysis; featured?: boolean }) {
   return (
-    <div className="glass flex flex-col gap-2 rounded-xl p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-semibold tracking-tight">{a.ticker}</span>
+    <div
+      className={cn(
+        "glass flex h-full flex-col rounded-xl",
+        featured ? "col-span-2 gap-3 p-6" : "gap-2 p-4",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "truncate font-semibold tracking-tight",
+            featured && "text-2xl",
+          )}
+        >
+          {a.ticker}
+        </span>
         <RiskLevelBadge level={a.risk_level} />
       </div>
-      <p className="text-sm text-muted-foreground">{a.short_thesis}</p>
+      <p
+        className={cn(
+          "text-muted-foreground",
+          featured ? "text-base leading-relaxed" : "text-sm",
+        )}
+      >
+        {a.short_thesis}
+      </p>
       {a.key_catalysts.length > 0 && (
-        <ul className="flex flex-wrap gap-1">
+        <ul className={cn("flex flex-wrap", featured ? "gap-1.5" : "gap-1")}>
           {a.key_catalysts.map((c, i) => (
             <li
               key={i}
-              className="rounded-md bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground"
+              className={cn(
+                "rounded-md bg-white/5 text-muted-foreground",
+                featured ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
+              )}
             >
               {c}
             </li>
           ))}
         </ul>
       )}
-      <p className="mt-1 text-xs font-medium text-brand">{a.recommendation}</p>
+      <p
+        className={cn(
+          "mt-auto pt-1 font-medium text-brand",
+          featured ? "text-sm" : "text-xs",
+        )}
+      >
+        {a.recommendation}
+      </p>
     </div>
   );
 }
 
-function TeaserTile({ ticker }: { ticker: string }) {
+function TeaserTile({
+  ticker,
+  featured,
+}: {
+  ticker: string;
+  featured?: boolean;
+}) {
   return (
-    <div className="glass flex flex-col gap-2 rounded-xl p-4">
+    <div
+      className={cn(
+        "glass flex h-full flex-col gap-2 rounded-xl p-4",
+        featured && "col-span-2",
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className="font-semibold tracking-tight">{ticker}</span>
         <span className="h-4 w-16 rounded-full bg-white/10" />
@@ -53,7 +94,7 @@ export function AIAnalysisCard() {
   const { isPro, loading } = useSubscription();
   const { data: gainers } = useGainers();
   const date = gainers?.date;
-  const top = (gainers?.gainers ?? []).slice(0, 6);
+  const top = (gainers?.gainers ?? []).slice(0, 5);
 
   const { data: analyses } = useQuery({
     queryKey: ["ai-analysis", date],
@@ -90,14 +131,15 @@ export function AIAnalysisCard() {
         {header}
         <div className="relative overflow-hidden rounded-2xl">
           <div
-            className="pointer-events-none grid select-none grid-cols-1 gap-3 blur-sm sm:grid-cols-2 lg:grid-cols-3"
+            className="pointer-events-none grid auto-rows-fr select-none grid-cols-2 gap-3 blur-sm lg:grid-cols-3"
             aria-hidden
           >
-            {(top.length ? top.map((g) => g.ticker) : ["—", "—", "—"]).map(
-              (t, i) => (
-                <TeaserTile key={`${t}-${i}`} ticker={t} />
-              ),
-            )}
+            {(top.length
+              ? top.map((g) => g.ticker)
+              : ["—", "—", "—", "—", "—"]
+            ).map((t, i) => (
+              <TeaserTile key={`${t}-${i}`} ticker={t} featured={i === 0} />
+            ))}
           </div>
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/50 p-6 text-center backdrop-blur-[2px]">
             <span className="glass flex h-10 w-10 items-center justify-center rounded-full text-brand">
@@ -118,14 +160,19 @@ export function AIAnalysisCard() {
     );
   }
 
-  // Pro tier: real analyses.
+  // Pro tier: real analyses, ordered by today's rank, capped to the top 5.
+  const byTicker = new Map((analyses ?? []).map((a) => [a.ticker, a]));
+  const ordered = top
+    .map((g) => byTicker.get(g.ticker))
+    .filter((a): a is AIAnalysis => Boolean(a));
+
   return (
     <section className="flex flex-col gap-3">
       {header}
-      {analyses && analyses.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {analyses.map((a) => (
-            <AnalysisTile key={a.ticker} a={a} />
+      {ordered.length > 0 ? (
+        <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-3">
+          {ordered.map((a, i) => (
+            <AnalysisTile key={a.ticker} a={a} featured={i === 0} />
           ))}
         </div>
       ) : (

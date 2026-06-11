@@ -102,7 +102,7 @@ export async function generateAndStoreTopAnalyses(
   admin: SupabaseClient<Database>,
   gainers: GainerRow[],
   dateKey: string,
-  count = 6,
+  count = 5,
 ): Promise<number> {
   const top = gainers.slice(0, count);
   if (top.length === 0) return 0;
