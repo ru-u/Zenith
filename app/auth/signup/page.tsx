@@ -8,7 +8,7 @@ export default function SignupPage() {
           Create your account
         </h1>
         <p className="mb-5 text-sm text-muted-foreground">
-          Free — unlocks 30 days of history and streak tracking.
+          Free — unlocks 5 days of history and streak tracking.
         </p>
         <SignupForm />
       </div>

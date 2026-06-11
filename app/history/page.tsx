@@ -34,7 +34,7 @@ export default async function HistoryPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">History</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Past trading days. Free accounts can browse the last 30 days.
+          Past trading days. Free accounts can browse the last 5 days.
         </p>
       </div>
       <HistoryBrowser dates={dates} />

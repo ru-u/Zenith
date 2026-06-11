@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const FREE_HISTORY_DAYS = 30;
+const FREE_HISTORY_DAYS = 5;
 
 function daysAgo(dateKey: string): number {
   const [y, m, d] = dateKey.split("-").map(Number);
@@ -35,7 +35,7 @@ export async function GET(
     return NextResponse.json({ error: "auth required" }, { status: 401 });
   }
 
-  // Free tier: last 30 days only. Pro: unlimited.
+  // Free tier: last 5 days only. Pro: unlimited.
   const { data: profile } = await supabase
     .from("profiles")
     .select("subscription_tier")

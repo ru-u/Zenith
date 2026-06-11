@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const PRO_FEATURES = [
   "Claude AI short thesis on the top movers — risk, catalysts, recommendation",
-  "Unlimited history (free is capped at 30 days)",
+  "Unlimited history (free is capped at 5 days)",
   "Per-ticker streak history",
   "Short watchlist & email alerts",
 ];

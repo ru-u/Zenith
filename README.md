@@ -21,7 +21,7 @@ candidates over a multi-month competition.
   (handles the Fri→Mon weekend gap).
 - **AI short theses (Pro)** — Claude Sonnet 4.6 generates a risk level, key catalysts, and a
   recommendation for the top 6 movers each day, cached per ticker/day.
-- **History** — browse past trading days (free: last 30 days; Pro: unlimited).
+- **History** — browse past trading days (free: last 5 days; Pro: unlimited).
 - **Live status** — LIVE / DELAYED / CLOSED / HISTORICAL badge derived from stored data.
 - **Bold glassmorphism UI** — animated gradient mesh, frosted hero cards, count-up animations,
   `tabular-nums` columns; respects `prefers-reduced-motion`.
@@ -31,7 +31,7 @@ candidates over a multi-month competition.
 | | Free | Pro ($4.99/mo) |
 |---|---|---|
 | Top-20 table + hero cards + streaks | ✅ | ✅ |
-| History | last 30 days | unlimited |
+| History | last 5 days | unlimited |
 | Claude AI short theses | blurred teaser | ✅ full |
 | Watchlist & email alerts | — | ✅ (roadmap) |
 
@@ -90,7 +90,7 @@ generates the top-6 AI theses.
 ```
 app/
 ├── page.tsx                 # hero + AI theses + filterable table
-├── history/                 # date browser (auth-gated, 30-day free limit)
+├── history/                 # date browser (auth-gated, 5-day free limit)
 ├── auth/login | signup/
 ├── upgrade/                 # Stripe checkout entry
 └── api/
