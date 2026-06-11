@@ -116,8 +116,8 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.gainers.slice(0, 50).map((g) => (
-                <GainerRow key={g.ticker} gainer={g} />
+              {data.gainers.slice(0, 50).map((g, i) => (
+                <GainerRow key={g.ticker} gainer={g} displayRank={i + 1} />
               ))}
             </TableBody>
           </Table>

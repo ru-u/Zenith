@@ -63,8 +63,13 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
             ))}
 
           {!isLoading &&
-            rows.map((g) => (
-              <GainerRow key={g.ticker} gainer={g} streak={streaks?.get(g.ticker)} />
+            rows.map((g, i) => (
+              <GainerRow
+                key={g.ticker}
+                gainer={g}
+                streak={streaks?.get(g.ticker)}
+                displayRank={i + 1}
+              />
             ))}
 
           {!isLoading && rows.length === 0 && (

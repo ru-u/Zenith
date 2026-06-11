@@ -14,15 +14,18 @@ import { cn } from "@/lib/utils";
 export function GainerRow({
   gainer,
   streak,
+  displayRank,
 }: {
   gainer: DailyGainer;
   streak?: number;
+  // Sequential position within the (possibly filtered) view, 1..N.
+  displayRank: number;
 }) {
   const up = (gainer.change_percent ?? 0) >= 0;
   return (
     <TableRow className="border-white/5 hover:bg-white/[0.03]">
       <TableCell className="text-muted-foreground tabular-nums">
-        {gainer.rank}
+        {displayRank}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
