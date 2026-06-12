@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 
 export function SignupForm() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,11 @@ export function SignupForm() {
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name.trim() } },
+    });
     if (error) {
       setError(error.message);
       setLoading(false);
@@ -38,6 +43,14 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
+      <Input
+        type="text"
+        required
+        placeholder="Your name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="border-white/10 bg-white/5"
+      />
       <Input
         type="email"
         required
