@@ -20,9 +20,10 @@ candidates over a multi-month competition.
 - **Streak tracking** — how many consecutive trading days a ticker has shown up as a top mover
   (handles the Fri→Mon weekend gap).
 - **AI short theses (Pro)** — Claude Sonnet 4.6 generates a risk level, key catalysts, and a
-  recommendation for the top 6 movers each day, cached per ticker/day.
+  recommendation for the top 5 movers each day, cached per ticker/day.
 - **History** — browse past trading days (free: last 5 days; Pro: unlimited).
-- **Live status** — LIVE / DELAYED / CLOSED / HISTORICAL badge derived from stored data.
+- **Market status** — live session badge (Market open / closed) with a countdown to the
+  4 PM ET close and a "Live as of {time}" freshness stamp. Data is regular-session only.
 - **Bold glassmorphism UI** — animated gradient mesh, frosted hero cards, count-up animations,
   `tabular-nums` columns; respects `prefers-reduced-motion`.
 
@@ -30,7 +31,7 @@ candidates over a multi-month competition.
 
 | | Free | Pro ($4.99/mo) |
 |---|---|---|
-| Top-20 table + hero cards + streaks | ✅ | ✅ |
+| Top-50 table + hero cards + streaks | ✅ | ✅ |
 | History | last 5 days | unlimited |
 | Claude AI short theses | blurred teaser | ✅ full |
 | Watchlist & email alerts | — | ✅ (roadmap) |
@@ -83,7 +84,7 @@ of the current ranked set are removed.
 
 A single **Vercel cron** (`5 21 * * 1-5` UTC ≈ just after the 4:00 PM ET close) finalizes the
 day: persists `daily_gainers` with `is_final = true`, updates streaks (O(1) per ticker), and
-generates the top-6 AI theses.
+generates the top-5 AI theses.
 
 ### Routes
 
@@ -103,18 +104,6 @@ app/
 
 ---
 
-## Verification
-- Set `MARKET_DATA_PROVIDER=tradingview`, hit `api/cron/run-eod` with `CRON_SECRET` →
-  confirm ~100 ranked rows in `daily_gainers`, **including extreme low-float runners** (the
-  Yahoo failure case). Repeat with `=polygon` → confirm coverage parity.
-- After 2+ days of data, confirm `ticker_streaks` increments correctly (O(1) lookup).
-- Free user: history blocked past 30 days; AI content blurred behind `ProGate`.
-- Simulate Stripe webhook → `profiles.subscription_tier` flips to `pro` → AI visible, history
-  unlocked. Confirm `ai_analyses` RLS blocks free users at the DB layer.
-- Confirm freshness cache: rapid repeat visits hit cache (no extra upstream calls); call count
-  stays ~30–40/day.
-- Check Vercel cron logs on next trading day; verify gradient-mesh + hero animations render and
-  respect `prefers-reduced-motion`.hness check prevents redundant FMP calls within 4-minute window
 ## Getting Started
 
 ### 1. Install
