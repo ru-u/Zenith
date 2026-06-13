@@ -80,6 +80,70 @@ export async function getLatestGainersDate(
   return data?.date ?? null;
 }
 
+function near(a: number | null, b: number | null, eps: number): boolean {
+  return a != null && b != null && Math.abs(a - b) < eps;
+}
+
+/**
+ * Drop "frozen repeats": a halted / non-trading stock keeps reporting the exact
+ * same price, change%, and volume day after day (e.g. INHD after an SEC halt),
+ * so it re-appears as the top gainer and accrues fake streaks. If a ticker's
+ * price + change% + volume all match the prior trading day, it didn't actually
+ * move today — exclude it and re-rank. (Three-field match makes false positives
+ * effectively impossible for a stock that genuinely traded.)
+ */
+export function dropFrozenRepeats(
+  rows: DailyGainer[],
+  prev: DailyGainer[],
+): DailyGainer[] {
+  if (prev.length === 0) return rows;
+  const prevByTicker = new Map(prev.map((p) => [p.ticker, p]));
+  return rows
+    .filter((r) => {
+      const p = prevByTicker.get(r.ticker);
+      if (!p) return true;
+      const frozen =
+        near(r.price, p.price, 0.01) &&
+        near(r.change_percent, p.change_percent, 0.1) &&
+        r.volume != null &&
+        p.volume != null &&
+        Math.round(r.volume) === Math.round(p.volume);
+      return !frozen;
+    })
+    .map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+/** Most recent stored date strictly before `date`, or null. */
+export async function getGainersDateBefore(
+  client: SupabaseClient<Database>,
+  date: string,
+): Promise<string | null> {
+  const { data } = await client
+    .from("daily_gainers")
+    .select("date")
+    .lt("date", date)
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ date: string }>();
+  return data?.date ?? null;
+}
+
+/**
+ * Cleaned, re-ranked gainers for a date — the frozen-repeat filter applied vs
+ * the prior trading day. Raw rows stay in the DB (so the day-over-day chain
+ * keeps working); cleaning happens on read.
+ */
+export async function getCleanedGainers(
+  client: SupabaseClient<Database>,
+  date: string,
+): Promise<DailyGainer[]> {
+  const rows = await getCachedGainers(client, date);
+  if (rows.length === 0) return rows;
+  const prevDate = await getGainersDateBefore(client, date);
+  const prev = prevDate ? await getCachedGainers(client, prevDate) : [];
+  return dropFrozenRepeats(rows, prev);
+}
+
 /** Most recent scraped_at among a date's rows (drives the freshness check). */
 export function latestScrapedAt(rows: DailyGainer[]): string | null {
   let latest: string | null = null;

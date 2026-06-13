@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCachedGainers, latestScrapedAt } from "@/lib/gainers";
+import { getCleanedGainers, latestScrapedAt } from "@/lib/gainers";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,7 @@ export async function GET(
   }
 
   const admin = createAdminClient();
-  const rows = await getCachedGainers(admin, date);
+  const rows = await getCleanedGainers(admin, date);
   return NextResponse.json(
     { date, asOf: latestScrapedAt(rows), gainers: rows },
     { headers: { "cache-control": "no-store" } },

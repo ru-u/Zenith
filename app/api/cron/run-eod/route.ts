@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
-import { persistGainers } from "@/lib/gainers";
+import type { GainerRow } from "@/lib/marketdata";
+import { getCleanedGainers, persistGainers } from "@/lib/gainers";
 import { updateStreaks } from "@/lib/streaks";
 import { generateAndStoreTopAnalyses } from "@/lib/claude";
 import { getTodayET, isTradingDay } from "@/lib/market-calendar";
@@ -36,18 +37,33 @@ export async function GET(req: Request) {
 
   try {
     const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
-    await persistGainers(admin, gainers, dateKey, true); // is_final = true
+    await persistGainers(admin, gainers, dateKey, true); // raw, is_final = true
+
+    // Clean frozen repeats (halted stocks) before streaks + AI so they neither
+    // accrue streaks nor get theses.
+    const cleaned = await getCleanedGainers(admin, dateKey);
     await updateStreaks(
       admin,
-      gainers.map((g) => g.ticker),
+      cleaned.map((g) => g.ticker),
       dateKey,
     );
+    const cleanedRows: GainerRow[] = cleaned.map((g, i) => ({
+      ticker: g.ticker,
+      companyName: g.company_name,
+      price: g.price,
+      changePercent: g.change_percent,
+      volume: g.volume,
+      relativeVolume: g.relative_volume,
+      marketCap: g.market_cap,
+      sector: g.sector,
+      rank: i + 1,
+    }));
 
     // Generate Sonnet short theses for the top 6 (best-effort — a failure here
     // must not fail the cron, since gainers + streaks already persisted).
     let analyses = 0;
     try {
-      analyses = await generateAndStoreTopAnalyses(admin, gainers, dateKey, 5);
+      analyses = await generateAndStoreTopAnalyses(admin, cleanedRows, dateKey, 5);
     } catch (aiErr) {
       console.error("[cron/run-eod] AI step:", (aiErr as Error)?.message);
     }

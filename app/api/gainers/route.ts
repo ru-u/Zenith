@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
 import {
+  dropFrozenRepeats,
   getCachedGainers,
+  getGainersDateBefore,
   getLatestGainersDate,
   latestScrapedAt,
   persistGainers,
@@ -74,6 +76,13 @@ export async function GET() {
       asOf = latestScrapedAt(rows);
       servedDate = latest;
     }
+  }
+
+  // Drop frozen repeats (e.g. a halted stock reporting identical values daily)
+  // vs the prior trading day.
+  const prevDate = await getGainersDateBefore(admin, servedDate);
+  if (prevDate) {
+    rows = dropFrozenRepeats(rows, await getCachedGainers(admin, prevDate));
   }
 
   const isFinal = rows.some((r) => r.is_final);
