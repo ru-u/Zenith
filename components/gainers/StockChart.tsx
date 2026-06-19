@@ -34,6 +34,13 @@ export function StockChart({ ticker }: { ticker: string }) {
         timezone: "America/New_York",
         theme: "dark",
         style: "3", // area chart — readable for students new to candles
+        // Recolor the area series from TradingView's default blue to brand cyan.
+        overrides: {
+          "mainSeriesProperties.areaStyle.linecolor": "#2EE6E6",
+          "mainSeriesProperties.areaStyle.linewidth": 2,
+          "mainSeriesProperties.areaStyle.color1": "rgba(46, 230, 230, 0.30)",
+          "mainSeriesProperties.areaStyle.color2": "rgba(46, 230, 230, 0.02)",
+        },
         locale: "en",
         hide_top_toolbar: false,
         hide_legend: false,
