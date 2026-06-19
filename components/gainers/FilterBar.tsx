@@ -39,8 +39,8 @@ const itemsOf = (opts: { v: string; label: string }[]) =>
 const PRICE_ITEMS = itemsOf(PRICE_OPTIONS);
 const CAP_ITEMS = itemsOf(CAP_OPTIONS);
 
-const TRIGGER = "h-9 w-[160px] border-white/10 bg-white/5";
-const CONTENT = "w-(--anchor-width) border border-white/10 bg-popover";
+const TRIGGER = "h-9 w-[160px] border-foreground/10 bg-foreground/5";
+const CONTENT = "w-(--anchor-width) border border-foreground/10 bg-popover";
 
 export function FilterBar() {
   const {
@@ -63,7 +63,7 @@ export function FilterBar() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search ticker or company…"
-          className="border-white/10 bg-white/5 pl-8"
+          className="border-foreground/10 bg-foreground/5 pl-8"
         />
       </div>
 

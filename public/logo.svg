@@ -1,14 +1,11 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="zenith-logo" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7C5CFF" />
-      <stop offset="1" stop-color="#E879F9" />
+    <linearGradient id="zenith-mark" x1="12" y1="12" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1FF0F0" />
+      <stop offset="1" stop-color="#0E9C9C" />
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="8" fill="url(#zenith-logo)" />
-  <path
-    d="M11 10 H21 V12.4 L14.6 19.6 H21 V22 H11 V19.6 L17.4 12.4 H11 Z"
-    fill="#FFFFFF"
-    fill-opacity="0.95"
-  />
+  <rect width="64" height="64" rx="16" fill="#0A1014" />
+  <path d="M16 35 L32 20 L48 35" stroke="url(#zenith-mark)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M16 47 L32 32 L48 47" stroke="url(#zenith-mark)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
 </svg>

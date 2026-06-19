@@ -49,7 +49,7 @@ export function SignupForm() {
         placeholder="Your name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="border-white/10 bg-white/5"
+        className="border-foreground/10 bg-foreground/5"
       />
       <Input
         type="email"
@@ -57,7 +57,7 @@ export function SignupForm() {
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border-white/10 bg-white/5"
+        className="border-foreground/10 bg-foreground/5"
       />
       <Input
         type="password"
@@ -66,7 +66,7 @@ export function SignupForm() {
         placeholder="Password (min 6 chars)"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="border-white/10 bg-white/5"
+        className="border-foreground/10 bg-foreground/5"
       />
       {error && <p className="text-sm text-down">{error}</p>}
       {notice && <p className="text-sm text-up">{notice}</p>}

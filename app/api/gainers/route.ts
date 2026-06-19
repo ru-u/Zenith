@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
+import { runEodProcessing } from "@/lib/eod";
 import {
   dropFrozenRepeats,
   getCachedGainers,
@@ -14,13 +15,20 @@ import {
   getMarketStatus,
   getMarketSession,
   isDataStale,
+  minutesSinceCloseET,
 } from "@/lib/market-calendar";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Normal reads finish in <1s; the ceiling is for the rare close-capture request
+// that runs streaks + AI theses in the background via after().
+export const maxDuration = 60;
 
 const FETCH_LIMIT = 100;
 const FRESHNESS_MINUTES = 10;
+// Wait this long after the 4:00 PM ET close before freezing the official close,
+// so the NYSE/Nasdaq closing auction has fully settled.
+const CLOSE_SETTLE_MINUTES = 5;
 
 export async function GET() {
   const admin = createAdminClient();
@@ -32,37 +40,49 @@ export async function GET() {
 
   const alreadyFinal = rows.some((r) => r.is_final);
 
-  // Only scrape during the REGULAR session (9:30 AM–4:00 PM ET) — never
-  // pre-market or after-hours, since DECA orders execute at the close. Outside
-  // those hours (and on weekends/holidays) we serve the last stored day, and a
-  // finalized day stays frozen.
+  // Intraday refresh — during the REGULAR session (9:30 AM–4:00 PM ET) we
+  // refresh stale data on read.
   const isOpen = getMarketSession() === "open";
   const shouldFetch =
     isOpen &&
     !alreadyFinal &&
     (rows.length === 0 || isDataStale(asOf, FRESHNESS_MINUTES));
 
-  if (shouldFetch) {
-    // Thundering-herd guard: only the caller that wins the atomic claim fetches.
-    // `as never` works around supabase-js overload resolution against our
-    // hand-written Functions type; the runtime args are correct.
-    const { data: won } = await admin.rpc("claim_fetch", {
-      p_key: `gainers:${dateKey}`,
-      p_ttl_seconds: 30,
-    } as never);
+  // Capture the official close on read — once the closing auction has settled
+  // (a few minutes after 4:00 PM ET), the first page load freezes the real
+  // close instead of waiting for the 5:05 PM EOD cron. After this, `alreadyFinal`
+  // short-circuits all further scrapes; the cron later re-confirms + runs
+  // streaks/AI. DECA orders execute at the close, so this is the number to lock.
+  const sinceClose = minutesSinceCloseET();
+  const shouldFinalize =
+    !alreadyFinal &&
+    sinceClose != null &&
+    sinceClose >= CLOSE_SETTLE_MINUTES;
 
-    if (won) {
-      try {
-        const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
-        await persistGainers(admin, gainers, dateKey, false);
-        rows = await getCachedGainers(admin, dateKey);
-        asOf = latestScrapedAt(rows);
-      } catch (err) {
-        // Provider failed (TradingView block, timeout, etc.) — serve last cache,
-        // flagged stale. Never 500.
-        if (!(err instanceof ProviderError)) throw err;
-        console.error("[/api/gainers] provider error:", err.message);
+  if (shouldFetch || shouldFinalize) {
+    try {
+      const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
+      await persistGainers(admin, gainers, dateKey, shouldFinalize);
+      rows = await getCachedGainers(admin, dateKey);
+      asOf = latestScrapedAt(rows);
+
+      // The moment we freeze the close, kick off streaks + AI theses in the
+      // background (after the response flushes — never blocks the page). The
+      // 5:05 PM EOD cron is a backstop; both steps are idempotent.
+      if (shouldFinalize && rows.length > 0) {
+        after(async () => {
+          try {
+            await runEodProcessing(admin, dateKey);
+          } catch (e) {
+            console.error("[/api/gainers] eod processing:", (e as Error)?.message);
+          }
+        });
       }
+    } catch (err) {
+      // Provider failed (TradingView block, timeout, etc.) — serve last cache,
+      // flagged stale. Never 500.
+      if (!(err instanceof ProviderError)) throw err;
+      console.error("[/api/gainers] provider error:", err.message);
     }
   }
 

@@ -43,7 +43,7 @@ function AnalysisTile({ a, featured }: { a: AIAnalysis; featured?: boolean }) {
             <li
               key={i}
               className={cn(
-                "rounded-md bg-white/5 text-muted-foreground",
+                "rounded-md bg-foreground/5 text-muted-foreground",
                 featured ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
               )}
             >
@@ -80,12 +80,12 @@ function TeaserTile({
     >
       <div className="flex items-center justify-between">
         <span className="font-semibold tracking-tight">{ticker}</span>
-        <span className="h-4 w-16 rounded-full bg-white/10" />
+        <span className="h-4 w-16 rounded-full bg-foreground/10" />
       </div>
       <div className="space-y-1.5">
-        <div className="h-3 w-full rounded bg-white/10" />
-        <div className="h-3 w-5/6 rounded bg-white/10" />
-        <div className="h-3 w-2/3 rounded bg-white/10" />
+        <div className="h-3 w-full rounded bg-foreground/10" />
+        <div className="h-3 w-5/6 rounded bg-foreground/10" />
+        <div className="h-3 w-2/3 rounded bg-foreground/10" />
       </div>
     </div>
   );

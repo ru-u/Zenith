@@ -1,10 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp } from "lucide-react";
 import { CountUp } from "./CountUp";
 import { StreakBadge } from "./StreakBadge";
 import { MarketStatusBadge } from "./MarketStatusBadge";
+import { StockChart } from "./StockChart";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { formatPrice } from "@/lib/format";
@@ -12,22 +20,25 @@ import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
 // One distinct hover-glow gradient per card (by rank), not by magnitude.
+// Cohesive cool ramp drawn from the cyan/teal brand family.
 const GRADIENTS = [
   "from-brand/30",
-  "from-fuchsia-500/25",
   "from-cyan-400/25",
-  "from-emerald-400/25",
-  "from-amber-400/25",
+  "from-sky-400/25",
+  "from-teal-300/25",
+  "from-blue-400/25",
 ];
 
 function HeroCard({
   gainer,
   streak,
   index,
+  onClick,
 }: {
   gainer: DailyGainer;
   streak?: number;
   index: number;
+  onClick: () => void;
 }) {
   const change = gainer.change_percent ?? 0;
   // Big runners get no decimals + comma grouping so they fit inside the card.
@@ -38,7 +49,8 @@ function HeroCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.06, ease: "easeOut" }}
-      className="group relative h-full"
+      className="group relative h-full cursor-pointer"
+      onClick={onClick}
     >
       <div
         className={cn(
@@ -78,8 +90,25 @@ export function GainersHero() {
   const { data } = useGainers();
   const { data: streaks } = useStreaks();
   const top = (data?.gainers ?? []).slice(0, 5);
+  const [selected, setSelected] = useState<DailyGainer | null>(null);
 
   return (
+    <>
+    <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+      <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
+          <DialogTitle className="text-base font-semibold tracking-tight">
+            {selected?.ticker}
+            {selected?.company_name && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                — {selected.company_name}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        {selected && <StockChart key={selected.ticker} ticker={selected.ticker} />}
+      </DialogContent>
+    </Dialog>
     <section className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -90,7 +119,13 @@ export function GainersHero() {
             The day&apos;s biggest market gainers, ranked highest to lowest.
           </p>
         </div>
-        {data && <MarketStatusBadge asOf={data.asOf} date={data.date} />}
+        {data && (
+          <MarketStatusBadge
+            asOf={data.asOf}
+            date={data.date}
+            isFinal={(data.gainers ?? []).some((g) => g.is_final)}
+          />
+        )}
       </div>
 
       {/* Single ranked row, #1 → #5 left to right. */}
@@ -105,9 +140,11 @@ export function GainersHero() {
                 gainer={g}
                 streak={streaks?.get(g.ticker)}
                 index={i}
+                onClick={() => setSelected(g)}
               />
             ))}
       </div>
     </section>
+    </>
   );
 }

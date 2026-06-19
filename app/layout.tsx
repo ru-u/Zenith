@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -17,9 +17,33 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zenith — Today's Top Short Candidates",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
+  title: {
+    default: "Zenith — Today's Top Short Candidates",
+    template: "%s — Zenith",
+  },
   description:
     "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
+  applicationName: "Zenith",
+  openGraph: {
+    title: "Zenith — Today's Top Short Candidates",
+    description:
+      "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
+    siteName: "Zenith",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Zenith — Today's Top Short Candidates",
+    description:
+      "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#090D11",
 };
 
 export default function RootLayout({
@@ -30,12 +54,22 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <GradientMesh />
+        {/* Brand gradient (cyan → polar-white) shared by SVG icons like the
+            streak flame. CSS-var stops make it follow the active theme. */}
+        <svg width="0" height="0" className="absolute" aria-hidden="true">
+          <defs>
+            <linearGradient id="streak-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="var(--brand)" />
+              <stop offset="1" stopColor="var(--foreground)" />
+            </linearGradient>
+          </defs>
+        </svg>
         <Providers>
+          <GradientMesh />
           <Header />
           {children}
         </Providers>

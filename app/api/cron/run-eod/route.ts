@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
-import type { GainerRow } from "@/lib/marketdata";
-import { getCleanedGainers, persistGainers } from "@/lib/gainers";
-import { updateStreaks } from "@/lib/streaks";
-import { generateAndStoreTopAnalyses } from "@/lib/claude";
+import { persistGainers } from "@/lib/gainers";
+import { runEodProcessing } from "@/lib/eod";
 import { getTodayET, isTradingDay } from "@/lib/market-calendar";
 
 export const dynamic = "force-dynamic";
@@ -39,33 +37,14 @@ export async function GET(req: Request) {
     const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
     await persistGainers(admin, gainers, dateKey, true); // raw, is_final = true
 
-    // Clean frozen repeats (halted stocks) before streaks + AI so they neither
-    // accrue streaks nor get theses.
-    const cleaned = await getCleanedGainers(admin, dateKey);
-    await updateStreaks(
-      admin,
-      cleaned.map((g) => g.ticker),
-      dateKey,
-    );
-    const cleanedRows: GainerRow[] = cleaned.map((g, i) => ({
-      ticker: g.ticker,
-      companyName: g.company_name,
-      price: g.price,
-      changePercent: g.change_percent,
-      volume: g.volume,
-      relativeVolume: g.relative_volume,
-      marketCap: g.market_cap,
-      sector: g.sector,
-      rank: i + 1,
-    }));
-
-    // Generate Sonnet short theses for the top 6 (best-effort — a failure here
-    // must not fail the cron, since gainers + streaks already persisted).
+    // Streaks + AI theses off the cleaned set (frozen repeats removed). Shared
+    // with the on-read close-capture; best-effort so a failure here doesn't fail
+    // the cron once gainers have persisted.
     let analyses = 0;
     try {
-      analyses = await generateAndStoreTopAnalyses(admin, cleanedRows, dateKey, 5);
-    } catch (aiErr) {
-      console.error("[cron/run-eod] AI step:", (aiErr as Error)?.message);
+      analyses = await runEodProcessing(admin, dateKey);
+    } catch (eodErr) {
+      console.error("[cron/run-eod] eod step:", (eodErr as Error)?.message);
     }
 
     return NextResponse.json({

@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "@/components/gainers/GainerRow";
+import { StockChart } from "@/components/gainers/StockChart";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
@@ -41,6 +48,7 @@ function fmt(date: string) {
 
 export function HistoryBrowser({ dates }: { dates: string[] }) {
   const [selected, setSelected] = useState(dates[0] ?? null);
+  const [chartGainer, setChartGainer] = useState<DailyGainer | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["gainers", selected],
@@ -57,6 +65,22 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
   }
 
   return (
+    <>
+    <Dialog open={!!chartGainer} onOpenChange={(open) => !open && setChartGainer(null)}>
+      <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
+          <DialogTitle className="text-base font-semibold tracking-tight">
+            {chartGainer?.ticker}
+            {chartGainer?.company_name && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                — {chartGainer.company_name}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        {chartGainer && <StockChart key={chartGainer.ticker} ticker={chartGainer.ticker} />}
+      </DialogContent>
+    </Dialog>
     <div className="grid gap-4 md:grid-cols-[200px_1fr]">
       <aside className="glass flex max-h-[70vh] flex-col gap-1 overflow-y-auto rounded-2xl p-2">
         {dates.map((d) => (
@@ -67,7 +91,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
               "rounded-lg px-3 py-2 text-left text-sm transition-colors",
               d === selected
                 ? "bg-brand/20 text-foreground"
-                : "text-muted-foreground hover:bg-white/5",
+                : "text-muted-foreground hover:bg-foreground/5",
             )}
           >
             {fmt(d)}
@@ -79,7 +103,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
         {isLoading && (
           <div className="space-y-2 p-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-7 w-full bg-white/5" />
+              <Skeleton key={i} className="h-7 w-full bg-foreground/5" />
             ))}
           </div>
         )}
@@ -104,7 +128,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
         {!isLoading && data?.status === 200 && (
           <Table>
             <TableHeader>
-              <TableRow className="border-white/10 hover:bg-transparent">
+              <TableRow className="border-foreground/10 hover:bg-transparent">
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Ticker</TableHead>
                 <TableHead>Company</TableHead>
@@ -117,12 +141,18 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
             </TableHeader>
             <TableBody>
               {data.gainers.slice(0, 50).map((g, i) => (
-                <GainerRow key={g.ticker} gainer={g} displayRank={i + 1} />
+                <GainerRow
+                  key={g.ticker}
+                  gainer={g}
+                  displayRank={i + 1}
+                  onClick={() => setChartGainer(g)}
+                />
               ))}
             </TableBody>
           </Table>
         )}
       </div>
     </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutButton } from "@/components/CheckoutButton";
+import { ZenithMark } from "@/components/layout/Logo";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -32,22 +33,27 @@ export default async function UpgradePage() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
       <div className="glass-strong rounded-2xl p-8">
-        <p className="text-sm font-medium text-brand">Zenith Pro</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium text-brand">
+          <ZenithMark className="h-5 w-5" unique="upgrade" />
+          Zenith Pro
+        </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
           $4.99<span className="text-base text-muted-foreground">/mo</span>
         </h1>
         <ul className="mt-6 flex flex-col gap-3">
           {PRO_FEATURES.map((f) => (
             <li key={f} className="flex items-start gap-2 text-sm">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-up" />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
               <span className="text-muted-foreground">{f}</span>
             </li>
           ))}
         </ul>
 
         {isPro ? (
-          <p className="mt-7 rounded-lg bg-up/10 px-4 py-2.5 text-center text-sm font-medium text-up">
-            You&apos;re on Pro — thanks!
+          <p className="mt-7 rounded-lg border border-brand/20 bg-brand/10 px-4 py-2.5 text-center text-sm font-semibold">
+            <span className="bg-gradient-to-r from-foreground to-brand bg-clip-text text-transparent">
+              You&apos;re on Pro — thanks!
+            </span>
           </p>
         ) : user ? (
           <CheckoutButton />

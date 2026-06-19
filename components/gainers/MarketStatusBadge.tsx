@@ -40,9 +40,11 @@ function countdown(secs: number): string {
 export function MarketStatusBadge({
   asOf,
   date,
+  isFinal = false,
 }: {
   asOf: string | null;
   date: string | null;
+  isFinal?: boolean;
 }) {
   // Time-dependent state is client-only to avoid SSR hydration mismatch.
   const [now, setNow] = useState<Date | null>(null);
@@ -68,58 +70,77 @@ export function MarketStatusBadge({
     }
   }
 
+  // Colors are applied via inline style (not Tailwind classes) so they render
+  // reliably regardless of JIT class detection.
+  const C = {
+    green: "var(--up)",
+    amber: "#fbbf24", // amber-400
+    red: "var(--down)", // P&L loss-red — ties "closed" to the bearish theme
+    cyan: "var(--brand)", // brand cyan — the official-close pill
+    muted: "var(--muted-foreground)",
+  };
+
   // Left pill — market session.
-  let dot = "bg-muted-foreground";
-  let text = "text-muted-foreground";
+  let dotColor = C.muted;
   let pulse = false;
   let label = "Market";
   let extra: string | null = null;
   if (phase === "open") {
-    dot = "bg-up";
-    text = "text-up";
+    dotColor = C.green;
     pulse = true;
     label = "Market open";
     if (toClose != null && toClose <= 30 * 60) {
       extra = `· closes in ${countdown(toClose)} — get orders in`;
     }
   } else if (phase === "pre-open") {
-    dot = "bg-amber-400";
-    text = "text-amber-300";
+    dotColor = C.amber;
     label = toOpen != null ? `Market opens in ${countdown(toOpen)}` : "Market opens soon";
   } else if (phase === "closed") {
+    dotColor = C.red;
     label = "Market closed";
   }
 
   // Right pill — data freshness / context.
-  let liveDot = false;
+  let rightDotColor = C.muted;
+  let rightPulse = false;
   let freshness = "—";
   if (phase === "open") {
-    liveDot = true;
+    rightDotColor = C.green;
+    rightPulse = true;
     freshness = `Live as of ${clock(asOf)}`;
   } else if (phase != null && date) {
-    freshness =
-      date === todayKey ? "Close · 4:00 PM ET" : `Showing data from ${fmtDate(date)}`;
+    if (date !== todayKey) {
+      // Weekend/holiday/pre-open: showing the last finalized trading day.
+      freshness = `Showing data from ${fmtDate(date)}`;
+    } else if (isFinal) {
+      // The official close is locked in.
+      rightDotColor = C.cyan;
+      freshness = "4:00 PM ET";
+    } else {
+      // Closed, but the close hasn't settled yet — be honest about the real
+      // time of the last snapshot rather than implying it's the 4:00 PM close.
+      rightDotColor = C.amber;
+      freshness = `As of ${clock(asOf)} · finalizing`;
+    }
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="glass inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium">
         <span
-          className={cn("h-1.5 w-1.5 rounded-full", dot, pulse && "animate-pulse-dot")}
+          className={cn("h-1.5 w-1.5 rounded-full", pulse && "animate-pulse-dot")}
+          style={{ backgroundColor: dotColor }}
         />
-        <span className={text}>{label}</span>
-        {extra && <span className="text-amber-300">{extra}</span>}
+        <span style={{ color: dotColor }}>{label}</span>
+        {extra && <span style={{ color: C.amber }}>{extra}</span>}
       </span>
 
-      <span className="glass inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-muted-foreground">
+      <span className="glass inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium">
         <span
-          className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            liveDot ? "bg-up" : "bg-muted-foreground",
-            liveDot && "animate-pulse-dot",
-          )}
+          className={cn("h-1.5 w-1.5 rounded-full", rightPulse && "animate-pulse-dot")}
+          style={{ backgroundColor: rightDotColor }}
         />
-        {freshness}
+        <span style={{ color: rightDotColor }}>{freshness}</span>
       </span>
     </div>
   );

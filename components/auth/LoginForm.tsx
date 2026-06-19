@@ -38,7 +38,7 @@ export function LoginForm() {
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border-white/10 bg-white/5"
+        className="border-foreground/10 bg-foreground/5"
       />
       <Input
         type="password"
@@ -46,7 +46,7 @@ export function LoginForm() {
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="border-white/10 bg-white/5"
+        className="border-foreground/10 bg-foreground/5"
       />
       {error && <p className="text-sm text-down">{error}</p>}
       <Button type="submit" disabled={loading} className="bg-brand text-brand-foreground hover:bg-brand/90">

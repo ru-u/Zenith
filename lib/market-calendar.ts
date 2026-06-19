@@ -55,6 +55,19 @@ export function secondsUntilOpenET(date: Date = new Date()): number | null {
   return diff > 0 ? diff : null;
 }
 
+/**
+ * Minutes since the 4:00 PM ET close on a trading day, or null on
+ * weekends/holidays or before the close. Used to wait out the closing auction
+ * before freezing the official close.
+ */
+export function minutesSinceCloseET(date: Date = new Date()): number | null {
+  if (!isTradingDay(date)) return null;
+  const { hour, minute } = etParts(date);
+  const mins = hour * 60 + minute;
+  const close = 16 * 60; // 4:00 PM ET
+  return mins >= close ? mins - close : null;
+}
+
 /** Today's date in ET as a YYYY-MM-DD key. */
 export function getTodayET(date: Date = new Date()): string {
   // en-CA renders as YYYY-MM-DD.

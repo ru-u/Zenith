@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UserMenu } from "./UserMenu";
+import { Logo } from "./Logo";
 
 function displayName(user: {
   email?: string | null;
@@ -22,15 +23,10 @@ export async function Header() {
   } = await supabase.auth.getUser();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/5 backdrop-blur-md">
+    <header className="sticky top-0 z-20 border-b border-foreground/5 backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2">
-          {/* Replace public/logo.svg with your real logo (keep the filename). */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="Zenith" className="h-7 w-7 rounded-lg" />
-          <span className="bg-gradient-to-br from-foreground to-brand bg-clip-text text-lg font-semibold tracking-tight text-transparent">
-            Zenith
-          </span>
+        <Link href="/" className="flex items-center" aria-label="Zenith home">
+          <Logo unique="header" />
         </Link>
 
         <nav className="flex items-center gap-2 text-sm">
@@ -47,7 +43,7 @@ export async function Header() {
             Upgrade
           </Link>
           {user ? (
-            <UserMenu name={displayName(user)} />
+            <UserMenu name={displayName(user)} email={user.email ?? undefined} />
           ) : (
             <Link
               href="/auth/login"

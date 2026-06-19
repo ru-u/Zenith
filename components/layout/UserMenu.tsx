@@ -1,10 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Menu } from "@base-ui/react/menu";
+import { Settings, LogOut, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/settings/ThemeToggle";
 
-export function UserMenu({ name }: { name: string }) {
+const itemClass =
+  "flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 outline-none transition-colors select-none data-[highlighted]:bg-secondary/70";
+
+export function UserMenu({ name, email }: { name: string; email?: string }) {
   const router = useRouter();
 
   async function signOut() {
@@ -13,20 +19,55 @@ export function UserMenu({ name }: { name: string }) {
     router.refresh();
   }
 
+  const initial = (name || email || "?").charAt(0).toUpperCase();
+
   return (
-    <div className="flex items-center gap-2 sm:ml-1 sm:border-l sm:border-white/10 sm:pl-3">
-      {/* Width grows with the name (truncates only past ~18 chars). */}
-      <span className="hidden max-w-[18ch] truncate font-medium text-foreground/80 sm:inline">
-        {name}
-      </span>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={signOut}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        Sign out
-      </Button>
-    </div>
+    <Menu.Root>
+      <Menu.Trigger className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-sm outline-none transition-colors hover:bg-secondary/50 focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[popup-open]:bg-secondary/60">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/20 text-xs font-semibold leading-none text-brand">
+          {initial}
+        </span>
+        <span className="hidden max-w-[14ch] truncate font-medium text-foreground/80 sm:inline">
+          {name}
+        </span>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </Menu.Trigger>
+
+      <Menu.Portal>
+        <Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
+          <Menu.Popup className="glass min-w-[260px] rounded-xl p-1.5 text-sm shadow-xl outline-none">
+            <div className="px-2.5 py-2">
+              <p className="truncate font-medium">{name}</p>
+              {email && (
+                <p className="truncate text-xs text-muted-foreground">{email}</p>
+              )}
+            </div>
+
+            <div className="my-1 h-px bg-border" />
+
+            <Menu.LinkItem render={<Link href="/settings" />} className={itemClass}>
+              <Settings className="h-4 w-4 text-muted-foreground" />
+              Settings
+            </Menu.LinkItem>
+
+            <div className="my-1 h-px bg-border" />
+
+            <div className="px-2.5 py-2">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Appearance
+              </p>
+              <ThemeToggle />
+            </div>
+
+            <div className="my-1 h-px bg-border" />
+
+            <Menu.Item onClick={signOut} className={itemClass}>
+              <LogOut className="h-4 w-4 text-muted-foreground" />
+              Sign out
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }

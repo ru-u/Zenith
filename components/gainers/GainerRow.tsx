@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { StreakBadge } from "./StreakBadge";
 import type { DailyGainer } from "@/lib/supabase/types";
@@ -15,15 +16,30 @@ export function GainerRow({
   gainer,
   streak,
   displayRank,
+  onClick,
 }: {
   gainer: DailyGainer;
   streak?: number;
-  // Sequential position within the (possibly filtered) view, 1..N.
   displayRank: number;
+  onClick?: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   const up = (gainer.change_percent ?? 0) >= 0;
   return (
-    <TableRow className="border-white/5 hover:bg-white/[0.03]">
+    <TableRow
+      className={cn("border-foreground/5", onClick && "cursor-pointer")}
+      style={
+        onClick && hovered
+          ? {
+              backgroundColor:
+                "color-mix(in oklab, var(--foreground) 9%, transparent)",
+            }
+          : undefined
+      }
+      onMouseEnter={onClick ? () => setHovered(true) : undefined}
+      onMouseLeave={onClick ? () => setHovered(false) : undefined}
+      onClick={onClick}
+    >
       <TableCell className="text-muted-foreground tabular-nums">
         {displayRank}
       </TableCell>
