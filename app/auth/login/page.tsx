@@ -2,10 +2,23 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Logo } from "@/components/layout/Logo";
+import { AuthBackdrop } from "@/components/auth/AuthBackdrop";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const next = (await searchParams).next;
+  const variant =
+    typeof next === "string" && next.includes("/history")
+      ? "history"
+      : "screener";
+
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
+    <>
+    <AuthBackdrop variant={variant} />
+    <main className="relative z-10 mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
       <Link href="/" className="mb-6 flex justify-center" aria-label="Zenith home">
         <Logo unique="login" markClassName="h-8 w-8" />
       </Link>
@@ -19,5 +32,6 @@ export default function LoginPage() {
         </Suspense>
       </div>
     </main>
+    </>
   );
 }

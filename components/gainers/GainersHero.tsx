@@ -16,18 +16,21 @@ import {
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { formatPrice } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
-// One distinct hover-glow gradient per card (by rank), not by magnitude.
-// Cohesive cool ramp drawn from the cyan/teal brand family.
-const GRADIENTS = [
-  "from-brand/30",
-  "from-cyan-400/25",
-  "from-sky-400/25",
-  "from-teal-300/25",
-  "from-blue-400/25",
-];
+// Hover-glow: the brand cyan, with prominence ramping DOWN by rank — card #1 is
+// the strongest cyan glow, each card after it a step weaker, #5 the faintest.
+// var(--brand) adapts per theme, so the ramp reads in both light and dark.
+function heroGlow(index: number): React.CSSProperties {
+  const corner = 62 - index * 9; // 62 → 26 across #1–#5
+  const mid = Math.round(corner * 0.55);
+  return {
+    backgroundImage: `linear-gradient(135deg,
+      color-mix(in oklab, var(--brand) ${corner}%, transparent) 0%,
+      color-mix(in oklab, var(--brand) ${mid}%, transparent) 48%,
+      transparent 80%)`,
+  };
+}
 
 function HeroCard({
   gainer,
@@ -53,10 +56,8 @@ function HeroCard({
       onClick={onClick}
     >
       <div
-        className={cn(
-          "absolute -inset-px rounded-2xl bg-gradient-to-br to-transparent opacity-0 blur transition-opacity duration-300 group-hover:opacity-100",
-          GRADIENTS[index % GRADIENTS.length],
-        )}
+        className="absolute -inset-px rounded-2xl opacity-0 blur transition-opacity duration-300 group-hover:opacity-100"
+        style={heroGlow(index)}
         aria-hidden
       />
       <div className="glass-strong relative flex h-full flex-col gap-2 overflow-hidden rounded-2xl p-5">

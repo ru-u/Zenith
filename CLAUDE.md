@@ -83,6 +83,11 @@ identical values day-over-day are dropped by `dropFrozenRepeats` (`lib/gainers.t
 - **Service-role client (`lib/supabase/admin.ts`) must NEVER be imported in a
   `"use client"` component** — server components / API routes only. `.env.local`
   is never committed.
+- **Auth/session middleware lives in `proxy.ts` (repo root), not
+  `middleware.ts`** — Next.js 16 renamed the `middleware` convention to `proxy`
+  (export `proxy()`, not `middleware()`). It refreshes the Supabase session
+  cookie on every matched request and auth-gates `/history` (redirects to
+  `/auth/login?next=…`).
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
 - **TradingView is a stopgap** (undocumented endpoint, ToS risk). Swap to a paid
   provider (the Polygon path exists) before public launch; toggle with

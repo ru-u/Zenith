@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTheme } from "next-themes";
 
 declare global {
   interface Window {
@@ -19,6 +20,8 @@ declare global {
 // fixed size measured mid-animation (which renders a dead snapshot).
 export function StockChart({ ticker }: { ticker: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { resolvedTheme } = useTheme();
+  const chartTheme = resolvedTheme === "light" ? "light" : "dark";
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +35,7 @@ export function StockChart({ ticker }: { ticker: string }) {
         symbol: ticker,
         interval: "D",
         timezone: "America/New_York",
-        theme: "dark",
+        theme: chartTheme, // follow the app's light/dark theme
         style: "3", // area chart — readable for students new to candles
         // Recolor the area series from TradingView's default blue to brand cyan.
         overrides: {
@@ -70,7 +73,7 @@ export function StockChart({ ticker }: { ticker: string }) {
       cancelled = true;
       if (el) el.innerHTML = "";
     };
-  }, [ticker]);
+  }, [ticker, chartTheme]);
 
   return (
     <div className="w-full" style={{ height: 680 }}>

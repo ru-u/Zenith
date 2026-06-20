@@ -1,10 +1,23 @@
 import Link from "next/link";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { Logo } from "@/components/layout/Logo";
+import { AuthBackdrop } from "@/components/auth/AuthBackdrop";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const next = (await searchParams).next;
+  const variant =
+    typeof next === "string" && next.includes("/history")
+      ? "history"
+      : "screener";
+
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
+    <>
+    <AuthBackdrop variant={variant} />
+    <main className="relative z-10 mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
       <Link href="/" className="mb-6 flex justify-center" aria-label="Zenith home">
         <Logo unique="signup" markClassName="h-8 w-8" />
       </Link>
@@ -18,5 +31,6 @@ export default function SignupPage() {
         <SignupForm />
       </div>
     </main>
+    </>
   );
 }

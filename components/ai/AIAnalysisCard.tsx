@@ -5,12 +5,27 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Lock, Sparkles } from "lucide-react";
 import { RiskLevelBadge } from "./RiskLevelBadge";
+import { StockChart } from "@/components/gainers/StockChart";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGainers } from "@/hooks/useGainers";
 import { cn } from "@/lib/utils";
 import type { AIAnalysis } from "@/lib/supabase/types";
 
-function AnalysisTile({ a, featured }: { a: AIAnalysis; featured?: boolean }) {
+function AnalysisTile({
+  a,
+  featured,
+  onTickerClick,
+}: {
+  a: AIAnalysis;
+  featured?: boolean;
+  onTickerClick: (ticker: string) => void;
+}) {
   return (
     <div
       className={cn(
@@ -19,14 +34,18 @@ function AnalysisTile({ a, featured }: { a: AIAnalysis; featured?: boolean }) {
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span
+        {/* Only the ticker is clickable — opens that ticker's chart. */}
+        <button
+          type="button"
+          onClick={() => onTickerClick(a.ticker)}
+          title={`View ${a.ticker} chart`}
           className={cn(
-            "truncate font-semibold tracking-tight",
+            "-mx-1 cursor-pointer truncate rounded px-1 text-left font-semibold tracking-tight transition-colors hover:text-brand",
             featured && "text-2xl",
           )}
         >
           {a.ticker}
-        </span>
+        </button>
         <RiskLevelBadge level={a.risk_level} />
       </div>
       <p
@@ -109,6 +128,8 @@ export function AIAnalysisCard() {
   });
 
   const [collapsed, setCollapsed] = useState(false);
+  const [chartTicker, setChartTicker] = useState<string | null>(null);
+  const companyByTicker = new Map(top.map((g) => [g.ticker, g.company_name]));
 
   const header = (
     <div className="flex items-center justify-between gap-2">
@@ -195,12 +216,36 @@ export function AIAnalysisCard() {
 
   return (
     <section className="flex flex-col gap-3">
+      <Dialog
+        open={!!chartTicker}
+        onOpenChange={(open) => !open && setChartTicker(null)}
+      >
+        <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
+            <DialogTitle className="text-base font-semibold tracking-tight">
+              {chartTicker}
+              {chartTicker && companyByTicker.get(chartTicker) && (
+                <span className="ml-2 font-normal text-muted-foreground">
+                  — {companyByTicker.get(chartTicker)}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {chartTicker && <StockChart key={chartTicker} ticker={chartTicker} />}
+        </DialogContent>
+      </Dialog>
+
       {header}
       {!collapsed &&
         (ordered.length > 0 ? (
         <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-3">
           {ordered.map((a, i) => (
-            <AnalysisTile key={a.ticker} a={a} featured={i === 0} />
+            <AnalysisTile
+              key={a.ticker}
+              a={a}
+              featured={i === 0}
+              onTickerClick={setChartTicker}
+            />
           ))}
         </div>
       ) : (
