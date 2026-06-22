@@ -1,0 +1,6 @@
+{
+  // Tailwind CSS IntelliSense understands v4 at-rules (@theme, @apply, …) and
+  // the CSS-first token setup in app/globals.css — autocomplete + hover for the
+  // design tokens, and no false "Unknown at rule" diagnostics.
+  "recommendations": ["bradlc.vscode-tailwindcss"]
+}
