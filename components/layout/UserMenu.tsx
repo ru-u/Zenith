@@ -34,7 +34,10 @@ export function UserMenu({ name, email }: { name: string; email?: string }) {
 
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
-          <Menu.Popup className="glass min-w-[260px] rounded-xl p-1.5 text-sm shadow-xl outline-none">
+          {/* `.glass-popover` is an opaque, blur-free surface (see globals.css):
+              identical in Chrome and Safari, and nothing behind it can bleed
+              through. */}
+          <Menu.Popup className="glass-popover min-w-[260px] rounded-xl p-1.5 text-sm outline-none">
             <div className="px-2.5 py-2">
               <p className="truncate font-medium">{name}</p>
               {email && (

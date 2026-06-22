@@ -14,10 +14,10 @@ import { useFiltersStore } from "@/stores/filtersStore";
 
 const ANY = "any";
 
-// $3 (min tradeable price) and $25M (min market cap) are the product floors.
+// The scrape already floors at ≥$3 / ≥$25M (lib/marketdata/normalize.ts), so
+// those options would be no-ops — the dropdowns only offer tighter narrowing.
 const PRICE_OPTIONS = [
   { v: ANY, label: "Any price" },
-  { v: "3", label: "≥ $3" },
   { v: "5", label: "≥ $5" },
   { v: "10", label: "≥ $10" },
   { v: "20", label: "≥ $20" },
@@ -26,7 +26,6 @@ const PRICE_OPTIONS = [
 
 const CAP_OPTIONS = [
   { v: ANY, label: "Any market cap" },
-  { v: "25000000", label: "≥ $25M" },
   { v: "100000000", label: "≥ $100M" },
   { v: "500000000", label: "≥ $500M" },
   { v: "1000000000", label: "≥ $1B" },

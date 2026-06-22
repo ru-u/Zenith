@@ -197,6 +197,29 @@
       0 16px 48px -12px rgb(0 0 0 / 0.6);
   }
 
+  /* Popover / dropdown surface (account menu, etc.). Deliberately OPAQUE and
+     free of `backdrop-filter`: base-ui positions popups with a transform, which
+     breaks backdrop blur in Chrome (the blur gets no backdrop root), so a glassy
+     translucent fill renders see-through there while Safari blurs it — a
+     cross-browser split, plus bright content behind bleeds through either way.
+     A solid fill renders identically in every browser and never bleeds. The
+     soft gradient + top highlight + visible border keep the frosted look without
+     flat-black harshness. */
+  .glass-popover {
+    background: linear-gradient(to bottom, oklch(1 0 0), oklch(0.985 0.004 230));
+    border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+    box-shadow:
+      0 1px 0 0 white inset,
+      0 12px 30px -12px rgb(0 0 0 / 0.14);
+  }
+  .dark .glass-popover {
+    background: linear-gradient(to bottom, oklch(0.2 0.022 235), oklch(0.15 0.02 235));
+    border-color: color-mix(in oklab, var(--foreground) 14%, transparent);
+    box-shadow:
+      0 1px 0 0 color-mix(in oklab, var(--foreground) 10%, transparent) inset,
+      0 18px 44px -14px rgb(0 0 0 / 0.65);
+  }
+
   /* Gradient-mesh backdrop layer (fixed, behind all content). The base color is
      a FULLY OPAQUE near-white; only the brand glows differ by theme. We do NOT
      use element `opacity` here — that would make the opaque base translucent and
