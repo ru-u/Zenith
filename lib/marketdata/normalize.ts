@@ -13,8 +13,7 @@ export const TICKER_RE = /^[A-Z]{1,4}$/;
 
 /**
  * Filter → sort (change% desc) → rank → slice.
- * A filter is skipped when its value is null/undefined (some providers don't
- * supply market cap in the bulk snapshot — see polygon.ts), so we never drop a
+ * A filter is skipped when its value is null/undefined, so we never drop a
  * row just because a field is unknown.
  */
 export function rankAndFilter(rows: RawGainer[], limit: number): GainerRow[] {

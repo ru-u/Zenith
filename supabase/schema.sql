@@ -99,6 +99,19 @@ end;
 $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- system_alerts — critical-failure log + dedup for scraper alerting.
+-- The unique (date, alert_type) is the dedup key: one email per condition/day.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.system_alerts (
+  id         bigint generated always as identity primary key,
+  date       text not null,
+  alert_type text not null,
+  detail     text,
+  created_at timestamptz not null default now(),
+  unique (date, alert_type)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Auto-create a profile row when a new auth user signs up
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
@@ -128,6 +141,7 @@ alter table public.daily_gainers  enable row level security;
 alter table public.ticker_streaks enable row level security;
 alter table public.ai_analyses    enable row level security;
 alter table public.fetch_locks    enable row level security;
+alter table public.system_alerts  enable row level security;
 
 -- profiles: a user can read/update only their own row
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -157,5 +171,5 @@ create policy "ai_analyses_pro_read" on public.ai_analyses
     )
   );
 
--- fetch_locks: no anon/auth access (only the service role / SECURITY DEFINER fn touch it).
+-- fetch_locks & system_alerts: no anon/auth access (service-role only).
 -- RLS enabled with no policies = deny all for non-service roles.

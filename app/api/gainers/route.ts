@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
 import { runEodProcessing } from "@/lib/eod";
+import { maybeAlert } from "@/lib/alerts";
 import {
   dropFrozenRepeats,
   getCachedGainers,
@@ -83,6 +84,15 @@ export async function GET() {
       // flagged stale. Never 500.
       if (!(err instanceof ProviderError)) throw err;
       console.error("[/api/gainers] provider error:", err.message);
+      // A fetch we expected to succeed (open session or close-capture) failed
+      // after retries. Email once per day — the unique (date,type) dedup means
+      // this won't flood across page loads or double up with the cron alert.
+      await maybeAlert(admin, {
+        date: dateKey,
+        type: "provider_failed",
+        subject: `Zenith: market-data provider failed for ${dateKey}`,
+        body: `On-read fetch from ${getProvider().name} failed after retries: ${err.message}. Serving stale cache; the screener may be showing outdated data.`,
+      });
     }
   }
 

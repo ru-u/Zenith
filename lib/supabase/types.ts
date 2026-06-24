@@ -70,6 +70,13 @@ export type Database = {
       ticker_streaks: Table<TickerStreak>;
       ai_analyses: Table<AIAnalysis>;
       fetch_locks: Table<{ key: string; locked_at: string }>;
+      system_alerts: Table<{
+        id: number;
+        date: string;
+        alert_type: string;
+        detail: string | null;
+        created_at: string;
+      }>;
     };
     Views: { [_ in never]: never };
     Functions: {

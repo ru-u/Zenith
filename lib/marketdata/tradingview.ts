@@ -7,6 +7,7 @@ import {
 } from "./types";
 import { rankAndFilter, MIN_PRICE } from "./normalize";
 import { getMarketSession } from "../market-calendar";
+import { withRetry } from "../retry";
 
 const SCAN_URL = "https://scanner.tradingview.com/america/scan";
 
@@ -36,8 +37,8 @@ const COLUMNS = [
   "typespecs", // 9  e.g. ["common"], ["preferred"]
 ] as const;
 
-// Realistic UA — TradingView blocks obvious bots. (MVP only; the provider swap
-// to Polygon is the commercial-safe path.)
+// Realistic UA — TradingView blocks obvious bots. (Undocumented endpoint with
+// ToS risk — the sole provider, revisit before any commercial scale.)
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
@@ -114,27 +115,29 @@ export const tradingViewProvider: MarketDataProvider = {
   name: "tradingview",
 
   async getTopGainers(limit: number): Promise<GainerRow[]> {
-    let lastErr: unknown;
-    // One retry with a short backoff.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const json = await postScan(limit);
-        const raw = (json.data ?? [])
-          .filter((e) => ALLOWED_EXCHANGE.test(e.s))
-          .filter(isCommonStock)
-          .map(mapRow);
-        return rankAndFilter(raw, limit);
-      } catch (err) {
-        lastErr = err;
-        if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
-      }
+    try {
+      // 3 tries, exponential backoff + jitter — covers transient blocks/timeouts
+      // without adding much latency to the on-read path (worst case ~2.4s).
+      const json = await withRetry(() => postScan(limit), {
+        onRetry: (err, attempt, delay) =>
+          console.warn(
+            `[tradingview] retry ${attempt} in ${Math.round(delay)}ms:`,
+            (err as Error)?.message,
+          ),
+      });
+      const raw = (json.data ?? [])
+        .filter((e) => ALLOWED_EXCHANGE.test(e.s))
+        .filter(isCommonStock)
+        .map(mapRow);
+      return rankAndFilter(raw, limit);
+    } catch (err) {
+      throw err instanceof ProviderError
+        ? err
+        : new ProviderError(
+            `fetch failed: ${(err as Error)?.message ?? "unknown"}`,
+            "tradingview",
+          );
     }
-    throw lastErr instanceof ProviderError
-      ? lastErr
-      : new ProviderError(
-          `fetch failed: ${(lastErr as Error)?.message ?? "unknown"}`,
-          "tradingview",
-        );
   },
 
   async getMarketStatus(): Promise<ProviderMarketStatus> {

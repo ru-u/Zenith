@@ -48,7 +48,7 @@ Gating is enforced both in API routes and at the database layer via Supabase RLS
 | Styling | Tailwind CSS v4 + shadcn/ui + Framer Motion |
 | State | Zustand (filters) + TanStack Query (cache/refetch) |
 | DB + Auth | Supabase (Postgres + Auth + RLS) |
-| Market data | **Swappable provider**: TradingView scanner (MVP) → Polygon.io Starter (prod) |
+| Market data | TradingView scanner (sole provider, behind a swappable interface) |
 | AI | Anthropic `claude-sonnet-4-6` (structured outputs) |
 | Payments | Stripe Checkout + webhooks |
 | Hosting | Vercel |
@@ -57,22 +57,22 @@ Gating is enforced both in API routes and at the database layer via Supabase RLS
 
 ## Architecture
 
-### Swappable market-data provider
+### Market-data provider
 
 Everything downstream (cron, cache, API, UI) speaks one normalized `GainerRow` shape, so the
-data source is a single env var with no rewrite:
+data source sits behind a single interface and can be swapped without a rewrite:
 
 ```
 lib/marketdata/
 ├── types.ts        # GainerRow, MarketDataProvider interface
-├── index.ts        # getProvider() — reads MARKET_DATA_PROVIDER
-├── tradingview.ts  # MVP: POST scanner.tradingview.com/america/scan (free, near-real-time)
-├── polygon.ts      # Prod: full-market snapshot → rank locally (15-min delayed, commercial)
+├── index.ts        # getProvider() — returns the active provider
+├── tradingview.ts  # POST scanner.tradingview.com/america/scan (free, near-real-time)
 └── normalize.ts    # shared rank + filters (exchange/ticker/price/market-cap)
 ```
 
-`MARKET_DATA_PROVIDER=tradingview` (default) or `polygon`. TradingView is fine for a free,
-pre-revenue MVP; flip to Polygon before charging money for a commercial-licensed source.
+TradingView is the sole provider — an undocumented endpoint with ToS risk, fine for a free,
+pre-revenue MVP. Revisit the licensing/source question before any commercial scale; the
+`MarketDataProvider` interface stays as the seam if another source is added.
 
 ### Refresh strategy — fetch-on-demand + shared cache
 
@@ -120,14 +120,14 @@ Copy `.env.example` to `.env.local` and fill in:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=         # server-only
-MARKET_DATA_PROVIDER=tradingview   # tradingview | polygon
-POLYGON_API_KEY=                   # only when provider=polygon
 ANTHROPIC_API_KEY=
 CRON_SECRET=                       # long random string
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+RESEND_API_KEY=                    # optional — scraper failure alert emails
+ALERT_EMAIL_TO=                    # optional — where alerts are sent
 ```
 
 ### 3. Database
@@ -183,6 +183,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 ## Notes
 
 - TradingView's ToS prohibits scraping/commercial use of its data — acceptable for a free
-  pre-revenue MVP, but switch `MARKET_DATA_PROVIDER` to `polygon` before monetizing.
+  pre-revenue MVP, but it's the sole source with no fallback; revisit the data licensing
+  before monetizing.
 - Market data is delayed/near-real-time by design; the DECA game runs on delayed quotes.
 - Not financial advice — Zenith is an educational tool for a simulated competition.

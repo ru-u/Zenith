@@ -24,8 +24,6 @@ export interface MarketDataProvider {
   getMarketStatus(): Promise<ProviderMarketStatus>;
 }
 
-export type ProviderName = "tradingview" | "polygon";
-
 /** Raw row before ranking/filtering — all fields optional/nullable. */
 export type RawGainer = Omit<GainerRow, "rank">;
 

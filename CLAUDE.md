@@ -19,7 +19,7 @@ simple area view (not candlesticks). Status: **pre-launch MVP**.
 - **Stripe** subscriptions — Zenith Pro, $4.99/mo
 - **Anthropic SDK** (`claude-sonnet-4-6`) for AI theses
 - Market data behind a provider interface (`lib/marketdata/`): **TradingView**
-  scanner (default) or **Polygon**
+  scanner (sole provider; interface kept as a seam for future sources)
 
 > Non-obvious stack notes (besides the Next.js caveat in AGENTS.md): Tailwind v4
 > has **no `tailwind.config.js`** — design tokens are CSS-first in
@@ -61,7 +61,7 @@ identical values day-over-day are dropped by `dropFrozenRepeats` (`lib/gainers.t
 - `components/` — `gainers/` (hero, table, row, StockChart, badges), `ai/`,
   `history/`, `settings/`, `auth/`, `layout/` (Header, UserMenu, Logo,
   GradientMesh), `ui/` (base-ui)
-- `lib/` — `marketdata/` (provider interface + tradingview/polygon), `supabase/`,
+- `lib/` — `marketdata/` (provider interface + tradingview), `supabase/`,
   `gainers.ts`, `streaks.ts`, `eod.ts`, `claude.ts`, `market-calendar.ts`,
   `format.ts`
 - `hooks/` — `useGainers`, `useStreaks`, `useSubscription`
@@ -89,9 +89,10 @@ identical values day-over-day are dropped by `dropFrozenRepeats` (`lib/gainers.t
   cookie on every matched request and auth-gates `/history` (redirects to
   `/auth/login?next=…`).
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
-- **TradingView is a stopgap** (undocumented endpoint, ToS risk). Swap to a paid
-  provider (the Polygon path exists) before public launch; toggle with
-  `MARKET_DATA_PROVIDER`.
+- **TradingView is the sole market-data source** — an undocumented endpoint with
+  ToS risk. There's no provider fallback; revisit the licensing/source question
+  before any commercial scale. The `MarketDataProvider` interface stays as the
+  seam if another source is added.
 - **Branding:** cyan→teal + polar-white on near-black (logo
   `components/layout/Logo.tsx`, favicon `app/icon.png`). Tokens
   `--brand`/`--brand-2`/`--up`/`--down` in `app/globals.css` (light `:root` +
@@ -104,7 +105,9 @@ identical values day-over-day are dropped by `dropFrozenRepeats` (`lib/gainers.t
 - `ANTHROPIC_API_KEY` (read automatically by the SDK)
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
-- `MARKET_DATA_PROVIDER` = `tradingview` | `polygon`; `POLYGON_API_KEY` if polygon
+- `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper
+  failure alerts via `lib/alerts.ts`; if unset, alerts log to console only, no
+  email. Dedup + audit log live in the `system_alerts` table.)
 - `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL`
 
 ## Commands

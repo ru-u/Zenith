@@ -108,6 +108,18 @@ end;
 $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- system_alerts — critical-failure log + dedup for scraper alerting
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.system_alerts (
+  id         bigint generated always as identity primary key,
+  date       text not null,
+  alert_type text not null,
+  detail     text,
+  created_at timestamptz not null default now(),
+  unique (date, alert_type)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- handle_new_user trigger
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
@@ -142,6 +154,7 @@ alter table public.daily_gainers  enable row level security;
 alter table public.ticker_streaks enable row level security;
 alter table public.ai_analyses    enable row level security;
 alter table public.fetch_locks    enable row level security;
+alter table public.system_alerts  enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);
