@@ -6,6 +6,20 @@ export function formatPercent(n: number | null | undefined): string {
   return `${sign}${n.toFixed(2)}%`;
 }
 
+// "YYYY-MM-DD" → "Jun 23, 2025". Parsed as UTC so the calendar date never
+// shifts across the viewer's timezone.
+export function formatDayLabel(date: string | null | undefined): string {
+  if (!date) return "—";
+  const [y, m, d] = date.split("-").map(Number);
+  if (!y || !m || !d) return "—";
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function formatPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `$${n.toLocaleString("en-US", {

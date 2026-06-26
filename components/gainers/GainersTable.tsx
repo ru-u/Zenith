@@ -11,13 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "./GainerRow";
-import { StockChart } from "./StockChart";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ChartDialog } from "./ChartDialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { useFiltersStore } from "@/stores/filtersStore";
@@ -48,21 +42,11 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
 
   return (
     <>
-    <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-      <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
-          <DialogTitle className="text-base font-semibold tracking-tight">
-            {selected?.ticker}
-            {selected?.company_name && (
-              <span className="ml-2 font-normal text-muted-foreground">
-                — {selected.company_name}
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-        {selected && <StockChart key={selected.ticker} ticker={selected.ticker} />}
-      </DialogContent>
-    </Dialog>
+    <ChartDialog
+      gainer={selected}
+      streak={selected ? streaks?.get(selected.ticker) : undefined}
+      onClose={() => setSelected(null)}
+    />
     <div className="glass overflow-hidden rounded-2xl">
       <Table>
         <TableHeader>

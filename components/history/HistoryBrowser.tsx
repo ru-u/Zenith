@@ -13,13 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "@/components/gainers/GainerRow";
-import { StockChart } from "@/components/gainers/StockChart";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ChartDialog } from "@/components/gainers/ChartDialog";
 import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
@@ -66,21 +60,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
 
   return (
     <>
-    <Dialog open={!!chartGainer} onOpenChange={(open) => !open && setChartGainer(null)}>
-      <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
-          <DialogTitle className="text-base font-semibold tracking-tight">
-            {chartGainer?.ticker}
-            {chartGainer?.company_name && (
-              <span className="ml-2 font-normal text-muted-foreground">
-                — {chartGainer.company_name}
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-        {chartGainer && <StockChart key={chartGainer.ticker} ticker={chartGainer.ticker} />}
-      </DialogContent>
-    </Dialog>
+    <ChartDialog gainer={chartGainer} onClose={() => setChartGainer(null)} />
     <div className="grid gap-4 md:grid-cols-[200px_1fr]">
       <aside className="glass flex max-h-[70vh] flex-col gap-1 overflow-y-auto rounded-2xl p-2">
         {dates.map((d) => (

@@ -5,14 +5,8 @@ import { motion } from "framer-motion";
 import { TrendingUp } from "lucide-react";
 import { CountUp } from "./CountUp";
 import { StreakBadge } from "./StreakBadge";
+import { ChartDialog } from "./ChartDialog";
 import { MarketStatusBadge } from "./MarketStatusBadge";
-import { StockChart } from "./StockChart";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { formatPrice } from "@/lib/format";
@@ -95,21 +89,11 @@ export function GainersHero() {
 
   return (
     <>
-    <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-      <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
-          <DialogTitle className="text-base font-semibold tracking-tight">
-            {selected?.ticker}
-            {selected?.company_name && (
-              <span className="ml-2 font-normal text-muted-foreground">
-                — {selected.company_name}
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-        {selected && <StockChart key={selected.ticker} ticker={selected.ticker} />}
-      </DialogContent>
-    </Dialog>
+    <ChartDialog
+      gainer={selected}
+      streak={selected ? streaks?.get(selected.ticker) : undefined}
+      onClose={() => setSelected(null)}
+    />
     <section className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useTheme } from "next-themes";
 
 declare global {
@@ -20,6 +20,13 @@ declare global {
 // fixed size measured mid-animation (which renders a dead snapshot).
 export function StockChart({ ticker }: { ticker: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Unique per instance. TradingView resolves the mount point via
+  // document.getElementById(container_id), so a shared id is dangerous: during a
+  // close→reopen the closing dialog's StockChart and the opening one briefly
+  // coexist with the same id, and getElementById grabs the FIRST (stale, closing)
+  // node — the new widget renders into a detached container and the dialog shows
+  // a dead, non-interactive snapshot. A per-instance id keeps every chart live.
+  const containerId = `tv_${useId().replace(/[^a-zA-Z0-9_]/g, "")}`;
   const { resolvedTheme } = useTheme();
   const chartTheme = resolvedTheme === "light" ? "light" : "dark";
 
@@ -49,7 +56,7 @@ export function StockChart({ ticker }: { ticker: string }) {
         hide_legend: false,
         enable_publishing: false,
         save_image: false,
-        container_id: el.id,
+        container_id: containerId,
       });
     }
 
@@ -73,12 +80,12 @@ export function StockChart({ ticker }: { ticker: string }) {
       cancelled = true;
       if (el) el.innerHTML = "";
     };
-  }, [ticker, chartTheme]);
+  }, [ticker, chartTheme, containerId]);
 
   return (
     <div className="w-full" style={{ height: 680 }}>
       <div
-        id="tv_zenith_chart"
+        id={containerId}
         ref={containerRef}
         style={{ height: "100%", width: "100%" }}
       />

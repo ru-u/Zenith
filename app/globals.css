@@ -148,6 +148,16 @@
   html {
     @apply font-sans;
   }
+  /* Tailwind v4's Preflight sets `cursor: default` on <button> (v3 used pointer),
+     so without this every button — the shared <Button>, base-ui Select triggers,
+     Tabs, Dialog close, Menu triggers, and plain native buttons — shows the arrow
+     cursor. Restore the hand cursor for all enabled buttons in one place so it's
+     uniform site-wide. Non-button clickables (table rows, hero cards, menu items)
+     carry their own `cursor-pointer`; disabled controls are excluded. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
   /* tabular numerals everywhere numbers refresh, so the layout never jitters */
   .tnum,
   table,
@@ -223,17 +233,19 @@
   /* Gradient-mesh backdrop layer (fixed, behind all content). The base color is
      a FULLY OPAQUE near-white; only the brand glows differ by theme. We do NOT
      use element `opacity` here — that would make the opaque base translucent and
-     let whatever sits behind it bleed through. Light glows are softer (they read
-     stronger on white); dark glows are full strength. */
+     let whatever sits behind it bleed through. Same three positions/sizes in both
+     themes; only the glow color + opacity differ. Light glows use a saturated,
+     mid-lightness cyan so they read against near-white (a pale 0.8-lightness cyan
+     just washes out); dark glows are lighter and full strength on near-black. */
   .gradient-mesh {
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(40rem 40rem at 12% -8%, oklch(0.82 0.13 195 / 0.1), transparent 60%),
-      radial-gradient(34rem 34rem at 92% 8%, oklch(0.68 0.13 232 / 0.09), transparent 60%),
-      radial-gradient(46rem 46rem at 70% 100%, oklch(0.8 0.12 205 / 0.08), transparent 60%);
+      radial-gradient(40rem 40rem at 12% -8%, oklch(0.6 0.15 200 / 0.2), transparent 60%),
+      radial-gradient(34rem 34rem at 92% 8%, oklch(0.58 0.15 235 / 0.17), transparent 60%),
+      radial-gradient(46rem 46rem at 70% 100%, oklch(0.62 0.14 205 / 0.15), transparent 60%);
     background-color: var(--background);
     animation: mesh-drift 24s ease-in-out infinite alternate;
   }
