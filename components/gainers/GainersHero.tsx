@@ -97,7 +97,7 @@ export function GainersHero() {
     <section className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="bg-gradient-to-br from-foreground to-brand bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
+          <h1 className="bg-linear-to-br from-foreground to-brand bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
             Today&apos;s top short candidates
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -117,7 +117,7 @@ export function GainersHero() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {top.length === 0
           ? Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="glass h-[150px] animate-pulse rounded-2xl" />
+              <div key={i} className="glass h-37.5 animate-pulse rounded-2xl" />
             ))
           : top.map((g, i) => (
               <HeroCard

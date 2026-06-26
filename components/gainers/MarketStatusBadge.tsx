@@ -49,6 +49,11 @@ export function MarketStatusBadge({
   // Time-dependent state is client-only to avoid SSR hydration mismatch.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    // One-time synchronous seed so the live badge shows immediately on mount
+    // (before the first 1s tick); the interval keeps it current. Reading the
+    // clock at render instead would be impure, so it belongs here — this is the
+    // intended client-clock idiom, not the cascading-render case the rule targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);

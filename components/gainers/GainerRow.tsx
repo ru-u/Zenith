@@ -49,7 +49,7 @@ export function GainerRow({
           <StreakBadge count={streak} />
         </div>
       </TableCell>
-      <TableCell className="max-w-[220px] truncate text-muted-foreground">
+      <TableCell className="max-w-55 truncate text-muted-foreground">
         {gainer.company_name ?? "—"}
       </TableCell>
       <TableCell className="text-right tabular-nums">

@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMounted } from "@/hooks/useMounted";
 
 // Compact light/dark switch for the header — available to everyone, no auth
 // required (theme persists in localStorage). The full 3-way control (incl.
 // System) lives in the user menu and Settings.
 export function ThemeToggleButton({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useMounted();
 
   const isDark = resolvedTheme === "dark";
   // Until mounted, resolvedTheme is unknown on the server, so keep every
