@@ -4,5 +4,15 @@
   // "Unknown at rule". The CSS is valid and compiles — silence the noise.
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
-  "less.lint.unknownAtRules": "ignore"
+  "less.lint.unknownAtRules": "ignore",
+
+  // Hide node_modules from the Explorer + Problems panel. Dependencies ship their
+  // own configs (e.g. call-bind-apply-helpers/tsconfig.json extends a dev-only
+  // base config that isn't installed), which the TS service flags red when such a
+  // file is opened. Those files aren't part of our program (tsconfig excludes
+  // node_modules) — excluding them here stops the editor from surfacing or
+  // opening them. (Reload the window once to drop any already-open node_modules tab.)
+  "files.exclude": {
+    "**/node_modules": true
+  }
 }
