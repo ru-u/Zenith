@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProvider, ProviderError } from "@/lib/marketdata";
-import { runEodProcessing } from "@/lib/eod";
+import { runEodProcessing, runPreCloseProcessing } from "@/lib/eod";
 import { maybeAlert } from "@/lib/alerts";
 import {
   dropFrozenRepeats,
@@ -17,6 +17,7 @@ import {
   getMarketSession,
   isDataStale,
   minutesSinceCloseET,
+  secondsUntilCloseET,
 } from "@/lib/market-calendar";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,10 @@ const FRESHNESS_MINUTES = 10;
 // Wait this long after the 4:00 PM ET close before freezing the official close,
 // so the NYSE/Nasdaq closing auction has fully settled.
 const CLOSE_SETTLE_MINUTES = 5;
+// Minutes before the close to generate AI theses (the actionable "drop"). DECA
+// orders placed before the close fill at today's close, so this leaves a window
+// to read the theses and place orders.
+const PRECLOSE_WINDOW_MINUTES = 30;
 
 export async function GET() {
   const admin = createAdminClient();
@@ -92,6 +97,30 @@ export async function GET() {
         type: "provider_failed",
         subject: `Zenith: market-data provider failed for ${dateKey}`,
         body: `On-read fetch from ${getProvider().name} failed after retries: ${err.message}. Serving stale cache; the screener may be showing outdated data.`,
+      });
+    }
+  }
+
+  // Pre-close drop: ~30 min before the close, generate AI theses for the current
+  // top-N off the live intraday data and email opted-in users, so students can
+  // act while orders still fill at today's close. Fires once/day — the theses
+  // count guard skips it after the first run; the in-process scheduler is the
+  // zero-traffic backstop. Runs in after() so it never blocks the page.
+  const sUntilClose = secondsUntilCloseET();
+  const inPreCloseWindow =
+    sUntilClose != null && sUntilClose <= PRECLOSE_WINDOW_MINUTES * 60;
+  if (!alreadyFinal && inPreCloseWindow && rows.length > 0) {
+    const { count } = await admin
+      .from("ai_analyses")
+      .select("ticker", { count: "exact", head: true })
+      .eq("date", dateKey);
+    if ((count ?? 0) === 0) {
+      after(async () => {
+        try {
+          await runPreCloseProcessing(admin, dateKey);
+        } catch (e) {
+          console.error("[/api/gainers] pre-close processing:", (e as Error)?.message);
+        }
       });
     }
   }

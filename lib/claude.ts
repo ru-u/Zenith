@@ -131,6 +131,10 @@ export async function generateAndStoreTopAnalyses(
         key_catalysts: a.key_catalysts,
         recommendation: a.recommendation,
         model: ANALYSIS_MODEL,
+        // Denormalized so the AI card renders exactly this drop's set, in order,
+        // independent of how the live gainer list shifts before the close.
+        rank: g.rank,
+        company_name: g.companyName,
       },
       { onConflict: "date,ticker" },
     );

@@ -129,7 +129,6 @@ export function AIAnalysisCard() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [chartTicker, setChartTicker] = useState<string | null>(null);
-  const companyByTicker = new Map(top.map((g) => [g.ticker, g.company_name]));
 
   const header = (
     <div className="flex items-center justify-between gap-2">
@@ -193,7 +192,7 @@ export function AIAnalysisCard() {
               <Lock className="h-4 w-4" />
             </span>
             <p className="text-sm font-medium">
-              Claude short theses are a Pro feature
+              Read all 5 short theses before today&apos;s close
             </p>
             <Link
               href="/upgrade"
@@ -208,11 +207,14 @@ export function AIAnalysisCard() {
     );
   }
 
-  // Pro tier: real analyses, ordered by today's rank, capped to the top 5.
-  const byTicker = new Map((analyses ?? []).map((a) => [a.ticker, a]));
-  const ordered = top
-    .map((g) => byTicker.get(g.ticker))
-    .filter((a): a is AIAnalysis => Boolean(a));
+  // Pro tier: the theses generated at the ~3:30 drop, ordered by their stored
+  // rank and self-contained (company name comes from the thesis row) — NOT
+  // intersected with the live top-5, so the set stays stable as the gainer list
+  // moves before the close.
+  const ordered = [...(analyses ?? [])]
+    .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+    .slice(0, 5);
+  const companyByTicker = new Map(ordered.map((a) => [a.ticker, a.company_name]));
 
   return (
     <section className="flex flex-col gap-3">
@@ -250,7 +252,8 @@ export function AIAnalysisCard() {
         </div>
       ) : (
         <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
-          Theses are generated after each market close. Check back shortly.
+          Today&apos;s short theses post about 30 minutes before the close — check
+          back this afternoon to trade at today&apos;s price.
         </div>
         ))}
     </section>

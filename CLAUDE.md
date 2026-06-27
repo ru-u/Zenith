@@ -39,32 +39,52 @@ triggering per-render provider calls).
 1. Serve cached `daily_gainers` for today.
 2. During the regular session (9:30–16:00 ET), if data is stale (>10 min),
    self-fetch the provider and cache it.
-3. ~5 min after the 16:00 close, the first read **finalizes** the official close
-   (`is_final`) and, via Next's `after()`, runs end-of-day processing (streaks +
-   AI) in the background — see `lib/eod.ts`.
-4. Off-hours / weekends / holidays: serve the last finalized day.
+3. ~30 min before the close (the **pre-close "drop"**), generate AI short theses
+   for the top-5 off the intraday data and email opted-in users — via Next's
+   `after()`, `runPreCloseProcessing` in `lib/eod.ts`. This is the actionable
+   moment (see Competition mechanics below). Theses store a `rank` so the AI card
+   shows exactly the drop's set.
+4. ~5 min after the 16:00 close, the first read **finalizes** the official close
+   (`is_final`) and runs end-of-day processing (streaks; theses only as a
+   **fallback** if the drop failed) in the background — `lib/eod.ts`.
+5. Off-hours / weekends / holidays: serve the last finalized day.
 
-**Write** — `GET /api/cron/run-eod` (Vercel cron `5 21 * * 1-5` ≈ 16:05 ET in
-winter / 17:05 ET in summer): a backstop that finalizes + runs `runEodProcessing`.
-Idempotent with the read-path finalize.
+**Write / scheduled** — two idempotent backstops, both reusing the read-path
+logic, secured by `CRON_SECRET`:
+- **Pre-close drop** `GET /api/cron/pre-close` (~3:30 ET): refresh intraday
+  gainers, generate theses, email opted-in users (`runPreCloseProcessing`).
+- **EOD finalize** `GET /api/cron/run-eod` (~4:05 ET): finalize the official close
+  + streaks (theses fallback).
 
-Only the **regular session** matters — DECA orders execute at the close. ET
-sessions/holidays live in `lib/market-calendar.ts`. Halted stocks that report
-identical values day-over-day are dropped by `dropFrozenRepeats` (`lib/gainers.ts`).
+On **Railway** (the deploy target) these fire via an in-process `node-cron`
+scheduler — `instrumentation.ts`, ET timezone, an every-5-min check so it adapts
+to half-days — so **run a SINGLE replica** (jobs are idempotent regardless).
+`vercel.json` keeps the run-eod cron as a Vercel-deployment fallback.
+
+**Competition mechanics (DECA SMG).** It's the *End-of-Day* game: a trade entered
+any time during market hours fills at **that day's close**; entered after close →
+the **next** day's close. Orders are pending + cancelable until the close — there's
+no earlier cutoff. So AI theses must land **before** the close to be actionable
+(hence the ~3:30 drop), and only the **regular session** matters. ET
+sessions/holidays/half-days live in `lib/market-calendar.ts`. Halted stocks that
+report identical values day-over-day are dropped by `dropFrozenRepeats`
+(`lib/gainers.ts`).
 
 ## Layout
 
 - `app/` — `page.tsx` (home / today), `history/`, `upgrade/`, `settings/`,
   `auth/{login,signup}/`
   - `app/api/` — `gainers/`, `gainers/[date]/`, `streaks/`, `ai-analysis/`
-    (Pro-gated), `cron/run-eod/`, `stripe/{create-checkout,create-portal,webhook}/`
+    (Pro-gated), `cron/{run-eod,pre-close}/`, `unsubscribe/`,
+    `stripe/{create-checkout,create-portal,webhook}/`
+  - `instrumentation.ts` (repo root) — in-process `node-cron` scheduler (Railway)
 - `components/` — `gainers/` (hero, table, row, StockChart, badges), `ai/`,
   `history/`, `settings/`, `auth/`, `layout/` (Header, UserMenu, Logo,
   GradientMesh), `ui/` (base-ui)
 - `lib/` — `marketdata/` (provider interface + tradingview), `supabase/`,
-  `gainers.ts`, `streaks.ts`, `eod.ts`, `claude.ts`, `market-calendar.ts`,
-  `format.ts`
-- `hooks/` — `useGainers`, `useStreaks`, `useSubscription`
+  `gainers.ts`, `streaks.ts`, `eod.ts`, `claude.ts`, `notify.ts` (pre-close
+  email), `market-calendar.ts`, `format.ts`, `alerts.ts`
+- `hooks/` — `useGainers`, `useStreaks`, `useSubscription`, `useMounted`
 - `supabase/` — `schema.sql` (fresh install), `migrate.sql` (idempotent, for an
   existing DB)
 
@@ -117,5 +137,6 @@ identical values day-over-day are dropped by `dropFrozenRepeats` (`lib/gainers.t
 - `npm run build` / `npm run start` / `npm run lint`
 - DB setup: run `supabase/schema.sql` (new) or `supabase/migrate.sql` (existing)
   in the Supabase SQL editor.
-- Trigger EOD locally:
+- Trigger pre-close drop / EOD locally:
+  `curl -H "Authorization: Bearer $CRON_SECRET" localhost:3000/api/cron/pre-close`
   `curl -H "Authorization: Bearer $CRON_SECRET" localhost:3000/api/cron/run-eod`

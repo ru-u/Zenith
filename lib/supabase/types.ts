@@ -12,6 +12,8 @@ export type Profile = {
   email: string | null;
   subscription_tier: SubscriptionTier;
   stripe_customer_id: string | null;
+  notify_preclose: boolean;
+  unsubscribe_token: string;
   created_at: string;
   updated_at: string;
 };
@@ -48,6 +50,8 @@ export type AIAnalysis = {
   key_catalysts: string[];
   recommendation: string;
   model: string | null;
+  rank: number | null;
+  company_name: string | null;
   created_at: string;
 };
 

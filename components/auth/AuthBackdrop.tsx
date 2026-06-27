@@ -28,7 +28,7 @@ const DATES = [
 
 function Table() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-foreground/10 bg-foreground/[0.03]">
+    <div className="overflow-hidden rounded-2xl border border-foreground/10 bg-foreground/3">
       {ROWS.map((g, i) => (
         <div
           key={g.t}
@@ -57,7 +57,7 @@ function ScreenerMock() {
         {ROWS.slice(0, 5).map((g) => (
           <div
             key={g.t}
-            className="flex flex-col gap-2 rounded-2xl border border-foreground/10 bg-foreground/[0.04] p-5"
+            className="flex flex-col gap-2 rounded-2xl border border-foreground/10 bg-foreground/4 p-5"
           >
             <span className="text-base font-semibold tracking-tight">{g.t}</span>
             <span className="mt-6 inline-flex items-center gap-1 text-2xl font-bold text-up">
@@ -80,7 +80,7 @@ function HistoryMock() {
   return (
     <div className="mx-auto max-w-6xl px-6 pt-16">
       <div className="grid gap-4 md:grid-cols-[200px_1fr]">
-        <div className="flex h-fit flex-col gap-1.5 rounded-2xl border border-foreground/10 bg-foreground/[0.03] p-2">
+        <div className="flex h-fit flex-col gap-1.5 rounded-2xl border border-foreground/10 bg-foreground/3 p-2">
           {DATES.map((d, i) => (
             <div
               key={d}

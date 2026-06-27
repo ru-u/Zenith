@@ -14,6 +14,11 @@ alter table public.profiles add column if not exists subscription_tier text not 
 alter table public.profiles add column if not exists stripe_customer_id text;
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
 alter table public.profiles add column if not exists updated_at timestamptz not null default now();
+-- Pre-close email opt-out + a per-user token so the unsubscribe link can't be
+-- forged to unsubscribe other users.
+alter table public.profiles add column if not exists notify_preclose boolean not null default true;
+alter table public.profiles add column if not exists unsubscribe_token uuid not null default gen_random_uuid();
+create unique index if not exists profiles_unsubscribe_token_uidx on public.profiles (unsubscribe_token);
 
 alter table public.profiles drop constraint if exists profiles_subscription_tier_check;
 alter table public.profiles
@@ -68,6 +73,11 @@ alter table public.ai_analyses add column if not exists risk_level text;
 alter table public.ai_analyses add column if not exists key_catalysts text[] not null default '{}';
 alter table public.ai_analyses add column if not exists recommendation text;
 alter table public.ai_analyses add column if not exists model text;
+-- Denormalized from daily_gainers at generation time so the AI card renders the
+-- exact set of theses produced at the ~3:30 drop, in order, even if the live
+-- gainer list shifts before the close.
+alter table public.ai_analyses add column if not exists rank integer;
+alter table public.ai_analyses add column if not exists company_name text;
 alter table public.ai_analyses add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists ai_analyses_date_ticker_uidx on public.ai_analyses (date, ticker);

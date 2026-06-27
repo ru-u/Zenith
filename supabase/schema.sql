@@ -11,9 +11,13 @@ create table if not exists public.profiles (
   email             text,
   subscription_tier text not null default 'free' check (subscription_tier in ('free', 'pro')),
   stripe_customer_id text,
+  notify_preclose   boolean not null default true,            -- pre-close email opt-out
+  unsubscribe_token uuid not null default gen_random_uuid(),  -- unguessable unsubscribe link
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
+
+create unique index if not exists profiles_unsubscribe_token_uidx on public.profiles (unsubscribe_token);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- daily_gainers — one row per ticker per trading day
@@ -62,6 +66,8 @@ create table if not exists public.ai_analyses (
   key_catalysts  text[] not null default '{}',
   recommendation text not null,
   model          text,
+  rank           integer,  -- denormalized from daily_gainers at the ~3:30 drop
+  company_name   text,     -- so the AI card renders the exact drop set, in order
   created_at     timestamptz not null default now(),
   unique (date, ticker)
 );

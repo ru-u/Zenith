@@ -40,7 +40,7 @@ function etParts(date: Date) {
 export function secondsUntilCloseET(date: Date = new Date()): number | null {
   if (!isTradingDay(date)) return null;
   const { hour, minute, second } = etParts(date);
-  const diff = 16 * 3600 - (hour * 3600 + minute * 60 + second);
+  const diff = closeMinutesET(date) * 60 - (hour * 3600 + minute * 60 + second);
   return diff > 0 ? diff : null;
 }
 
@@ -64,7 +64,7 @@ export function minutesSinceCloseET(date: Date = new Date()): number | null {
   if (!isTradingDay(date)) return null;
   const { hour, minute } = etParts(date);
   const mins = hour * 60 + minute;
-  const close = 16 * 60; // 4:00 PM ET
+  const close = closeMinutesET(date); // 1:00 PM on half-days, else 4:00 PM ET
   return mins >= close ? mins - close : null;
 }
 
@@ -96,6 +96,20 @@ export function isTradingDay(date: Date = new Date()): boolean {
   return !US_MARKET_HOLIDAYS.has(getTodayET(date));
 }
 
+// Half-days (NYSE/Nasdaq 1:00 PM ET close) as ET date keys → close minutes from
+// ET midnight. Without this, the pre-close drop would fire AFTER the real close
+// on these days. Maintain yearly alongside US_MARKET_HOLIDAYS.
+const US_MARKET_EARLY_CLOSES = new Map<string, number>([
+  ["2026-11-27", 13 * 60], // day after Thanksgiving
+  ["2026-12-24", 13 * 60], // Christmas Eve
+  ["2027-11-26", 13 * 60], // day after Thanksgiving
+]);
+
+/** Close time (minutes from ET midnight) for a date — 1:00 PM on half-days, else 4:00 PM. */
+export function closeMinutesET(date: Date = new Date()): number {
+  return US_MARKET_EARLY_CLOSES.get(getTodayET(date)) ?? 16 * 60;
+}
+
 /** True when cached rows are older than the freshness threshold. */
 export function isDataStale(
   scrapedAt: string | Date | null | undefined,
@@ -119,7 +133,7 @@ export function getMarketSession(date: Date = new Date()): MarketSession {
   const { hour, minute } = etParts(date);
   const mins = hour * 60 + minute;
   const open = 9 * 60 + 30; // 9:30 AM ET
-  const close = 16 * 60; // 4:00 PM ET
+  const close = closeMinutesET(date); // 1:00 PM on half-days, else 4:00 PM ET
   if (mins < 4 * 60) return "closed"; // before 4:00 AM
   if (mins < open) return "pre-market";
   if (mins < close) return "open";
