@@ -5,6 +5,47 @@ import { getCleanedGainers } from "./gainers";
 import { updateStreaks } from "./streaks";
 import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
+import {
+  resolveBaseRate,
+  formatBaseRatePrior,
+  type BaseRate,
+} from "./baseRates";
+
+/** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
+async function fetchStreaks(
+  admin: SupabaseClient<Database>,
+  tickers: string[],
+): Promise<Map<string, number>> {
+  if (tickers.length === 0) return new Map();
+  const { data } = await admin
+    .from("ticker_streaks")
+    .select("ticker, streak_count")
+    .in("ticker", tickers);
+  return new Map((data ?? []).map((r) => [r.ticker, r.streak_count]));
+}
+
+/**
+ * Per-ticker empirical base-rate prior (Phase 2), resolved from the precomputed
+ * cap×relvol buckets. Empty/absent table → null priors (prompt omits the line),
+ * so this is safe to ship before the historical data is ingested.
+ */
+async function fetchBaseRatePriors(
+  admin: SupabaseClient<Database>,
+  rows: GainerRow[],
+): Promise<Map<string, string | null>> {
+  const { data } = await admin
+    .from("gainer_base_rates")
+    .select("cap_band, relvol_band, n, down_rate, median_next_day_return");
+  const rates = (data ?? []) as BaseRate[];
+  const priors = new Map<string, string | null>();
+  for (const g of rows) {
+    priors.set(
+      g.ticker,
+      formatBaseRatePrior(resolveBaseRate(rates, g.marketCap, g.relativeVolume)),
+    );
+  }
+  return priors;
+}
 
 /** Cleaned (frozen-repeats removed) gainers → re-ranked GainerRow set. */
 function toGainerRows(cleaned: DailyGainer[]): GainerRow[] {
@@ -38,7 +79,17 @@ export async function runPreCloseProcessing(
   if (cleaned.length === 0) return 0;
 
   const rows = toGainerRows(cleaned);
-  const created = await generateAndStoreTopAnalyses(admin, rows, dateKey, aiCount);
+  const top = rows.slice(0, aiCount);
+  const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
+  const priors = await fetchBaseRatePriors(admin, top);
+  const created = await generateAndStoreTopAnalyses(
+    admin,
+    rows,
+    dateKey,
+    streaks,
+    priors,
+    aiCount,
+  );
 
   // Best-effort: a send failure must never fail the drop (theses still landed).
   try {
@@ -67,11 +118,18 @@ export async function runEodProcessing(
   const cleaned = await getCleanedGainers(admin, dateKey);
   if (cleaned.length === 0) return 0;
 
+  const rows = toGainerRows(cleaned);
+  const top = rows.slice(0, aiCount);
+  // Read streaks BEFORE updateStreaks so the count is on the same prior-day basis
+  // as the pre-close drop (not yet including today).
+  const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
+  const priors = await fetchBaseRatePriors(admin, top);
+
   await updateStreaks(
     admin,
     cleaned.map((g) => g.ticker),
     dateKey,
   );
 
-  return generateAndStoreTopAnalyses(admin, toGainerRows(cleaned), dateKey, aiCount);
+  return generateAndStoreTopAnalyses(admin, rows, dateKey, streaks, priors, aiCount);
 }

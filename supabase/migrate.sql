@@ -73,6 +73,13 @@ alter table public.ai_analyses add column if not exists risk_level text;
 alter table public.ai_analyses add column if not exists key_catalysts text[] not null default '{}';
 alter table public.ai_analyses add column if not exists recommendation text;
 alter table public.ai_analyses add column if not exists model text;
+-- 1-day-horizon thesis fields (catalyst via web search + ranked/teaching outputs).
+alter table public.ai_analyses add column if not exists catalyst text;
+alter table public.ai_analyses add column if not exists catalyst_url text;
+alter table public.ai_analyses add column if not exists catalyst_type text;
+alter table public.ai_analyses add column if not exists short_score smallint;
+alter table public.ai_analyses add column if not exists percent_win_estimate smallint;
+alter table public.ai_analyses add column if not exists invalidation text;
 -- Denormalized from daily_gainers at generation time so the AI card renders the
 -- exact set of theses produced at the ~3:30 drop, in order, even if the live
 -- gainer list shifts before the close.
@@ -83,12 +90,58 @@ alter table public.ai_analyses add column if not exists created_at timestamptz n
 create unique index if not exists ai_analyses_date_ticker_uidx on public.ai_analyses (date, ticker);
 create index if not exists ai_analyses_date_idx on public.ai_analyses (date desc);
 
--- Drop-and-recreate (not guarded) — an older deployment had this constraint
--- WITHOUT 'extreme', which rejects parabolic runners. Existing rows are all
--- valid values, so re-adding the superset constraint is safe.
+-- risk_level is deprecated (every runner here is risky, so the label doesn't
+-- differentiate) — its job moves to percent_win_estimate + catalyst-aware analysis.
+-- Stop requiring/validating it; keep the column nullable & unused for reversibility.
+alter table public.ai_analyses alter column risk_level drop not null;
 alter table public.ai_analyses drop constraint if exists ai_analyses_risk_level_check;
+
+-- invalidation, key_catalysts, recommendation are deprecated (the card now shows
+-- only metadata → why it spiked → thesis → score/win%). Keep the columns nullable
+-- & unused for reversibility; recommendation must drop NOT NULL so inserts omit it.
+alter table public.ai_analyses alter column recommendation drop not null;
+
+-- Range guards for the new ranked outputs.
+alter table public.ai_analyses drop constraint if exists ai_analyses_short_score_check;
 alter table public.ai_analyses
-  add constraint ai_analyses_risk_level_check check (risk_level in ('low', 'medium', 'high', 'extreme'));
+  add constraint ai_analyses_short_score_check check (short_score is null or short_score between 1 and 10);
+alter table public.ai_analyses drop constraint if exists ai_analyses_pct_win_check;
+alter table public.ai_analyses
+  add constraint ai_analyses_pct_win_check check (percent_win_estimate is null or percent_win_estimate between 0 and 100);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Phase 2: historical_gainers (~1yr scrapes + next-day price) + gainer_base_rates
+-- (precomputed "closed lower next day" rates by feature bucket). Internal tables —
+-- RLS on with no policy (deny-all to anon/auth; service-role bypasses).
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.historical_gainers (
+  id bigint generated always as identity primary key
+);
+alter table public.historical_gainers add column if not exists spike_date date;
+alter table public.historical_gainers add column if not exists ticker text;
+alter table public.historical_gainers add column if not exists spike_close numeric;
+alter table public.historical_gainers add column if not exists day_range_pct numeric;
+alter table public.historical_gainers add column if not exists next_date date;
+alter table public.historical_gainers add column if not exists next_close numeric;
+alter table public.historical_gainers add column if not exists next_day_return numeric;
+alter table public.historical_gainers add column if not exists next_day_down boolean;
+alter table public.historical_gainers add column if not exists market_cap numeric;
+alter table public.historical_gainers add column if not exists relative_volume numeric;
+alter table public.historical_gainers add column if not exists sector text;
+alter table public.historical_gainers add column if not exists industry text;
+alter table public.historical_gainers add column if not exists created_at timestamptz not null default now();
+create unique index if not exists historical_gainers_date_ticker_uidx on public.historical_gainers (spike_date, ticker);
+create index if not exists historical_gainers_bucket_idx on public.historical_gainers (market_cap, relative_volume);
+
+create table if not exists public.gainer_base_rates (
+  cap_band               text not null,
+  relvol_band            text not null,
+  n                      integer not null,
+  down_rate              numeric not null,
+  median_next_day_return numeric,
+  updated_at             timestamptz not null default now(),
+  primary key (cap_band, relvol_band)
+);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- fetch_locks + claim_fetch (thundering-herd guard)
@@ -165,6 +218,8 @@ alter table public.ticker_streaks enable row level security;
 alter table public.ai_analyses    enable row level security;
 alter table public.fetch_locks    enable row level security;
 alter table public.system_alerts  enable row level security;
+alter table public.historical_gainers enable row level security;
+alter table public.gainer_base_rates  enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);

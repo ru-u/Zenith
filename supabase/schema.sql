@@ -58,21 +58,67 @@ create index if not exists ticker_streaks_count_idx on public.ticker_streaks (st
 -- ai_analyses — Pro-gated Claude short theses
 -- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.ai_analyses (
-  id             bigint generated always as identity primary key,
-  date           date not null,
-  ticker         text not null,
-  short_thesis   text not null,
-  risk_level     text not null check (risk_level in ('low', 'medium', 'high', 'extreme')),
-  key_catalysts  text[] not null default '{}',
-  recommendation text not null,
-  model          text,
-  rank           integer,  -- denormalized from daily_gainers at the ~3:30 drop
-  company_name   text,     -- so the AI card renders the exact drop set, in order
-  created_at     timestamptz not null default now(),
+  id                   bigint generated always as identity primary key,
+  date                 date not null,
+  ticker               text not null,
+  short_thesis         text not null,
+  catalyst             text,  -- why it spiked today (from web search)
+  catalyst_url         text,  -- source link the model found
+  catalyst_type        text,  -- buyout|earnings|offering|regulatory|partnership|meme_squeeze|other
+  short_score          smallint check (short_score is null or short_score between 1 and 10),
+  percent_win_estimate smallint check (percent_win_estimate is null or percent_win_estimate between 0 and 100),
+  invalidation         text,  -- deprecated: no longer written or shown (kept for reversibility)
+  key_catalysts        text[] not null default '{}',  -- deprecated: no longer written or shown
+  recommendation       text,  -- deprecated: no longer written or shown (kept for reversibility)
+  risk_level           text,  -- deprecated: no longer written or shown (kept for reversibility)
+  model                text,
+  rank                 integer,  -- denormalized from daily_gainers at the ~3:30 drop
+  company_name         text,     -- so the AI card renders the exact drop set, in order
+  created_at           timestamptz not null default now(),
   unique (date, ticker)
 );
 
 create index if not exists ai_analyses_date_idx on public.ai_analyses (date desc);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- historical_gainers — ~1yr of prototype top-gainer scrapes WITH next-day price,
+-- the label for base-rate calibration (Phase 2). Internal: RLS on, NO policy
+-- (deny-all to anon/auth; the service-role client bypasses RLS).
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.historical_gainers (
+  id              bigint generated always as identity primary key,
+  spike_date      date not null,
+  ticker          text not null,
+  spike_close     numeric,
+  day_range_pct   numeric,
+  next_date       date,
+  next_close      numeric,
+  next_day_return numeric,   -- (next_close - spike_close) / spike_close
+  next_day_down   boolean,   -- next_day_return < 0  (a winning next-day short)
+  market_cap      numeric,
+  relative_volume numeric,   -- relvol from the scrape (relvol_30d)
+  sector          text,
+  industry        text,
+  created_at      timestamptz not null default now(),
+  unique (spike_date, ticker)
+);
+create index if not exists historical_gainers_bucket_idx
+  on public.historical_gainers (market_cap, relative_volume);
+
+-- gainer_base_rates — precomputed "closed lower next day" rates by feature bucket.
+-- cap_band/relvol_band = 'ALL' for the coarser fallbacks (cap-only, then global).
+create table if not exists public.gainer_base_rates (
+  cap_band               text not null,  -- nano | micro | small | mid | ALL
+  relvol_band            text not null,  -- rv_lt5 | rv_5_20 | rv_20_100 | rv_100plus | ALL
+  n                      integer not null,
+  down_rate              numeric not null,  -- P(next_day_down), 0..1
+  median_next_day_return numeric,
+  updated_at             timestamptz not null default now(),
+  primary key (cap_band, relvol_band)
+);
+
+alter table public.historical_gainers enable row level security;
+alter table public.gainer_base_rates  enable row level security;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- fetch_locks — atomic claim for on-demand provider fetches (thundering-herd guard)

@@ -46,13 +46,48 @@ export type AIAnalysis = {
   date: string;
   ticker: string;
   short_thesis: string;
-  risk_level: RiskLevel;
+  catalyst: string | null;
+  catalyst_url: string | null;
+  catalyst_type: string | null;
+  short_score: number | null;
+  percent_win_estimate: number | null;
+  invalidation: string | null;
   key_catalysts: string[];
   recommendation: string;
+  // Deprecated: no longer written or shown. Kept nullable for reversibility.
+  risk_level: RiskLevel | null;
   model: string | null;
   rank: number | null;
   company_name: string | null;
   created_at: string;
+};
+
+// ~1yr of prototype top-gainer scrapes with next-day price (Phase 2 base rates).
+export type HistoricalGainer = {
+  id: number;
+  spike_date: string;
+  ticker: string;
+  spike_close: number | null;
+  day_range_pct: number | null;
+  next_date: string | null;
+  next_close: number | null;
+  next_day_return: number | null;
+  next_day_down: boolean | null;
+  market_cap: number | null;
+  relative_volume: number | null;
+  sector: string | null;
+  industry: string | null;
+  created_at: string;
+};
+
+// Precomputed "closed lower next day" base rates by feature bucket.
+export type GainerBaseRate = {
+  cap_band: string;
+  relvol_band: string;
+  n: number;
+  down_rate: number;
+  median_next_day_return: number | null;
+  updated_at: string;
 };
 
 // Generic table-shape helper matching supabase-js's GenericTable shape.
@@ -73,6 +108,8 @@ export type Database = {
       daily_gainers: Table<DailyGainer>;
       ticker_streaks: Table<TickerStreak>;
       ai_analyses: Table<AIAnalysis>;
+      historical_gainers: Table<HistoricalGainer>;
+      gainer_base_rates: Table<GainerBaseRate>;
       fetch_locks: Table<{ key: string; locked_at: string }>;
       system_alerts: Table<{
         id: number;

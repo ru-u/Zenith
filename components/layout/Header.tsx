@@ -44,6 +44,12 @@ export async function Header() {
 
         <nav className="flex items-center gap-1 text-sm sm:gap-2">
           <Link
+            href="/analysis"
+            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Analysis
+          </Link>
+          <Link
             href="/history"
             className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
           >
