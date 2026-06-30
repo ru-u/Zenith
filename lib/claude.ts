@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GainerRow } from "@/lib/marketdata/types";
 import type { Database } from "@/lib/supabase/types";
 
-export const ANALYSIS_MODEL = "claude-sonnet-4-6";
+export const ANALYSIS_MODEL = "claude-haiku-4-5";
 
 // Catalyst classification — drives shortability (a buyout pins; a parabolic runner fades).
 const CATALYST_TYPES = [

@@ -43,21 +43,11 @@ function SummaryRow({
           >
             {a.ticker}
           </button>
-          <div className="flex shrink-0 items-center gap-2">
-            {a.short_score != null && (
-              <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
-                Short {a.short_score}/10
-              </span>
-            )}
-            {a.percent_win_estimate != null && (
-              <span className="hidden text-xs text-muted-foreground sm:inline">
-                <span className="font-semibold text-foreground">
-                  {a.percent_win_estimate}%
-                </span>{" "}
-                chance lower next session
-              </span>
-            )}
-          </div>
+          {a.short_score != null && (
+            <span className="shrink-0 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
+              Short {a.short_score}/10
+            </span>
+          )}
         </div>
         {a.catalyst && (
           <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">

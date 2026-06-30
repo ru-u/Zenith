@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
 import { StockChart } from "@/components/gainers/StockChart";
 import {
   Dialog,
@@ -62,21 +61,11 @@ export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
                   </span>
                 )}
               </button>
-              <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                {a.short_score != null && (
-                  <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
-                    Short {a.short_score}/10
-                  </span>
-                )}
-                {a.percent_win_estimate != null && (
-                  <span className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      {a.percent_win_estimate}%
-                    </span>{" "}
-                    chance it closes lower next session
-                  </span>
-                )}
-              </div>
+              {a.short_score != null && (
+                <span className="shrink-0 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
+                  Short {a.short_score}/10
+                </span>
+              )}
             </div>
 
             {/* Why it spiked */}
@@ -84,17 +73,6 @@ export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
               <p className="text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">Why it spiked: </span>
                 {a.catalyst}
-                {a.catalyst_url && (
-                  <a
-                    href={a.catalyst_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-1 inline-flex items-center gap-0.5 text-brand hover:underline"
-                  >
-                    source
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
               </p>
             )}
 
