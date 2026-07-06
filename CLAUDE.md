@@ -123,6 +123,12 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `ANTHROPIC_API_KEY` (read automatically by the SDK)
+- `AI_THESES_ENABLED` — **kill switch for all Anthropic calls** (`lib/claude.ts
+  aiThesesEnabled()`). Generation runs ONLY when set to exactly `true`;
+  absent/anything else = OFF (fail-safe: a fresh env can never spend).
+  Currently OFF while the AI-analysis direction is researched. Reads
+  (`/api/ai-analysis`, score reveals) are unaffected — stored theses keep
+  serving; the pre-close email still sends, just without theses.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper

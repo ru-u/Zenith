@@ -3,7 +3,7 @@ import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata";
 import { getCleanedGainers } from "./gainers";
 import { updateStreaks } from "./streaks";
-import { generateAndStoreTopAnalyses } from "./claude";
+import { aiThesesEnabled, generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
 import {
   resolveBaseRate,
@@ -91,11 +91,17 @@ export async function runPreCloseProcessing(
     aiCount,
   );
 
-  // Best-effort: a send failure must never fail the drop (theses still landed).
-  try {
-    await sendPreCloseEmails(admin, dateKey, rows);
-  } catch (e) {
-    console.error("[eod] pre-close email:", (e as Error)?.message);
+  // The drop email rides the same kill switch as generation: the email's whole
+  // job is announcing the theses, so while AI is off it doesn't send at all.
+  if (aiThesesEnabled()) {
+    // Best-effort: a send failure must never fail the drop (theses still landed).
+    try {
+      await sendPreCloseEmails(admin, dateKey, rows);
+    } catch (e) {
+      console.error("[eod] pre-close email:", (e as Error)?.message);
+    }
+  } else {
+    console.log("[eod] pre-close email skipped — AI theses disabled.");
   }
   return created;
 }

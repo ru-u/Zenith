@@ -5,6 +5,19 @@ import type { Database } from "@/lib/supabase/types";
 
 export const ANALYSIS_MODEL = "claude-haiku-4-5";
 
+/**
+ * Kill switch for ALL Anthropic calls. Generation runs ONLY when
+ * `AI_THESES_ENABLED=true` — off by default, so a fresh environment, an
+ * exhausted credit balance, or a research pause can never spend. Everything
+ * downstream degrades gracefully: the pre-close email still lists the top
+ * movers (just without theses), and reads/UI keep serving whatever theses
+ * are already stored. Flip it in .env.local / the deploy env when the AI
+ * analysis direction is settled.
+ */
+export function aiThesesEnabled(): boolean {
+  return process.env.AI_THESES_ENABLED === "true";
+}
+
 // Catalyst classification — drives shortability (a buyout pins; a parabolic runner fades).
 const CATALYST_TYPES = [
   "buyout",
@@ -166,6 +179,9 @@ export async function generateAnalysis(
   streakCount: number | null,
   basePrior: string | null,
 ): Promise<AnalysisResult | null> {
+  // Belt-and-braces: the batch entry below gates too, but no future caller
+  // should be able to reach the API while the switch is off.
+  if (!aiThesesEnabled()) return null;
   const client = new Anthropic();
   try {
     const res = await createWithSearch(
@@ -215,6 +231,12 @@ export async function generateAndStoreTopAnalyses(
   priors: Map<string, string | null>,
   count = 5,
 ): Promise<number> {
+  if (!aiThesesEnabled()) {
+    console.log(
+      `[claude] AI theses DISABLED — skipped generation for ${dateKey}. Set AI_THESES_ENABLED=true to re-enable.`,
+    );
+    return 0;
+  }
   const top = gainers.slice(0, count);
   if (top.length === 0) return 0;
 
