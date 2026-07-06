@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
-export function CheckoutButton() {
+export function CheckoutButton({ className }: { className?: string }) {
   const [loading, setLoading] = useState(false);
 
   async function go() {
@@ -24,7 +25,10 @@ export function CheckoutButton() {
     <button
       onClick={go}
       disabled={loading}
-      className="mt-7 block w-full rounded-lg bg-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02] disabled:opacity-60"
+      className={cn(
+        "mt-7 block w-full rounded-lg bg-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02] disabled:opacity-60",
+        className,
+      )}
     >
       {loading ? "Redirecting to checkout…" : "Upgrade to Pro · $4.99/mo"}
     </button>

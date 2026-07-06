@@ -7,11 +7,14 @@ import { ThemeToggle } from "@/components/settings/ThemeToggle";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { ManageBillingButton } from "@/components/settings/ManageBillingButton";
 import { SignOutButton } from "@/components/settings/SignOutButton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Settings" };
 
+// Sections live inside ONE divided panel (see below) — quieter than a stack
+// of floating cards, and the hairlines do the grouping.
 function Section({
   title,
   description,
@@ -22,7 +25,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="glass rounded-2xl p-6">
+    <section className="p-6">
       <h2 className="text-base font-semibold tracking-tight">{title}</h2>
       {description && (
         <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
@@ -59,12 +62,14 @@ export default async function SettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-12">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Manage your profile, appearance, and subscription.
-      </p>
+      <PageHeader
+        eyebrow="Your account"
+        title="Settings"
+        description="Manage your profile, appearance, and subscription."
+        unique="settings"
+      />
 
-      <div className="mt-8 flex flex-col gap-5">
+      <div className="glass mt-8 divide-y divide-foreground/5 overflow-hidden rounded-2xl">
         <Section title="Profile" description="Your name and login email.">
           <ProfileForm initialName={name} email={user.email ?? ""} />
         </Section>

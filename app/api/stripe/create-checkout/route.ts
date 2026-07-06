@@ -67,7 +67,7 @@ export async function POST() {
         quantity: 1,
       },
     ],
-    success_url: `${appUrl}/?upgraded=1`,
+    success_url: `${appUrl}/screener?upgraded=1`,
     cancel_url: `${appUrl}/upgrade`,
     metadata: { supabase_user_id: user.id },
     subscription_data: { metadata: { supabase_user_id: user.id } },

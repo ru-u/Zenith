@@ -1,0 +1,63 @@
+import Link from "next/link";
+import { AmbientChevrons } from "./AmbientChevrons";
+import { DropCountdown } from "./DropCountdown";
+
+// The hero is a brand statement, Raycast-style: one centered claim over the
+// Ascent field (the logo adrift at architectural scale). No live data here —
+// the real top five moved to <TopFive> just below, so this whole component
+// stays a server render and the LCP is plain text. The landing is pinned
+// dark (see app/providers.tsx forcedTheme).
+export function LandingHero({
+  isLoggedIn,
+  isPro,
+}: {
+  isLoggedIn: boolean;
+  isPro: boolean;
+}) {
+  return (
+    <section className="relative flex min-h-[82svh] flex-col items-center justify-center overflow-hidden px-6 py-24 text-center">
+      <AmbientChevrons variant="hero" unique="hero" />
+
+      <div className="animate-hero-rise relative z-10 flex max-w-3xl flex-col items-center gap-6">
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-brand">
+          Built for the DECA Stock Market Game
+        </p>
+        <h1 className="bg-linear-to-b from-foreground via-foreground to-brand bg-clip-text text-6xl font-semibold leading-[1.02] tracking-[-0.04em] text-balance text-transparent sm:text-7xl">
+          Short the spike.
+        </h1>
+        {/* Soft dark halo lifts the copy off the trace lines behind it. */}
+        <p className="max-w-xl text-base leading-relaxed text-muted-foreground [text-shadow:0_1px_3px_oklch(0.06_0.015_220/0.9),0_0_18px_oklch(0.06_0.015_220/0.7)] sm:text-lg">
+          Every day a handful of stocks spike double digits — and most give it
+          back. Zenith ranks the day&apos;s biggest gainers, tracks their
+          streaks, and drops an AI short thesis on the top five at ~3:30 ET,
+          while your order still fills at today&apos;s close.
+        </p>
+
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/screener"
+            className="rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
+          >
+            {isLoggedIn ? "Launch screener" : "See today's movers"}
+          </Link>
+          {!isPro && (
+            <Link
+              href={isLoggedIn ? "/upgrade" : "/auth/signup?next=/upgrade"}
+              className="rounded-full bg-white/5 px-6 py-3 text-sm font-semibold text-foreground ring-1 ring-white/10 transition-colors hover:text-brand hover:ring-brand/30"
+            >
+              Get Pro · $4.99/mo
+            </Link>
+          )}
+        </div>
+
+        <DropCountdown className="mt-3" />
+      </div>
+
+      {/* Dissolve into the page so the field has no bottom edge. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-linear-to-b from-transparent to-background"
+      />
+    </section>
+  );
+}

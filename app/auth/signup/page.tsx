@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { Logo } from "@/components/layout/Logo";
@@ -28,7 +29,9 @@ export default async function SignupPage({
         <p className="mb-5 text-sm text-muted-foreground">
           Free — unlocks 5 days of history and streak tracking.
         </p>
-        <SignupForm />
+        <Suspense>
+          <SignupForm />
+        </Suspense>
       </div>
     </main>
     </>

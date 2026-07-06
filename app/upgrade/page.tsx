@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutButton } from "@/components/CheckoutButton";
 import { ZenithMark } from "@/components/layout/Logo";
+import { AmbientChevrons } from "@/components/landing/AmbientChevrons";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +32,17 @@ export default async function UpgradePage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
-      <div className="glass-strong rounded-2xl p-8">
-        <p className="flex items-center gap-1.5 text-sm font-medium text-brand">
-          <ZenithMark className="h-5 w-5" unique="upgrade" />
+    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
+      {/* The landing's ascent motif, echoed behind the offer. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-x-40 inset-y-0 opacity-60 dark:opacity-90"
+      >
+        <AmbientChevrons variant="echo" unique="upgrade-bg" />
+      </div>
+      <div className="glass-strong relative rounded-2xl p-8 shadow-[0_0_80px_-30px] shadow-brand/30">
+        <p className="flex items-center gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.24em] text-brand">
+          <ZenithMark className="h-4 w-4" unique="upgrade" />
           Zenith Pro
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
@@ -51,7 +59,7 @@ export default async function UpgradePage() {
 
         {isPro ? (
           <p className="mt-7 rounded-lg border border-brand/20 bg-brand/10 px-4 py-2.5 text-center text-sm font-semibold">
-            <span className="bg-gradient-to-r from-foreground to-brand bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-foreground to-brand bg-clip-text text-transparent">
               You&apos;re on Pro — thanks!
             </span>
           </p>

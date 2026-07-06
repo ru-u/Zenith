@@ -44,22 +44,31 @@ export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
       </Dialog>
 
       <div className="flex flex-col gap-4">
-        {ordered.map((a) => (
-          <article key={a.ticker} className="glass flex flex-col gap-3 rounded-2xl p-6">
-            {/* Metadata: ticker (+ company) left, score + win % right */}
+        {ordered.map((a, i) => (
+          <article
+            key={a.ticker}
+            className="glass flex flex-col gap-3 rounded-2xl p-6 transition-colors hover:border-brand/25"
+          >
+            {/* Metadata: short-rank + ticker (+ company) left, score right.
+                The list is sorted best→worst short — the number carries that. */}
             <div className="flex items-start justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setChartTicker(a.ticker)}
                 title={`View ${a.ticker} chart`}
-                className="-mx-1 cursor-pointer rounded px-1 text-left text-xl font-semibold tracking-tight transition-colors hover:text-brand"
+                className="-mx-1 flex cursor-pointer items-baseline gap-2.5 rounded px-1 text-left text-xl font-semibold tracking-tight transition-colors hover:text-brand"
               >
-                {a.ticker}
-                {a.company_name && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    {a.company_name}
-                  </span>
-                )}
+                <span className="font-mono text-xs font-medium text-muted-foreground/70 tabular-nums">
+                  #{i + 1}
+                </span>
+                <span>
+                  {a.ticker}
+                  {a.company_name && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      {a.company_name}
+                    </span>
+                  )}
+                </span>
               </button>
               {a.short_score != null && (
                 <span className="shrink-0 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">

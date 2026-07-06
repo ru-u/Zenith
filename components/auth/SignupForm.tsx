@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export function SignupForm() {
   const router = useRouter();
+  // Honor ?next= (e.g. /auth/signup?next=/upgrade from Pro CTAs); default to
+  // the screener (the tool), not the marketing landing.
+  const next = useSearchParams().get("next") ?? "/screener";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +36,7 @@ export function SignupForm() {
     }
     // If email confirmation is required, there's no active session yet.
     if (data.session) {
-      router.push("/");
+      router.push(next);
       router.refresh();
     } else {
       setNotice("Check your email to confirm your account, then sign in.");
@@ -75,7 +78,14 @@ export function SignupForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/auth/login" className="text-brand hover:underline">
+        <Link
+          href={
+            next === "/screener"
+              ? "/auth/login"
+              : `/auth/login?next=${encodeURIComponent(next)}`
+          }
+          className="text-brand hover:underline"
+        >
           Sign in
         </Link>
       </p>

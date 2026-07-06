@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 
 export function LoginForm() {
   const router = useRouter();
-  const next = useSearchParams().get("next") ?? "/";
+  // Post-auth default is the screener (the tool), not the marketing landing.
+  const next = useSearchParams().get("next") ?? "/screener";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,14 @@ export function LoginForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         No account?{" "}
-        <Link href="/auth/signup" className="text-brand hover:underline">
+        <Link
+          href={
+            next === "/screener"
+              ? "/auth/signup"
+              : `/auth/signup?next=${encodeURIComponent(next)}`
+          }
+          className="text-brand hover:underline"
+        >
           Sign up
         </Link>
       </p>

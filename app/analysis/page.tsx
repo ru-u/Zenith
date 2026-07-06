@@ -1,26 +1,31 @@
 import Link from "next/link";
-import { Lock, Sparkles } from "lucide-react";
+import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTodayET } from "@/lib/market-calendar";
 import { AnalysisList } from "@/components/ai/AnalysisList";
+import { PageHeader } from "@/components/layout/PageHeader";
 import type { AIAnalysis, SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({
+  headerSlot,
+  children,
+}: {
+  headerSlot?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Sparkles className="h-5 w-5 text-brand" />
-          AI short theses
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The full next-day short analysis for today&apos;s top movers, ranked
-          best→worst short.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="The 3:30 drop"
+        title="AI short theses"
+        description="The full next-day short analysis for today's top movers, ranked best→worst short."
+        unique="analysis"
+      >
+        {headerSlot}
+      </PageHeader>
       {children}
     </main>
   );
@@ -122,10 +127,15 @@ export default async function AnalysisPage() {
     : [];
 
   return (
-    <PageShell>
-      {date && date !== today && (
-        <p className="-mt-3 text-xs text-muted-foreground">As of {date}</p>
-      )}
+    <PageShell
+      headerSlot={
+        date && date !== today ? (
+          <span className="glass rounded-full px-3 py-1 font-mono text-xs text-muted-foreground">
+            As of {date}
+          </span>
+        ) : undefined
+      }
+    >
       {analyses.length > 0 ? (
         <AnalysisList analyses={analyses} />
       ) : (

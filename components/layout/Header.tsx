@@ -43,15 +43,23 @@ export async function Header() {
         </Link>
 
         <nav className="flex items-center gap-1 text-sm sm:gap-2">
+          {/* Text nav collapses on phones — the header otherwise overflows
+              narrow viewports and drags the whole page wider. */}
+          <Link
+            href="/screener"
+            className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
+          >
+            Screener
+          </Link>
           <Link
             href="/analysis"
-            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
           >
             Analysis
           </Link>
           <Link
             href="/history"
-            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
           >
             History
           </Link>

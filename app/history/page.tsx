@@ -4,18 +4,19 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTodayET } from "@/lib/market-calendar";
 import { HistoryBrowser } from "@/components/history/HistoryBrowser";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export const dynamic = "force-dynamic";
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">History</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Past trading days. Free accounts can browse the last 5 days.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Past sessions"
+        title="History"
+        description="Past trading days. Free accounts can browse the last 5 days."
+        unique="history"
+      />
       {children}
     </main>
   );

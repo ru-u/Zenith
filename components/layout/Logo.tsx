@@ -63,7 +63,7 @@ export function Logo({
     <span className={cn("inline-flex items-center gap-2", className)}>
       <ZenithMark className={markClassName} unique={unique} />
       {wordmark && (
-        <span className="bg-gradient-to-br from-foreground to-brand bg-clip-text text-lg font-semibold tracking-tight text-transparent">
+        <span className="bg-linear-to-br from-foreground to-brand bg-clip-text text-lg font-semibold tracking-tight text-transparent">
           Zenith
         </span>
       )}

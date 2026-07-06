@@ -289,3 +289,79 @@
     animation: none !important;
   }
 }
+
+/* --- Landing "Ascent" field (components/landing/AmbientChevrons) --------
+   The logo's double chevron at architectural scale, drifting slowly upward.
+   Animations are DEFINED only inside the no-preference media query, so
+   reduced-motion users get a static (still fully rendered) composition. */
+
+@keyframes ascent-rise {
+  from {
+    transform: translateY(1.6%);
+  }
+  to {
+    transform: translateY(-1.6%);
+  }
+}
+
+@keyframes ascent-breathe {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A single light packet running along the chevron's line-trace. Dash metrics
+   are in the trace's 1440×900 viewBox units: the chevron path measures
+   ≈1494 units (2 × √(660² + 350²) — see PAIR in AmbientChevrons). The dash
+   pattern is longer than the path on purpose (one packet, then a beat of
+   rest); a pattern SHORTER than the path repeats into evenly spaced dots
+   that read as rendering artifacts. */
+@keyframes trace-run {
+  to {
+    stroke-dashoffset: -3000;
+  }
+}
+
+/* Hidden at rest so reduced-motion never shows a parked dash fragment. */
+.trace-comet {
+  visibility: hidden;
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-ascent-rise {
+    animation: ascent-rise 36s ease-in-out infinite alternate;
+  }
+  .animate-ascent-breathe {
+    animation: ascent-breathe 19s ease-in-out infinite;
+  }
+  .trace-comet {
+    visibility: visible;
+    stroke-dasharray: 90 2910;
+    animation: trace-run 17s linear infinite;
+  }
+  .animate-hero-rise {
+    animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+/* Film grain — keeps the big soft glows from banding (and gives the dark
+   sections their texture). Tile is a tiny inline SVG turbulence. */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}

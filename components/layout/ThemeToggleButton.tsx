@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,11 @@ import { useMounted } from "@/hooks/useMounted";
 export function ThemeToggleButton({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
+  const pathname = usePathname();
+
+  // The landing ("/") is pinned dark (forcedTheme in app/providers.tsx) —
+  // a toggle that appears to do nothing there would just read as broken.
+  if (pathname === "/") return null;
 
   const isDark = resolvedTheme === "dark";
   // Until mounted, resolvedTheme is unknown on the server, so keep every
