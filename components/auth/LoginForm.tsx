@@ -6,14 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AuthDivider, GoogleButton } from "./GoogleButton";
 
 export function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
   // Post-auth default is the screener (the tool), not the marketing landing.
-  const next = useSearchParams().get("next") ?? "/screener";
+  const next = params.get("next") ?? "/screener";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // Seed with any error handed back by /auth/callback (OAuth failures).
+  const [error, setError] = useState<string | null>(params.get("error"));
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -33,6 +36,8 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
+      <GoogleButton next={next} />
+      <AuthDivider />
       <Input
         type="email"
         required

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AuthDivider, GoogleButton } from "./GoogleButton";
 
 export function SignupForm() {
   const router = useRouter();
@@ -46,6 +47,8 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
+      <GoogleButton next={next} />
+      <AuthDivider />
       <Input
         type="text"
         required
@@ -76,6 +79,17 @@ export function SignupForm() {
       <Button type="submit" disabled={loading} className="bg-brand text-brand-foreground hover:bg-brand/90">
         {loading ? "Creating account…" : "Create free account"}
       </Button>
+      <p className="text-center text-xs leading-relaxed text-muted-foreground">
+        By creating an account you agree to the{" "}
+        <Link href="/terms" className="text-brand hover:underline">
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="text-brand hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
