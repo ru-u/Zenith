@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
+import { isLikelySplitArtifact } from "./marketdata/normalize";
 
 /** Map a normalized provider row to a daily_gainers insert. */
 function toDbRow(row: GainerRow, dateKey: string, isFinal: boolean, scrapedAt: string) {
@@ -113,6 +114,19 @@ export function dropFrozenRepeats(
     .map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
+/**
+ * Drop reverse-split artifacts from stored rows and re-rank. New fetches are
+ * already filtered in rankAndFilter; this heals rows persisted before the
+ * guard existed (e.g. ENLV 2026-07-09: a 15:1 reverse split stored as +1414%).
+ */
+export function dropSplitArtifacts(rows: DailyGainer[]): DailyGainer[] {
+  const kept = rows.filter(
+    (r) => !isLikelySplitArtifact(r.change_percent, r.relative_volume),
+  );
+  if (kept.length === rows.length) return rows;
+  return kept.map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
 /** Most recent stored date strictly before `date`, or null. */
 export async function getGainersDateBefore(
   client: SupabaseClient<Database>,
@@ -129,9 +143,9 @@ export async function getGainersDateBefore(
 }
 
 /**
- * Cleaned, re-ranked gainers for a date — the frozen-repeat filter applied vs
- * the prior trading day. Raw rows stay in the DB (so the day-over-day chain
- * keeps working); cleaning happens on read.
+ * Cleaned, re-ranked gainers for a date — split artifacts dropped, then the
+ * frozen-repeat filter applied vs the prior trading day. Raw rows stay in the
+ * DB (so the day-over-day chain keeps working); cleaning happens on read.
  */
 export async function getCleanedGainers(
   client: SupabaseClient<Database>,
@@ -141,7 +155,7 @@ export async function getCleanedGainers(
   if (rows.length === 0) return rows;
   const prevDate = await getGainersDateBefore(client, date);
   const prev = prevDate ? await getCachedGainers(client, prevDate) : [];
-  return dropFrozenRepeats(rows, prev);
+  return dropFrozenRepeats(dropSplitArtifacts(rows), prev);
 }
 
 /** Most recent scraped_at among a date's rows (drives the freshness check). */

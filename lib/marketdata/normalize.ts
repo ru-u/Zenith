@@ -11,6 +11,28 @@ export const MIN_MARKET_CAP = 25_000_000;
 // top daily gainers anyway.
 export const TICKER_RE = /^[A-Z]{1,4}$/;
 
+// A reverse split on its effective date can print as a massive fake "gain":
+// the provider's change% compares the post-split price against the unadjusted
+// pre-split close (ENLV's 15:1 split showed +1414% on a real ~+1% move). Real
+// moves that size always come with exploding turnover (JLHL +310% → relvol 66;
+// INHD +3661% → relvol 3038), so an extreme change% WITHOUT volume expansion is
+// a corporate-action artifact, not a gainer. Null relvol → keep: we drop only
+// on positive evidence, matching rankAndFilter's null-skips-filter convention.
+// Splits smaller than ~5:2 fall under the threshold — the full fix is a splits
+// calendar; this is the backstop for the common compliance-driven ratios.
+export const SPLIT_ARTIFACT_MIN_CHANGE = 150; // %
+export const SPLIT_ARTIFACT_MAX_RELVOL = 5;
+
+export function isLikelySplitArtifact(
+  changePercent: number | null,
+  relativeVolume: number | null,
+): boolean {
+  if (changePercent == null || changePercent < SPLIT_ARTIFACT_MIN_CHANGE) {
+    return false;
+  }
+  return relativeVolume != null && relativeVolume < SPLIT_ARTIFACT_MAX_RELVOL;
+}
+
 /**
  * Filter → sort (change% desc) → rank → slice.
  * A filter is skipped when its value is null/undefined, so we never drop a
@@ -22,6 +44,7 @@ export function rankAndFilter(rows: RawGainer[], limit: number): GainerRow[] {
     .filter((r) => r.price == null || r.price >= MIN_PRICE)
     .filter((r) => r.marketCap == null || r.marketCap >= MIN_MARKET_CAP)
     .filter((r) => r.changePercent != null && r.changePercent > 0)
+    .filter((r) => !isLikelySplitArtifact(r.changePercent, r.relativeVolume))
     .sort((a, b) => (b.changePercent ?? 0) - (a.changePercent ?? 0))
     .slice(0, limit)
     .map((r, i) => ({ ...r, rank: i + 1 }));

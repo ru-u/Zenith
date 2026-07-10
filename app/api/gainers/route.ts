@@ -5,6 +5,7 @@ import { runEodProcessing, runPreCloseProcessing } from "@/lib/eod";
 import { maybeAlert } from "@/lib/alerts";
 import {
   dropFrozenRepeats,
+  dropSplitArtifacts,
   getCachedGainers,
   getGainersDateBefore,
   getLatestGainersDate,
@@ -137,8 +138,10 @@ export async function GET() {
     }
   }
 
-  // Drop frozen repeats (e.g. a halted stock reporting identical values daily)
+  // Drop reverse-split artifacts stored before the ingestion guard existed,
+  // then frozen repeats (e.g. a halted stock reporting identical values daily)
   // vs the prior trading day.
+  rows = dropSplitArtifacts(rows);
   const prevDate = await getGainersDateBefore(admin, servedDate);
   if (prevDate) {
     rows = dropFrozenRepeats(rows, await getCachedGainers(admin, prevDate));
