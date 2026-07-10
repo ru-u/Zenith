@@ -118,6 +118,14 @@ export type Database = {
         detail: string | null;
         created_at: string;
       }>;
+      feedback: Table<{
+        id: number;
+        user_id: string | null;
+        email: string | null;
+        type: "bug" | "feature";
+        message: string;
+        created_at: string;
+      }>;
     };
     Views: { [_ in never]: never };
     Functions: {

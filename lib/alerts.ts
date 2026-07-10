@@ -10,8 +10,11 @@ export type AlertType =
   | "eod_not_finalized" // no is_final row locked for a trading day
   | "ai_all_failed"; // 0 theses generated for a finalized day with gainers
 
-/** Send one alert email via the Resend REST API (no SDK dependency). */
-async function sendEmail(subject: string, body: string): Promise<boolean> {
+/**
+ * Send one ops email (alerts, feedback notifications) to ALERT_EMAIL_TO via
+ * the Resend REST API (no SDK dependency). No-op unless Resend is configured.
+ */
+export async function sendOpsEmail(subject: string, body: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.ALERT_EMAIL_TO;
   const from = process.env.ALERT_EMAIL_FROM ?? "Zenith Alerts <onboarding@resend.dev>";
@@ -70,7 +73,7 @@ export async function maybeAlert(
       }
       return;
     }
-    await sendEmail(subject, body);
+    await sendOpsEmail(subject, body);
   } catch (e) {
     console.error("[alerts] maybeAlert error:", (e as Error)?.message);
   }

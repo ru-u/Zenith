@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "@/components/gainers/GainerRow";
 import { ChartDialog } from "@/components/gainers/ChartDialog";
+import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
@@ -43,6 +44,7 @@ function fmt(date: string) {
 export function HistoryBrowser({ dates }: { dates: string[] }) {
   const [selected, setSelected] = useState(dates[0] ?? null);
   const [chartGainer, setChartGainer] = useState<DailyGainer | null>(null);
+  const openTicker = useTickerOpen(setChartGainer);
 
   const { data, isLoading } = useQuery({
     queryKey: ["gainers", selected],
@@ -125,7 +127,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
                   key={g.ticker}
                   gainer={g}
                   displayRank={i + 1}
-                  onClick={() => setChartGainer(g)}
+                  onClick={() => openTicker(g)}
                 />
               ))}
             </TableBody>

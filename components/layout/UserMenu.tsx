@@ -47,7 +47,14 @@ export function UserMenu({ name, email }: { name: string; email?: string }) {
 
             <div className="my-1 h-px bg-border" />
 
-            <Menu.LinkItem render={<Link href="/settings" />} className={itemClass}>
+            {/* closeOnClick: Menu.LinkItem defaults it to FALSE (unlike
+                Menu.Item), so without it the popup stays open after the app
+                navigates and blocks scrolling on the new page. */}
+            <Menu.LinkItem
+              render={<Link href="/settings" />}
+              closeOnClick
+              className={itemClass}
+            >
               <Settings className="h-4 w-4 text-muted-foreground" />
               Settings
             </Menu.LinkItem>

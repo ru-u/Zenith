@@ -183,6 +183,19 @@ create table if not exists public.system_alerts (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- feedback — bug reports & feature suggestions from Settings → Support.
+-- Written only by the API route (service role); users never read it back.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.feedback (
+  id         bigint generated always as identity primary key,
+  user_id    uuid references auth.users (id) on delete set null,
+  email      text,
+  type       text not null check (type in ('bug', 'feature')),
+  message    text not null,
+  created_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- handle_new_user trigger
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
@@ -220,6 +233,7 @@ alter table public.fetch_locks    enable row level security;
 alter table public.system_alerts  enable row level security;
 alter table public.historical_gainers enable row level security;
 alter table public.gainer_base_rates  enable row level security;
+alter table public.feedback       enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);

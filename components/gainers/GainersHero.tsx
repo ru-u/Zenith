@@ -9,6 +9,7 @@ import { ChartDialog } from "./ChartDialog";
 import { MarketStatusBadge } from "./MarketStatusBadge";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
+import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { formatPrice } from "@/lib/format";
 import type { DailyGainer } from "@/lib/supabase/types";
 
@@ -86,6 +87,7 @@ export function GainersHero() {
   const { data: streaks } = useStreaks();
   const top = (data?.gainers ?? []).slice(0, 5);
   const [selected, setSelected] = useState<DailyGainer | null>(null);
+  const openTicker = useTickerOpen(setSelected);
 
   return (
     <>
@@ -125,7 +127,7 @@ export function GainersHero() {
                 gainer={g}
                 streak={streaks?.get(g.ticker)}
                 index={i}
-                onClick={() => setSelected(g)}
+                onClick={() => openTicker(g)}
               />
             ))}
       </div>

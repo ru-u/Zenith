@@ -164,6 +164,19 @@ create table if not exists public.system_alerts (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- feedback — bug reports & feature suggestions from Settings → Support.
+-- Written only by the API route (service role); users never read it back.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.feedback (
+  id         bigint generated always as identity primary key,
+  user_id    uuid references auth.users (id) on delete set null,
+  email      text,
+  type       text not null check (type in ('bug', 'feature')),
+  message    text not null,
+  created_at timestamptz not null default now()
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Auto-create a profile row when a new auth user signs up
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
@@ -194,6 +207,7 @@ alter table public.ticker_streaks enable row level security;
 alter table public.ai_analyses    enable row level security;
 alter table public.fetch_locks    enable row level security;
 alter table public.system_alerts  enable row level security;
+alter table public.feedback       enable row level security;
 
 -- profiles: a user can read/update only their own row
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -223,5 +237,5 @@ create policy "ai_analyses_pro_read" on public.ai_analyses
     )
   );
 
--- fetch_locks & system_alerts: no anon/auth access (service-role only).
--- RLS enabled with no policies = deny all for non-service roles.
+-- fetch_locks, system_alerts & feedback: no anon/auth access (service-role
+-- only). RLS enabled with no policies = deny all for non-service roles.

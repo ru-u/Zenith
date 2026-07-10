@@ -14,6 +14,7 @@ import { GainerRow } from "./GainerRow";
 import { ChartDialog } from "./ChartDialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
+import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { useFiltersStore } from "@/stores/filtersStore";
 import type { DailyGainer } from "@/lib/supabase/types";
 
@@ -22,6 +23,7 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
   const { data: streaks } = useStreaks();
   const { search, minPrice, minMarketCap } = useFiltersStore();
   const [selected, setSelected] = useState<DailyGainer | null>(null);
+  const openTicker = useTickerOpen(setSelected);
 
   const rows = useMemo(() => {
     const all = data?.gainers ?? [];
@@ -78,7 +80,7 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
                 gainer={g}
                 streak={streaks?.get(g.ticker)}
                 displayRank={i + 1}
-                onClick={() => setSelected(g)}
+                onClick={() => openTicker(g)}
               />
             ))}
 
