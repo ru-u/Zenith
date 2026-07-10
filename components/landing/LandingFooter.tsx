@@ -39,9 +39,29 @@ export function LandingFooter() {
         </div>
         <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
           Not affiliated with or endorsed by DECA Inc. Zenith is a research tool
-          for a simulated trading competition — nothing here is investment
+          for a simulated trading competition; nothing here is investment
           advice. Market data may be delayed.
         </p>
+        <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          <Link
+            href="/privacy"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Privacy Policy
+          </Link>
+          <Link
+            href="/terms"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Terms &amp; Conditions
+          </Link>
+          <Link
+            href="/cookies"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Cookie Policy
+          </Link>
+        </nav>
       </div>
     </footer>
   );
