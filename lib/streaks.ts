@@ -1,24 +1,36 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./supabase/types";
+import { isTradingDay } from "./market-calendar";
+
+const DAY_MS = 86_400_000;
 
 function dateKeyToUTC(key: string): number {
   const [y, m, d] = key.split("-").map(Number);
   return Date.UTC(y, m - 1, d);
 }
 
+// isTradingDay reads the date in ET; UTC midnight renders as the PRIOR ET day,
+// so probe at UTC noon (= same calendar date in ET).
+function isTradingDayAt(utcMidnight: number): boolean {
+  return isTradingDay(new Date(utcMidnight + DAY_MS / 2));
+}
+
 /**
- * Is `todayKey` the next trading day after `prevKey`?
- * - calendar diff of 1 day → consecutive (Tue after Mon, etc.)
- * - diff of 3 with today === Monday → Fri→Mon over the weekend
- * (US market holidays are not modeled in the MVP.)
+ * Is `todayKey` the next trading day after `prevKey`? True when no trading day
+ * (per the market calendar: weekends + US holidays) falls strictly between
+ * them — so streaks survive weekends and holiday gaps like Thu→Mon over
+ * July 4th.
  */
 export function isConsecutiveTradingDay(prevKey: string, todayKey: string): boolean {
   const prev = dateKeyToUTC(prevKey);
   const today = dateKeyToUTC(todayKey);
-  const diffDays = Math.round((today - prev) / 86_400_000);
-  if (diffDays === 1) return true;
-  const todayWeekday = new Date(today).getUTCDay(); // 1 = Monday
-  return diffDays === 3 && todayWeekday === 1;
+  if (today <= prev) return false;
+  // Bounded: no US market gap exceeds a few days; cap the walk defensively.
+  if (today - prev > 10 * DAY_MS) return false;
+  for (let t = prev + DAY_MS; t < today; t += DAY_MS) {
+    if (isTradingDayAt(t)) return false; // a trading day was skipped
+  }
+  return true;
 }
 
 /**
