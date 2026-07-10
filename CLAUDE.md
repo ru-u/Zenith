@@ -17,7 +17,11 @@ simple area view (not candlesticks). Status: **pre-launch MVP**.
   (`stores/filtersStore.ts`) for filter UI state
 - **next-themes** (light / dark / system)
 - **Stripe** subscriptions — Zenith Pro, $4.99/mo
-- **Anthropic SDK** (`claude-sonnet-4-6`) for AI theses
+- **In-house quant engine** (`lib/quant/`) for the AI short theses — SEC EDGAR
+  catalyst detection + base-rate/rule scoring + TradingView technicals +
+  templated prose, $0/day, zero Anthropic calls. The **Anthropic SDK** remains
+  only for the optional Haiku prose mode (`AI_PROSE_MODE=haiku`, still behind
+  the `AI_THESES_ENABLED` spend switch).
 - Market data behind a provider interface (`lib/marketdata/`): **TradingView**
   scanner (sole provider; interface kept as a seam for future sources)
 
@@ -82,8 +86,11 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   `history/`, `settings/`, `auth/`, `layout/` (Header, UserMenu, Logo,
   GradientMesh), `ui/` (base-ui)
 - `lib/` — `marketdata/` (provider interface + tradingview), `supabase/`,
-  `gainers.ts`, `streaks.ts`, `eod.ts`, `claude.ts`, `notify.ts` (pre-close
-  email), `market-calendar.ts`, `format.ts`, `alerts.ts`
+  `quant/` (thesis engine: `edgar.ts` catalyst detection, `score.ts`
+  deterministic scoring, `technicals.ts` TradingView indicators, `thesis.ts`
+  prose seam + spend switch), `gainers.ts`, `streaks.ts`, `eod.ts`,
+  `claude.ts` (thesis orchestrator), `notify.ts` (pre-close email),
+  `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`
 - `hooks/` — `useGainers`, `useStreaks`, `useSubscription`, `useMounted`
 - `supabase/` — `schema.sql` (fresh install), `migrate.sql` (idempotent, for an
   existing DB)
@@ -122,13 +129,19 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 ## Environment (`.env.local`)
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- `ANTHROPIC_API_KEY` (read automatically by the SDK)
-- `AI_THESES_ENABLED` — **kill switch for all Anthropic calls** (`lib/claude.ts
-  aiThesesEnabled()`). Generation runs ONLY when set to exactly `true`;
-  absent/anything else = OFF (fail-safe: a fresh env can never spend).
-  Currently OFF while the AI-analysis direction is researched. Reads
-  (`/api/ai-analysis`, score reveals) are unaffected — stored theses keep
-  serving; the pre-close email still sends, just without theses.
+- `ANTHROPIC_API_KEY` (read automatically by the SDK; only used in Haiku prose mode)
+- `AI_THESES_ENABLED` — **kill switch for all Anthropic calls / spend**
+  (`lib/quant/thesis.ts aiThesesEnabled()`, re-exported from `lib/claude.ts`).
+  Since the quant engine took over generation this gates ONLY the optional
+  Haiku prose mode; absent/anything else = OFF (fail-safe: a fresh env can
+  never spend). The quant pipeline itself is free and runs regardless — theses
+  generate and the pre-close email sends with the switch off.
+- `AI_PROSE_MODE` — thesis prose source: unset/`template` (default, $0,
+  deterministic) or `haiku` (one plain Anthropic call per ticker, no web
+  search; also requires `AI_THESES_ENABLED=true`). Falls back to the template
+  on any failure.
+- `SEC_EDGAR_USER_AGENT` — contact string SEC requires on EDGAR requests
+  (`lib/quant/edgar.ts`), e.g. `"Zenith Screener you@example.com"`.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper

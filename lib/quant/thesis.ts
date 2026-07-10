@@ -1,0 +1,149 @@
+// The pluggable prose seam. The quant engine produces structured findings;
+// this turns them into the 2-3 sentence `short_thesis`. Default is a $0
+// deterministic template. AI_PROSE_MODE=haiku swaps in one plain Anthropic
+// call (no tools, no web search) over the SAME findings — a config flip, not
+// a rewrite — and silently falls back to the template on any failure.
+
+import Anthropic from "@anthropic-ai/sdk";
+import type { GainerRow } from "../marketdata/types";
+import { formatBaseRatePrior, type BaseRate } from "../baseRates";
+import type { Technicals } from "./technicals";
+
+export const ANALYSIS_MODEL = "claude-haiku-4-5";
+
+/**
+ * Kill switch for ALL Anthropic calls (spend). Since the quant engine took
+ * over generation, this gates ONLY the optional Haiku prose mode — off by
+ * default, so a fresh environment or an exhausted credit balance can never
+ * spend. The quant pipeline itself is free and runs regardless.
+ */
+export function aiThesesEnabled(): boolean {
+  return process.env.AI_THESES_ENABLED === "true";
+}
+
+/** The prose mode actually in effect (haiku requires the spend switch too). */
+export function activeProseMode(): "template" | "haiku" {
+  return process.env.AI_PROSE_MODE === "haiku" && aiThesesEnabled() ? "haiku" : "template";
+}
+
+export interface ThesisFindings {
+  g: GainerRow;
+  /** Human catalyst sentence from EDGAR, or null when nothing was on file. */
+  catalyst: string | null;
+  catalystType: string;
+  streakCount: number | null;
+  baseRate: BaseRate | null;
+  tech: Technicals | null;
+  shortScore: number;
+  percentWin: number;
+}
+
+// One plain "how this catalyst type behaves over a single next-day hold" line
+// per class — the same behavioral priors the old prompt spelled out.
+const BEHAVIOR: Record<string, string> = {
+  buyout:
+    "Buyout stocks get pinned near the announced deal price, so they almost never drop the next day — a bad short despite the big move.",
+  offering:
+    "Pops tied to share offerings usually fade once the dilution sinks in, which makes this a fade-friendly setup.",
+  earnings:
+    "A real earnings beat can keep a stock running for another day, so this is a riskier short than the move suggests.",
+  regulatory:
+    "Genuine regulatory or clinical wins can keep running, so shorting this is riskier than the move suggests.",
+  partnership:
+    "Real partnership or contract news can hold its gains, so be careful shorting it.",
+  meme_squeeze:
+    "Squeeze moves are violent in both directions — dangerous to short even when a fade feels obvious.",
+};
+
+function templateThesis(f: ThesisFindings): string {
+  const { g, tech } = f;
+  const sentences: string[] = [];
+
+  // 1 — why it moved.
+  if (f.catalyst) {
+    sentences.push(f.catalyst.endsWith(".") ? f.catalyst : `${f.catalyst}.`);
+  } else {
+    const pct = g.changePercent != null ? `${g.changePercent.toFixed(0)}%` : "big";
+    const rv =
+      g.relativeVolume != null && g.relativeVolume >= 2
+        ? ` on ${Math.round(g.relativeVolume)}x its normal volume`
+        : "";
+    sentences.push(
+      `${g.ticker} jumped ${pct} today${rv} with no fresh SEC filing behind the move — that usually means momentum or hype rather than hard news.`,
+    );
+  }
+
+  // 2 — what that catalyst type does over a single next-day hold.
+  const behavior = BEHAVIOR[f.catalystType];
+  if (behavior) {
+    sentences.push(behavior);
+  } else if (tech?.rsi != null && tech.rsi > 80) {
+    sentences.push(
+      `It also looks stretched (RSI ${Math.round(tech.rsi)}${
+        tech.changeFromOpen != null && tech.changeFromOpen < 0 ? ", already fading since the open" : ""
+      }), and stretched no-news runners tend to mean-revert.`,
+    );
+  } else {
+    sentences.push(
+      "Nothing forces it to fade tomorrow, so lean on the historical odds rather than the size of the move.",
+    );
+  }
+
+  // 3 — the empirical odds (+ streak context when notable).
+  const prior = formatBaseRatePrior(f.baseRate);
+  if (prior) sentences.push(prior);
+  if (f.streakCount != null && f.streakCount > 1) {
+    sentences.push(`It has now topped the gainers list ${f.streakCount} days in a row.`);
+  }
+
+  return sentences.join(" ");
+}
+
+async function haikuThesis(f: ThesisFindings): Promise<string | null> {
+  try {
+    const client = new Anthropic();
+    const findings = {
+      ticker: f.g.ticker,
+      company: f.g.companyName,
+      change_percent: f.g.changePercent,
+      relative_volume: f.g.relativeVolume,
+      catalyst: f.catalyst ?? "no SEC filing found — likely momentum/hype",
+      catalyst_type: f.catalystType,
+      streak_days: f.streakCount,
+      base_rate: formatBaseRatePrior(f.baseRate),
+      rsi: f.tech?.rsi,
+      change_from_open_percent: f.tech?.changeFromOpen,
+      short_score_1_to_10: f.shortScore,
+      percent_win_estimate: f.percentWin,
+    };
+    const res = await client.messages.create({
+      model: ANALYSIS_MODEL,
+      max_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: [
+            "Write a 2-3 sentence next-day short thesis for a DECA Stock Market Game student (a high-schooler new to markets). Plain language, no jargon, no hedging boilerplate.",
+            "State why the stock spiked, how that kind of catalyst usually behaves over one next-day hold, and the odds. Do NOT change any numbers or invent facts beyond these findings.",
+            "",
+            `Findings: ${JSON.stringify(findings)}`,
+          ].join("\n"),
+        },
+      ],
+    });
+    const text = res.content.find((b) => b.type === "text")?.text.trim();
+    return text || null;
+  } catch (err) {
+    console.warn(`[thesis] haiku prose failed for ${f.g.ticker} — using template:`, (err as Error).message);
+    return null;
+  }
+}
+
+/** Thesis prose from structured findings — template by default, Haiku behind the flag. */
+export async function generateThesisText(f: ThesisFindings): Promise<string> {
+  if (activeProseMode() === "haiku") {
+    const text = await haikuThesis(f);
+    if (text) return text;
+  }
+  return templateThesis(f);
+}

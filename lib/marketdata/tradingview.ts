@@ -9,7 +9,8 @@ import { rankAndFilter, MIN_PRICE } from "./normalize";
 import { getMarketSession } from "../market-calendar";
 import { withRetry } from "../retry";
 
-const SCAN_URL = "https://scanner.tradingview.com/america/scan";
+// Exported for lib/quant/technicals.ts, which hits the same scanner endpoint.
+export const SCAN_URL = "https://scanner.tradingview.com/america/scan";
 
 // `s` looks like "NASDAQ:INHD" / "NYSE:XYZ" / "OTC:AONC". Allow only the two
 // major exchanges (client-side guard backing the payload filter).
@@ -39,7 +40,7 @@ const COLUMNS = [
 
 // Realistic UA — TradingView blocks obvious bots. (Undocumented endpoint with
 // ToS risk — the sole provider, revisit before any commercial scale.)
-const USER_AGENT =
+export const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 interface ScanResponse {

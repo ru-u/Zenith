@@ -3,13 +3,9 @@ import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata";
 import { getCleanedGainers } from "./gainers";
 import { updateStreaks } from "./streaks";
-import { aiThesesEnabled, generateAndStoreTopAnalyses } from "./claude";
+import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
-import {
-  resolveBaseRate,
-  formatBaseRatePrior,
-  type BaseRate,
-} from "./baseRates";
+import { resolveBaseRate, type BaseRate } from "./baseRates";
 
 /** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
 async function fetchStreaks(
@@ -25,24 +21,23 @@ async function fetchStreaks(
 }
 
 /**
- * Per-ticker empirical base-rate prior (Phase 2), resolved from the precomputed
- * cap×relvol buckets. Empty/absent table → null priors (prompt omits the line),
- * so this is safe to ship before the historical data is ingested.
+ * Per-ticker empirical base-rate prior, resolved from the precomputed
+ * cap×relvol buckets. The quant scorer needs the numeric BaseRate object (the
+ * thesis template formats it to prose itself). Empty/absent table → null
+ * priors (scoring falls back to a coin-flip anchor), so this is safe to ship
+ * before the historical data is ingested.
  */
-async function fetchBaseRatePriors(
+async function fetchBaseRates(
   admin: SupabaseClient<Database>,
   rows: GainerRow[],
-): Promise<Map<string, string | null>> {
+): Promise<Map<string, BaseRate | null>> {
   const { data } = await admin
     .from("gainer_base_rates")
     .select("cap_band, relvol_band, n, down_rate, median_next_day_return");
   const rates = (data ?? []) as BaseRate[];
-  const priors = new Map<string, string | null>();
+  const priors = new Map<string, BaseRate | null>();
   for (const g of rows) {
-    priors.set(
-      g.ticker,
-      formatBaseRatePrior(resolveBaseRate(rates, g.marketCap, g.relativeVolume)),
-    );
+    priors.set(g.ticker, resolveBaseRate(rates, g.marketCap, g.relativeVolume));
   }
   return priors;
 }
@@ -81,27 +76,23 @@ export async function runPreCloseProcessing(
   const rows = toGainerRows(cleaned);
   const top = rows.slice(0, aiCount);
   const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
-  const priors = await fetchBaseRatePriors(admin, top);
+  const baseRates = await fetchBaseRates(admin, top);
   const created = await generateAndStoreTopAnalyses(
     admin,
     rows,
     dateKey,
     streaks,
-    priors,
+    baseRates,
     aiCount,
   );
 
-  // The drop email rides the same kill switch as generation: the email's whole
-  // job is announcing the theses, so while AI is off it doesn't send at all.
-  if (aiThesesEnabled()) {
-    // Best-effort: a send failure must never fail the drop (theses still landed).
-    try {
-      await sendPreCloseEmails(admin, dateKey, rows);
-    } catch (e) {
-      console.error("[eod] pre-close email:", (e as Error)?.message);
-    }
-  } else {
-    console.log("[eod] pre-close email skipped — AI theses disabled.");
+  // The quant engine generates unconditionally (it's free), so the drop email
+  // always has theses to announce. Best-effort: a send failure must never fail
+  // the drop (theses still landed).
+  try {
+    await sendPreCloseEmails(admin, dateKey, rows);
+  } catch (e) {
+    console.error("[eod] pre-close email:", (e as Error)?.message);
   }
   return created;
 }
@@ -129,7 +120,7 @@ export async function runEodProcessing(
   // Read streaks BEFORE updateStreaks so the count is on the same prior-day basis
   // as the pre-close drop (not yet including today).
   const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
-  const priors = await fetchBaseRatePriors(admin, top);
+  const baseRates = await fetchBaseRates(admin, top);
 
   await updateStreaks(
     admin,
@@ -137,5 +128,5 @@ export async function runEodProcessing(
     dateKey,
   );
 
-  return generateAndStoreTopAnalyses(admin, rows, dateKey, streaks, priors, aiCount);
+  return generateAndStoreTopAnalyses(admin, rows, dateKey, streaks, baseRates, aiCount);
 }

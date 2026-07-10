@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, ChevronUp, Lock, Sparkles } from "lucide-react";
 import { StockChart } from "@/components/gainers/StockChart";
 import {
@@ -11,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAiAnalyses } from "@/hooks/useAiAnalyses";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGainers } from "@/hooks/useGainers";
 import { cn } from "@/lib/utils";
@@ -92,16 +92,9 @@ export function AIAnalysisCard() {
   const date = gainers?.date;
   const top = (gainers?.gainers ?? []).slice(0, 5);
 
-  const { data: analyses } = useQuery({
-    queryKey: ["ai-analysis", date],
-    queryFn: async () => {
-      const res = await fetch(`/api/ai-analysis?date=${date}`);
-      if (!res.ok) return [] as AIAnalysis[];
-      const json = (await res.json()) as { analyses: AIAnalysis[] };
-      return json.analyses;
-    },
-    enabled: isPro && !!date,
-  });
+  // Drop-aware query (1-min poll until the day's theses land, focus refetch)
+  // shared with the landing's TopFive.
+  const { data: analyses } = useAiAnalyses(date, isPro);
 
   const [collapsed, setCollapsed] = useState(false);
   const [chartTicker, setChartTicker] = useState<string | null>(null);

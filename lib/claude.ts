@@ -1,22 +1,26 @@
-import Anthropic from "@anthropic-ai/sdk";
+// The thesis engine's orchestrator. Historically this file WAS the Anthropic
+// call (Haiku + web-search per ticker); it now drives the free in-house quant
+// engine in lib/quant/ — EDGAR catalyst detection, base-rate/rule scoring,
+// TradingView technicals, templated prose — and makes zero Anthropic calls
+// itself. The only remaining Anthropic surface is the optional Haiku prose
+// mode inside lib/quant/thesis.ts, still behind the AI_THESES_ENABLED spend
+// switch. The AnalysisResult contract and ai_analyses writes are unchanged.
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GainerRow } from "@/lib/marketdata/types";
 import type { Database } from "@/lib/supabase/types";
+import type { BaseRate } from "@/lib/baseRates";
+import { detectCatalyst } from "./quant/edgar";
+import { fetchTechnicals, type Technicals } from "./quant/technicals";
+import { scoreShort } from "./quant/score";
+import { activeProseMode, generateThesisText } from "./quant/thesis";
 
-export const ANALYSIS_MODEL = "claude-haiku-4-5";
+// The spend switch + model id live with the only code that can spend now.
+export { aiThesesEnabled, ANALYSIS_MODEL } from "./quant/thesis";
 
-/**
- * Kill switch for ALL Anthropic calls. Generation runs ONLY when
- * `AI_THESES_ENABLED=true` — off by default, so a fresh environment, an
- * exhausted credit balance, or a research pause can never spend. Everything
- * downstream degrades gracefully: the pre-close email still lists the top
- * movers (just without theses), and reads/UI keep serving whatever theses
- * are already stored. Flip it in .env.local / the deploy env when the AI
- * analysis direction is settled.
- */
-export function aiThesesEnabled(): boolean {
-  return process.env.AI_THESES_ENABLED === "true";
-}
+// Versions the scoring rules in the stored `model` column so rows stay
+// comparable when the Δ weights are re-tuned. Bump on scoring changes.
+const QUANT_VERSION = "quant-v1";
 
 // Catalyst classification — drives shortability (a buyout pins; a parabolic runner fades).
 const CATALYST_TYPES = [
@@ -38,53 +42,9 @@ export interface AnalysisResult {
   percent_win_estimate: number;
 }
 
-const SCHEMA = {
-  type: "object",
-  properties: {
-    catalyst: {
-      type: "string",
-      description:
-        "One plain sentence on why the stock spiked TODAY, grounded in web search (e.g. 'jumped after a $12/share buyout offer from Acme Corp').",
-    },
-    catalyst_url: {
-      type: "string",
-      description:
-        "URL of the source you used for the catalyst. Empty string if you couldn't find one.",
-    },
-    catalyst_type: {
-      type: "string",
-      enum: [...CATALYST_TYPES],
-      description:
-        "Classify the catalyst. 'buyout' = M&A/acquisition/take-private (pins near deal price); 'offering' = dilutive raise; 'meme_squeeze' = social/short-squeeze driven.",
-    },
-    short_thesis: {
-      type: "string",
-      description:
-        "2-3 sentences: is this a credible NEXT-DAY short and why, grounded in how THIS catalyst type behaves over a single next-day hold — not just the size of the move.",
-    },
-    short_score: {
-      type: "integer",
-      description:
-        "How attractive as a NEXT-DAY short on a 1-10 scale (10 = best). A pinned buyout should score very low even after a huge % move.",
-    },
-    percent_win_estimate: {
-      type: "integer",
-      description:
-        "Your estimated % chance (0-100) it closes LOWER at the very next end-of-day vs today's close. START from the historical base rate provided in the prompt (if any) and adjust up or down for the specific catalyst and price action — don't ignore it.",
-    },
-  },
-  required: [
-    "catalyst",
-    "catalyst_url",
-    "catalyst_type",
-    "short_thesis",
-    "short_score",
-    "percent_win_estimate",
-  ],
-  additionalProperties: false,
-} as const;
-
-// Structured-output enums aren't perfectly strict, so coerce to a known type.
+// Defensive coercion at the storage boundary, kept from the LLM era — the
+// quant engine emits valid values by construction, but this stays cheap
+// insurance for any future findings source.
 function normalizeCatalystType(v: unknown): string {
   const s = String(v ?? "").toLowerCase();
   if ((CATALYST_TYPES as readonly string[]).includes(s)) return s;
@@ -97,146 +57,69 @@ function normalizeCatalystType(v: unknown): string {
   return "other";
 }
 
-// Round + clamp a model-supplied number into [lo, hi]; fall back on garbage.
+// Round + clamp into [lo, hi]; fall back on garbage.
 function clampInt(v: unknown, lo: number, hi: number, fallback: number): number {
   const n = Math.round(Number(v));
   if (!Number.isFinite(n)) return fallback;
   return Math.min(hi, Math.max(lo, n));
 }
 
-function buildPrompt(
-  g: GainerRow,
-  streakCount: number | null,
-  basePrior: string | null,
-): string {
-  const streakLine =
-    streakCount != null && streakCount > 1
-      ? `- Streak: has closed as a top gainer ${streakCount} days running. Treat this as NEUTRAL context — a streak can mean exhaustion (due to fade) OR genuine strength (keeps running). Decide for yourself; don't assume a direction.`
-      : "- Streak: first day on the leaderboard (no prior-day streak).";
-
-  const priorBlock = basePrior
-    ? [
-        "",
-        "EMPIRICAL BASE RATE (calibrate your percent_win_estimate to this — it's the realized frequency from ~1 year of similar setups, BEFORE accounting for the specific catalyst):",
-        `- ${basePrior}`,
-        "- Start here, then adjust: a fade-prone catalyst pushes the win chance above the base rate; a buyout/strong-news catalyst pushes it below.",
-      ]
-    : [];
-
-  return [
-    "You are the sharpest next-day short-selling analyst alive, helping DECA Stock Market Game students (high-schoolers new to investing) evaluate today's biggest gainers as SHORT candidates — they profit if the stock falls.",
-    "This is educational, for a simulated competition — not financial advice.",
-    "",
-    "HOW THE GAME WORKS (critical):",
-    "- A student can ONLY enter and exit at the 4:00 PM ET close. They short at TODAY's close.",
-    "- You are judging ONE thing: the probability the stock closes LOWER at the very NEXT end-of-day (one trading day later) vs today's close.",
-    "- They are NOT watching a monitor and cannot react intraday. There are no stops. It is a single overnight-to-next-close decision.",
-    "",
-    "HOW DIFFERENT CATALYSTS BEHAVE AFTER A SPIKE (this drives your call, NOT the size of the move):",
-    "- Buyout / M&A / acquisition: the stock gets PINNED near the announced deal price. Forward volatility collapses to ~zero — it will NOT meaningfully drop the next day. A BAD short despite a huge % move.",
-    "- Dilutive offering / capital raise: often FADES after the pop.",
-    "- Exhausted low-float parabolic runner on stale or no fresh news: more likely to mean-revert / fade.",
-    "- Genuine earnings beat or real positive news: can keep running — a riskier short.",
-    "- Meme / short-squeeze: high variance and dangerous to short.",
-    "First find WHY it spiked today, classify the catalyst, THEN reason about how that type typically behaves over a single next-day hold.",
-    "",
-    "Today's mover:",
-    `- Ticker: ${g.ticker}`,
-    `- Company: ${g.companyName ?? "Unknown"}`,
-    `- Price: ${g.price ?? "?"}`,
-    `- Change today: ${g.changePercent != null ? g.changePercent.toFixed(1) + "%" : "?"}`,
-    `- Volume: ${g.volume ?? "?"}`,
-    `- Relative volume: ${g.relativeVolume ?? "?"}`,
-    `- Market cap: ${g.marketCap ?? "?"}`,
-    `- Sector: ${g.sector ?? "?"}`,
-    streakLine,
-    ...priorBlock,
-    "",
-    "Use web search to find the specific catalyst behind today's move and a source URL. Then return your structured assessment.",
-    "Write for a 16-year-old new to markets: plain language, no jargon.",
-  ].join("\n");
-}
-
-/** Drive a (possibly multi-step) web-search turn to completion. */
-async function createWithSearch(
-  client: Anthropic,
-  params: Omit<Anthropic.MessageCreateParamsNonStreaming, "messages">,
-  prompt: string,
-): Promise<Anthropic.Message> {
-  let messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
-  let res = await client.messages.create({ ...params, messages });
-  // Server-tool loops can hit the iteration cap and pause; re-send to resume.
-  for (let i = 0; res.stop_reason === "pause_turn" && i < 3; i++) {
-    messages = [...messages, { role: "assistant", content: res.content }];
-    res = await client.messages.create({ ...params, messages });
-  }
-  return res;
-}
-
 /** Generate a structured next-day short thesis for one gainer. Null on failure. */
 export async function generateAnalysis(
   g: GainerRow,
+  dateKey: string,
   streakCount: number | null,
-  basePrior: string | null,
+  baseRate: BaseRate | null,
+  tech: Technicals | null,
 ): Promise<AnalysisResult | null> {
-  // Belt-and-braces: the batch entry below gates too, but no future caller
-  // should be able to reach the API while the switch is off.
-  if (!aiThesesEnabled()) return null;
-  const client = new Anthropic();
   try {
-    const res = await createWithSearch(
-      client,
-      {
-        model: ANALYSIS_MODEL,
-        max_tokens: 3000,
-        // Web search — the catalyst can't come from the scanner or training data.
-        // Basic variant (no dynamic code-exec filtering loop) — far cheaper per call.
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
-        // Structured outputs — the FINAL text block is schema-valid JSON.
-        output_config: { format: { type: "json_schema", schema: SCHEMA } },
-      } as Omit<Anthropic.MessageCreateParamsNonStreaming, "messages">,
-      buildPrompt(g, streakCount, basePrior),
-    );
-
-    // With a server tool the response interleaves search blocks; the structured
-    // JSON is the LAST text block.
-    const texts = res.content.filter(
-      (b): b is Anthropic.TextBlock => b.type === "text",
-    );
-    const last = texts[texts.length - 1];
-    if (!last) return null;
-    const parsed = JSON.parse(last.text) as AnalysisResult;
+    // detectCatalyst degrades to null on its own; a null just means "nothing
+    // decisive on file" and the score falls back to price-action + base rate.
+    const cat = await detectCatalyst(g.ticker, dateKey);
+    const catalyst_type = normalizeCatalystType(cat?.catalyst_type ?? "other");
+    const scored = scoreShort(g, streakCount, baseRate, catalyst_type, tech);
+    const short_thesis = await generateThesisText({
+      g,
+      catalyst: cat?.catalyst ?? null,
+      catalystType: catalyst_type,
+      streakCount,
+      baseRate,
+      tech,
+      shortScore: scored.short_score,
+      percentWin: scored.percent_win_estimate,
+    });
     return {
-      ...parsed,
-      catalyst_type: normalizeCatalystType(parsed.catalyst_type),
-      short_score: clampInt(parsed.short_score, 1, 10, 5),
-      percent_win_estimate: clampInt(parsed.percent_win_estimate, 0, 100, 50),
+      catalyst:
+        cat?.catalyst ??
+        `No fresh SEC filing found for ${g.ticker} — the move looks driven by momentum, social buzz, or news outside official filings.`,
+      catalyst_url: cat?.catalyst_url ?? "",
+      catalyst_type,
+      short_thesis,
+      short_score: clampInt(scored.short_score, 1, 10, 5),
+      percent_win_estimate: clampInt(scored.percent_win_estimate, 0, 100, 50),
     };
   } catch (err) {
-    console.error(`[claude] analysis failed for ${g.ticker}:`, (err as Error).message);
+    console.error(`[quant] analysis failed for ${g.ticker}:`, (err as Error).message);
     return null;
   }
 }
 
 /**
- * Generate + store theses for the top `count` gainers of a day, skipping any that
- * already exist. `streaks` maps ticker -> prior-day streak count (neutral context
- * for the model). Called from the pre-close drop / EOD. Returns the number created.
+ * Generate + store theses for the top `count` gainers of a day, skipping any
+ * that already exist. `streaks` maps ticker -> prior-day streak count;
+ * `baseRates` maps ticker -> resolved empirical prior. Called from the
+ * pre-close drop / EOD. Free to run (no Anthropic spend in the default
+ * template mode), so it is NOT behind the AI_THESES_ENABLED switch.
+ * Returns the number created.
  */
 export async function generateAndStoreTopAnalyses(
   admin: SupabaseClient<Database>,
   gainers: GainerRow[],
   dateKey: string,
   streaks: Map<string, number>,
-  priors: Map<string, string | null>,
+  baseRates: Map<string, BaseRate | null>,
   count = 5,
 ): Promise<number> {
-  if (!aiThesesEnabled()) {
-    console.log(
-      `[claude] AI theses DISABLED — skipped generation for ${dateKey}. Set AI_THESES_ENABLED=true to re-enable.`,
-    );
-    return 0;
-  }
   const top = gainers.slice(0, count);
   if (top.length === 0) return 0;
 
@@ -261,14 +144,24 @@ export async function generateAndStoreTopAnalyses(
     );
   const have = new Set((existing ?? []).map((r) => r.ticker));
 
+  // One scanner call covers every ticker; failure yields an empty map and
+  // scoring proceeds on catalyst + base rate alone.
+  const techs = await fetchTechnicals(top.map((g) => g.ticker));
+
+  // Self-describing rows: the scoring version, plus the prose source when the
+  // paid Haiku mode is active (per-row template fallbacks aren't tracked).
+  const model = activeProseMode() === "haiku" ? `${QUANT_VERSION}+haiku` : QUANT_VERSION;
+
   let created = 0;
   for (const g of top) {
     if (remaining <= 0) break; // never exceed the day cap
     if (have.has(g.ticker)) continue;
     const a = await generateAnalysis(
       g,
+      dateKey,
       streaks.get(g.ticker) ?? null,
-      priors.get(g.ticker) ?? null,
+      baseRates.get(g.ticker) ?? null,
+      techs.get(g.ticker) ?? null,
     );
     if (!a) continue;
     const { error } = await admin.from("ai_analyses").upsert(
@@ -281,7 +174,7 @@ export async function generateAndStoreTopAnalyses(
         catalyst_type: a.catalyst_type,
         short_score: a.short_score,
         percent_win_estimate: a.percent_win_estimate,
-        model: ANALYSIS_MODEL,
+        model,
         // Denormalized so the AI card renders exactly this drop's set, in order,
         // independent of how the live gainer list shifts before the close.
         rank: g.rank,
@@ -290,7 +183,7 @@ export async function generateAndStoreTopAnalyses(
       { onConflict: "date,ticker" },
     );
     if (error) {
-      console.error(`[claude] store failed for ${g.ticker}:`, error.message);
+      console.error(`[quant] store failed for ${g.ticker}:`, error.message);
     } else {
       created++;
       remaining--;
