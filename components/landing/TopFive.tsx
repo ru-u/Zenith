@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Lock } from "lucide-react";
 import { Reveal } from "./Reveal";
 import { StreakBadge } from "@/components/gainers/StreakBadge";
+import { useAiAnalyses } from "@/hooks/useAiAnalyses";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { formatDayLabel, formatPrice } from "@/lib/format";
 import { digitsFor, scoreDigits } from "./mystery";
-import type { AIAnalysis, DailyGainer } from "@/lib/supabase/types";
+import type { DailyGainer } from "@/lib/supabase/types";
 
 // The hero's old live-data funnel, relocated: the session's real top five as
 // a flat wire panel. Tickers stay public; the SCORE stays the gated tease —
@@ -46,7 +46,7 @@ function ScoreTease({
       {!isPro && (
         <Lock
           className="ml-0.5 h-3 w-3 self-center text-muted-foreground/70"
-          aria-label="Short score locked — unlocks with Pro"
+          aria-label="Short score locked. Unlocks with Pro."
         />
       )}
     </span>
@@ -106,20 +106,8 @@ export function TopFive({ isPro }: { isPro: boolean }) {
   const dateKey = data?.date ?? "";
   const top = gainers.slice(0, 5);
 
-  // Pro score reveal — reads already-stored ai_analyses rows through the
-  // existing Pro-gated endpoint (tier check + RLS). Same queryKey as
-  // AIAnalysisCard so the cache is shared. This is a DB read only: it never
-  // triggers thesis generation and never calls the Anthropic API.
-  const { data: analyses } = useQuery({
-    queryKey: ["ai-analysis", dateKey],
-    queryFn: async () => {
-      const res = await fetch(`/api/ai-analysis?date=${dateKey}`);
-      if (!res.ok) return [] as AIAnalysis[];
-      const json = (await res.json()) as { analyses: AIAnalysis[] };
-      return json.analyses;
-    },
-    enabled: isPro && !!dateKey,
-  });
+  // Pro score reveal — shares the drop-aware query with AIAnalysisCard.
+  const { data: analyses } = useAiAnalyses(dateKey || undefined, isPro);
   const proScores = useMemo(
     () =>
       analyses

@@ -13,7 +13,7 @@ function displayName(user: {
   const fromMeta =
     (meta.full_name as string) || (meta.name as string) || "";
   if (fromMeta.trim()) return fromMeta.trim();
-  // Fall back to the email's local part (e.g. "ary07yadav") for accounts
+  // Fall back to the email's local part (e.g. "jane.doe") for accounts
   // created before we collected names.
   return user.email?.split("@")[0] ?? "Account";
 }

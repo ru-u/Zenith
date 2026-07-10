@@ -7,17 +7,17 @@ const STEPS = [
   {
     time: "9:30 – 4:00 ET",
     title: "The screener",
-    body: "Every trading day, Zenith ranks the biggest US gainers — price, volume, market cap, and how many days each has run in a row.",
+    body: "Every trading day, Zenith ranks the biggest US gainers by percent gain, with price, volume, market cap, and how many days each has run in a row.",
   },
   {
     time: "~3:30 PM ET",
     title: "The 3:30 drop",
-    body: "About 30 minutes before the close, an AI short thesis lands on the top five: what drove the spike, what could hold it up, and a call.",
+    body: "About 30 minutes before the close, an AI short thesis lands on the top five: what drove the spike, what could hold it up, and a short-or-skip call.",
   },
   {
     time: "4:00 PM ET",
     title: "The close",
-    body: "In the DECA Stock Market Game, orders placed before 4:00 PM ET fill at that day's closing price. Read the drop, pick your short, get the order in.",
+    body: "In the DECA Stock Market Game, orders placed before 4:00 PM ET fill at that day's closing price. Read the drop and get your order in before the close.",
   },
 ] as const;
 
@@ -26,11 +26,13 @@ export function HowItWorks() {
     <section className="mx-auto w-full max-w-6xl px-6 py-20">
       <Reveal>
         <h2 className="text-3xl font-semibold tracking-tight text-balance">
-          One decision a day, on a clock
+          Built around the 4:00 close
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          The game fills every order at the close — so the whole day funnels
-          into one moment. Zenith is built around it.
+          In the DECA Stock Market Game, every order placed during the day fills at that
+          day&apos;s 4:00 PM close. Zenith ranks the gainers all session, then
+          posts its analysis at 3:30 so you have half an hour to pick a short
+          and place the order.
         </p>
         <ol className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {STEPS.map((s) => (

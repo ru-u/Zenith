@@ -15,7 +15,7 @@ export function LandingHero({
   isPro: boolean;
 }) {
   return (
-    <section className="relative flex min-h-[82svh] flex-col items-center justify-center overflow-hidden px-6 py-24 text-center">
+    <section className="relative flex min-h-[76svh] flex-col items-center justify-center overflow-hidden px-6 pt-24 pb-16 text-center">
       <AmbientChevrons variant="hero" unique="hero" />
 
       <div className="animate-hero-rise relative z-10 flex max-w-3xl flex-col items-center gap-6">
@@ -27,9 +27,9 @@ export function LandingHero({
         </h1>
         {/* Soft dark halo lifts the copy off the trace lines behind it. */}
         <p className="max-w-xl text-base leading-relaxed text-muted-foreground [text-shadow:0_1px_3px_oklch(0.06_0.015_220/0.9),0_0_18px_oklch(0.06_0.015_220/0.7)] sm:text-lg">
-          Every day a handful of stocks spike double digits — and most give it
+          Every day a handful of stocks spike double digits. Most give it
           back. Zenith ranks the day&apos;s biggest gainers, tracks their
-          streaks, and drops an AI short thesis on the top five at ~3:30 ET,
+          streaks, and drops an AI short thesis on the top five at 3:30 ET,
           while your order still fills at today&apos;s close.
         </p>
 
@@ -53,11 +53,10 @@ export function LandingHero({
         <DropCountdown className="mt-3" />
       </div>
 
-      {/* Dissolve into the page so the field has no bottom edge. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-linear-to-b from-transparent to-background"
-      />
+      {/* No painted bottom fade here: the page sits on the fixed GradientMesh,
+          and fading to the flat --background over it left a visible tonal seam
+          at the section edge. The field dissolves via its own mask instead
+          (see AmbientChevrons), so hero → TopFive is one continuous surface. */}
     </section>
   );
 }

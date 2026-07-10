@@ -71,7 +71,7 @@ export function DropCountdown({ className }: { className?: string }) {
       live = true;
       content = (
         <>
-          Today&apos;s drop is <strong className="text-up">live</strong> —{" "}
+          Today&apos;s drop is <strong className="text-up">live</strong> ·{" "}
           <strong className="tabular-nums text-foreground">{clock(s)}</strong>{" "}
           to the close
         </>

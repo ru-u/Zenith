@@ -12,9 +12,9 @@ import type { SubscriptionTier } from "@/lib/supabase/types";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { absolute: "Zenith — Short the spike" },
+  title: { absolute: "Zenith · Short the spike" },
   description:
-    "Zenith ranks the day's biggest US market gainers and drops an AI short thesis at 3:30 ET — built for DECA Stock Market Game competitors.",
+    "Zenith ranks the day's biggest US market gainers and drops an AI short thesis at 3:30 ET. Built for DECA Stock Market Game competitors.",
 };
 
 // The marketing landing. The screener (the tool itself) lives at /screener and

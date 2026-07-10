@@ -20,7 +20,7 @@ export function PricingCTA({
     return (
       <p className="mt-7 rounded-full border border-brand/20 bg-brand/10 px-4 py-2.5 text-center text-sm font-semibold">
         <span className="bg-linear-to-r from-foreground to-brand bg-clip-text text-transparent">
-          You&apos;re on Pro — thanks!
+          You&apos;re on Pro!
         </span>
       </p>
     );

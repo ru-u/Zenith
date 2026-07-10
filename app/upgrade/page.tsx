@@ -9,7 +9,7 @@ import type { SubscriptionTier } from "@/lib/supabase/types";
 export const dynamic = "force-dynamic";
 
 const PRO_FEATURES = [
-  "Claude AI short thesis on the top movers — risk, catalysts, recommendation",
+  "Claude AI short thesis on the top movers: risk, catalysts, recommendation",
   "Unlimited history (free is capped at 5 days)",
   "Per-ticker streak history",
   "Short watchlist & email alerts",

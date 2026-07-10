@@ -7,14 +7,14 @@ import { PricingCTA } from "./PricingCTA";
 // recent history + the 3:30 email; Pro adds the thesis and depth.
 const TIERS = {
   browse: [
-    "Today's full screener — the day's biggest gainers, ranked",
+    "Today's full screener: the day's biggest gainers, ranked",
     "Consecutive-day streak badges",
     "Simple price charts, built for beginners",
   ],
   free: [
     "Everything in Browse",
     "Last 5 days of history",
-    "The 3:30 drop email — top movers in your inbox before the close",
+    "The 3:30 drop email: top movers in your inbox before the close",
   ],
   pro: [
     "AI short thesis on the top 5, every trading day",
@@ -48,11 +48,13 @@ export function PricingSection({
     <section id="pricing" className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-20">
       <Reveal>
         <h2 className="text-3xl font-semibold tracking-tight text-balance">
-          Start free. Pay for the thesis.
+          The screener is free. The edge is $4.99.
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          The screener is open — no account, no trial clock. Pro exists for one
-          reason: the daily AI short thesis.
+          Anyone can see the day&apos;s biggest gainers. Pro tells you which
+          of the top 5 to short and why: the catalyst behind the spike, and
+          how similar spikes have ended before. In your inbox by 3:30, while
+          there&apos;s still time to trade on it.
         </p>
 
         <div className="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
