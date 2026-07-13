@@ -2,20 +2,17 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCleanedGainers, latestScrapedAt } from "@/lib/gainers";
+import { tradingDaysAgoKey } from "@/lib/market-calendar";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const FREE_HISTORY_DAYS = 5;
-
-function daysAgo(dateKey: string): number {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const then = Date.UTC(y, m - 1, d);
-  const now = Date.now();
-  return Math.floor((now - then) / 86_400_000);
-}
+// Counted in TRADING days, not calendar days: a calendar window swallows the
+// weekend, so a free user visiting on a Sunday would see only 3–4 days with
+// data and the number would drift by weekday. This always yields exactly 5.
+const FREE_HISTORY_TRADING_DAYS = 5;
 
 export async function GET(
   _req: Request,
@@ -35,16 +32,18 @@ export async function GET(
     return NextResponse.json({ error: "auth required" }, { status: 401 });
   }
 
-  // Free tier: last 5 days only. Pro: unlimited.
+  // Free tier: the last 5 trading days. Pro: unlimited.
   const { data: profile } = await supabase
     .from("profiles")
     .select("subscription_tier")
     .eq("id", user.id)
     .maybeSingle<{ subscription_tier: SubscriptionTier }>();
   const isPro = profile?.subscription_tier === "pro";
-  if (!isPro && daysAgo(date) > FREE_HISTORY_DAYS) {
+  // Both are YYYY-MM-DD, so a lexicographic compare is a date compare.
+  const oldestFree = tradingDaysAgoKey(FREE_HISTORY_TRADING_DAYS);
+  if (!isPro && date < oldestFree) {
     return NextResponse.json(
-      { error: "upgrade_required", limitDays: FREE_HISTORY_DAYS },
+      { error: "upgrade_required", limitDays: FREE_HISTORY_TRADING_DAYS },
       { status: 403 },
     );
   }

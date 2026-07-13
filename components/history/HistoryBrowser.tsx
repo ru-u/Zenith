@@ -96,7 +96,8 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
               <Lock className="h-4 w-4" />
             </span>
             <p className="text-sm text-muted-foreground">
-              This date is older than 5 days. Upgrade to Pro for full history.
+              This date is older than the last 5 trading days. Upgrade to Pro
+              for full history.
             </p>
             <Link
               href="/upgrade"

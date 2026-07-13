@@ -96,6 +96,30 @@ export function isTradingDay(date: Date = new Date()): boolean {
   return !US_MARKET_HOLIDAYS.has(getTodayET(date));
 }
 
+/**
+ * The date key `count` trading days back — the oldest day in a "last N trading
+ * days" window, with today counted as one when it's a trading day. Weekends and
+ * holidays are skipped, so the window always spans exactly N days that have
+ * data (a calendar-day count would swallow the weekend and yield fewer).
+ */
+export function tradingDaysAgoKey(count: number, from: Date = new Date()): string {
+  const [y, m, d] = getTodayET(from).split("-").map(Number);
+  // Probe at UTC noon — the ET calendar date is stable there across DST.
+  let t = Date.UTC(y, m - 1, d) + 12 * 60 * 60 * 1000;
+  let remaining = count;
+  let oldest = getTodayET(from);
+  // Bounded: even a holiday-heavy 5-day window spans well under 40 days.
+  for (let i = 0; i < 40; i++) {
+    const day = new Date(t);
+    if (isTradingDay(day)) {
+      oldest = formatDateKey(day);
+      if (--remaining === 0) break;
+    }
+    t -= 24 * 60 * 60 * 1000;
+  }
+  return oldest;
+}
+
 // Half-days (NYSE/Nasdaq 1:00 PM ET close) as ET date keys → close minutes from
 // ET midnight. Without this, the pre-close drop would fire AFTER the real close
 // on these days. Maintain yearly alongside US_MARKET_HOLIDAYS.

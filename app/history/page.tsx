@@ -14,7 +14,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
       <PageHeader
         eyebrow="Past sessions"
         title="History"
-        description="Past trading days. Free accounts can browse the last 5 days."
+        description="Past trading days. Free accounts can browse the last 5 trading days."
         unique="history"
       />
       {children}
@@ -51,7 +51,8 @@ function HistoryTeaser() {
             Browse past trading days with a free account
           </p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            See the last 5 days free — go Pro for unlimited history and streaks.
+            See the last 5 trading days free — go Pro for unlimited history and
+            streaks.
           </p>
           <div className="mt-1 flex items-center gap-2">
             <Link

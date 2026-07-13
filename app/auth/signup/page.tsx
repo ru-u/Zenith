@@ -27,7 +27,7 @@ export default async function SignupPage({
           Create your account
         </h1>
         <p className="mb-5 text-sm text-muted-foreground">
-          Free — unlocks 5 days of history and streak tracking.
+          Free — unlocks the last 5 trading days of history and streak tracking.
         </p>
         <Suspense>
           <SignupForm />
