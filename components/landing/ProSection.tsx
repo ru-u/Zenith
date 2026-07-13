@@ -6,8 +6,8 @@ import { ZenithMark } from "@/components/layout/Logo";
 
 // Mirrors app/upgrade/page.tsx PRO_FEATURES — keep in sync if that changes.
 const PRO_FEATURES = [
-  "Claude AI short thesis on the top movers: risk, catalysts, recommendation",
-  "Unlimited history (free is capped at 5 days)",
+  "Quant-AI short thesis on the top movers: risk level, catalysts, and base-rate odds",
+  "Unlimited history (free is capped at 5 trading days)",
   "Per-ticker streak history",
   "Short watchlist & email alerts",
 ];
@@ -29,13 +29,13 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             Zenith Pro
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance">
-            Why it spiked, and whether to short it
+            Why it spiked, and how it looks as a short
           </h2>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
             Anyone can see what spiked. Pro adds a written short thesis on each
-            of the day&apos;s top five: what drove the move, what could keep it
-            going, and a clear call, posted at 3:30 while you can still trade
-            on it.
+            of the day&apos;s top five — built by a quant engine from SEC
+            filings, base-rate odds, and live technicals, with AI sharpening
+            the analysis — posted at 3:30 before the close.
           </p>
           <ul className="mt-5 flex flex-col gap-3">
             {PRO_FEATURES.map((f) => (
@@ -86,8 +86,8 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             </ul>
           </div>
           <p className="mt-4 rounded-lg bg-brand/10 px-3 py-2 text-sm font-medium">
-            <span className="text-brand">Call:</span> Short. Stretched move
-            with nothing underneath it.
+            <span className="text-brand">Setup:</span> A stretched move with
+            nothing underneath it.
           </p>
         </div>
       </Reveal>

@@ -29,7 +29,7 @@ export function LandingHero({
         <p className="max-w-xl text-base leading-relaxed text-muted-foreground [text-shadow:0_1px_3px_oklch(0.06_0.015_220/0.9),0_0_18px_oklch(0.06_0.015_220/0.7)] sm:text-lg">
           Every day a handful of stocks spike double digits. Most give it
           back. Zenith ranks the day&apos;s biggest gainers, tracks their
-          streaks, and drops an AI short thesis on the top five at 3:30 ET,
+          streaks, and drops a quant short thesis on the top five at 3:30 ET,
           while your order still fills at today&apos;s close.
         </p>
 

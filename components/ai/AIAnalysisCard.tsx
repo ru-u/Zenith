@@ -103,7 +103,7 @@ export function AIAnalysisCard() {
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-brand" />
-        <h2 className="text-lg font-semibold tracking-tight">AI short theses</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Short theses</h2>
         <span className="text-xs text-muted-foreground">· top movers</span>
       </div>
       <div className="flex items-center gap-1">

@@ -12,7 +12,7 @@ const STEPS = [
   {
     time: "~3:30 PM ET",
     title: "The 3:30 drop",
-    body: "About 30 minutes before the close, an AI short thesis lands on the top five: what drove the spike, what could hold it up, and a short-or-skip call.",
+    body: "About 30 minutes before the close, the quant engine drops a short thesis on the top five: the catalyst behind the spike, how similar spikes have played out before, and a short-rating out of 10.",
   },
   {
     time: "4:00 PM ET",

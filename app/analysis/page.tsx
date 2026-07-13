@@ -20,7 +20,7 @@ function PageShell({
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">
       <PageHeader
         eyebrow="The 3:30 drop"
-        title="AI short theses"
+        title="Short theses"
         description="The full next-day short analysis for today's top movers, ranked best→worst short."
         unique="analysis"
       >
@@ -56,7 +56,7 @@ function AnalysisTeaser({ signedIn }: { signedIn: boolean }) {
             <Lock className="h-4 w-4" />
           </span>
           <p className="text-sm font-medium">
-            Unlock all 5 AI short theses with Zenith Pro
+            Unlock all 5 short theses with Zenith Pro
           </p>
           <p className="max-w-sm text-xs text-muted-foreground">
             Read the full catalyst, thesis, and next-day short score before today&apos;s

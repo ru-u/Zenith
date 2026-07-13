@@ -13,11 +13,11 @@ const TIERS = {
   ],
   free: [
     "Everything in Browse",
-    "Last 5 days of history",
+    "The last 5 trading days of history",
     "The 3:30 drop email: top movers in your inbox before the close",
   ],
   pro: [
-    "AI short thesis on the top 5, every trading day",
+    "Quant-AI short thesis on the top 5, every trading day",
     "Thesis included in the 3:30 email",
     "Unlimited history + per-ticker streak history",
     "Short watchlist & alerts",
@@ -51,10 +51,10 @@ export function PricingSection({
           The screener is free. The edge is $4.99.
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Anyone can see the day&apos;s biggest gainers. Pro tells you which
-          of the top 5 to short and why: the catalyst behind the spike, and
-          how similar spikes have ended before. In your inbox by 3:30, while
-          there&apos;s still time to trade on it.
+          Anyone can see the day&apos;s biggest gainers. Pro breaks down each
+          of the top 5 as a short candidate: the catalyst behind the spike, and
+          how similar spikes have played out before. In your inbox by 3:30,
+          before the close.
         </p>
 
         <div className="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-3">

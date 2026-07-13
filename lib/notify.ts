@@ -56,8 +56,8 @@ function buildHtml(opts: {
     : `<a href="${site}/upgrade" style="display:inline-block;background:#0891b2;color:#fff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px">Upgrade to read the theses →</a>`;
 
   const sub = isPro
-    ? "Your AI short theses for today's top movers are ready."
-    : "See why each is a short candidate with Zenith Pro AI theses.";
+    ? "Your short theses for today's top movers are ready."
+    : "See why each is a short candidate with Zenith Pro theses.";
 
   const left =
     mins > 0

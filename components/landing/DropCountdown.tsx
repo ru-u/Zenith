@@ -10,7 +10,7 @@ import {
   secondsUntilCloseET,
 } from "@/lib/market-calendar";
 
-// The AI thesis "drop" lands ~30 min before the close (see lib/eod.ts /
+// The thesis "drop" lands ~30 min before the close (see lib/eod.ts /
 // /api/cron/pre-close). This chip counts down to the next one — the landing
 // page's live proof that the product runs on a real daily clock.
 const DROP_LEAD_SECONDS = 30 * 60;
@@ -61,7 +61,7 @@ export function DropCountdown({ className }: { className?: string }) {
     if (s != null && s > DROP_LEAD_SECONDS) {
       content = (
         <>
-          Next AI drop in{" "}
+          Next drop in{" "}
           <strong className="tabular-nums text-foreground">
             {clock(s - DROP_LEAD_SECONDS)}
           </strong>
@@ -84,7 +84,7 @@ export function DropCountdown({ className }: { className?: string }) {
       }).format(next);
       content = (
         <>
-          Next AI drop{" "}
+          Next drop{" "}
           <strong className="text-foreground">
             {weekday} · {dropTimeLabel(next)} ET
           </strong>
@@ -110,7 +110,7 @@ export function DropCountdown({ className }: { className?: string }) {
         <Clock className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden />
       )}
       <span className="font-mono text-[13px]">
-        {content ?? <span className="opacity-0">Next AI drop</span>}
+        {content ?? <span className="opacity-0">Next drop</span>}
       </span>
     </div>
   );

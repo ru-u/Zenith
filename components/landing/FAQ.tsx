@@ -14,6 +14,10 @@ const QA = [
     a: "Big one-day spikes tend to give back ground in the days after, especially in smaller stocks running on hype instead of numbers. Not always, which is the point of the thesis: it separates spikes with something underneath from spikes running on air. You still make the call.",
   },
   {
+    q: "Where do the theses come from?",
+    a: "A quantitative engine we built, not a chatbot. For each of the top five it pulls the SEC filing behind the spike, checks how similar spikes have historically played out (the base rates), and reads the day's technicals, then scores the setup out of 10. AI's only job is sharpening the wording — every number in a thesis is computed, never generated.",
+  },
+  {
     q: "How do trades work in the DECA Stock Market Game?",
     a: "It's an end-of-day game. Any order you place during market hours fills at that day's 4:00 PM ET closing price; place it after the close and it fills at the next day's close. Orders stay pending and cancelable until the close. That's why the thesis drops at 3:30, while you can still act on it.",
   },
@@ -23,7 +27,7 @@ const QA = [
   },
   {
     q: "What do I get without paying?",
-    a: "The full screener (today's ranked gainers, streaks, and charts) with no account at all. A free account adds the last 5 days of history and the 3:30 email. Pro ($4.99/mo) adds the daily AI short thesis, unlimited history, and watchlist alerts.",
+    a: "The full screener (today's ranked gainers, streaks, and charts) with no account at all. A free account adds the last 5 trading days of history and the 3:30 email. Pro ($4.99/mo) adds the daily short theses, unlimited history, and watchlist alerts.",
   },
   {
     q: "Is this investment advice?",

@@ -48,7 +48,7 @@ export default function TermsPage() {
 
       <LegalSection title="4. Not investment advice">
         <p>
-          Everything on Zenith, including the AI-generated theses, scores, and
+          Everything on Zenith, including the generated theses, scores, and
           risk labels, is educational analysis about a simulated trading
           competition. It is <strong>not investment advice</strong>, not a
           recommendation to buy, sell, or short any real security, and not an
@@ -92,8 +92,8 @@ export default function TermsPage() {
             DECA&apos;s written events require a signed{" "}
             <strong>Statement of Assurances and Academic Integrity</strong>{" "}
             and a bibliography. If Zenith&apos;s analysis informs a written entry
-            or presentation, cite it as a source. Do not present AI-generated
-            text as your own writing.
+            or presentation, cite it as a source. Do not present Zenith&apos;s
+            generated text as your own writing.
           </li>
           <li>
             Zenith does not guarantee that any stock it lists is tradeable or
@@ -150,7 +150,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Data and AI accuracy">
+      <LegalSection title="10. Data and analysis accuracy">
         <p>
           Market data comes from third-party sources and may be delayed,
           incomplete, or wrong. The theses are produced by an automated system;
