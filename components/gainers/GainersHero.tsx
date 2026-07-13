@@ -13,17 +13,16 @@ import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { formatPrice } from "@/lib/format";
 import type { DailyGainer } from "@/lib/supabase/types";
 
-// Hover-glow: the brand cyan, with prominence ramping DOWN by rank — card #1 is
-// the strongest cyan glow, each card after it a step weaker, #5 the faintest.
-// var(--brand) adapts per theme, so the ramp reads in both light and dark.
-function heroGlow(index: number): React.CSSProperties {
-  const corner = 62 - index * 9; // 62 → 26 across #1–#5
-  const mid = Math.round(corner * 0.55);
+// Hover halo: a brand-cyan border + outer bloom (the CTA-button glow
+// treatment), with prominence ramping DOWN by rank — card #1 the strongest,
+// #5 the faintest. The card interior stays untinted so the numbers keep their
+// contrast; var(--brand) adapts per theme, so the ramp reads in both modes.
+function heroHalo(index: number): React.CSSProperties {
+  const ring = 65 - index * 7; // border: 65 → 37 across #1–#5
+  const bloom = 75 - index * 10; // outer glow: 75 → 35
   return {
-    backgroundImage: `linear-gradient(135deg,
-      color-mix(in oklab, var(--brand) ${corner}%, transparent) 0%,
-      color-mix(in oklab, var(--brand) ${mid}%, transparent) 48%,
-      transparent 80%)`,
+    borderColor: `color-mix(in oklab, var(--brand) ${ring}%, transparent)`,
+    boxShadow: `0 0 48px -10px color-mix(in oklab, var(--brand) ${bloom}%, transparent)`,
   };
 }
 
@@ -50,9 +49,11 @@ function HeroCard({
       className="group relative h-full cursor-pointer"
       onClick={onClick}
     >
+      {/* Painted above the card (later positioned sibling) so the cyan ring
+          replaces the glass border on hover instead of hiding under it. */}
       <div
-        className="absolute -inset-px rounded-2xl opacity-0 blur transition-opacity duration-300 group-hover:opacity-100"
-        style={heroGlow(index)}
+        className="pointer-events-none absolute inset-0 z-10 rounded-2xl border opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={heroHalo(index)}
         aria-hidden
       />
       <div className="glass-strong relative flex h-full flex-col gap-2 overflow-hidden rounded-2xl p-5">
