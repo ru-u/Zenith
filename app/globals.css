@@ -147,6 +147,10 @@
   }
   html {
     @apply font-sans;
+    /* In-page anchors (footer → #pricing / #faq) glide instead of jumping.
+       Route changes still snap: data-scroll-behavior="smooth" on <html>
+       (app/layout.tsx) tells Next 16 to override this during navigation. */
+    scroll-behavior: smooth;
   }
   /* Tailwind v4's Preflight sets `cursor: default` on <button> (v3 used pointer),
      so without this every button — the shared <Button>, base-ui Select triggers,
@@ -173,7 +177,10 @@
      the BASE rules must be the light treatment, and `.dark` overrides restore
      the darker fill + deeper shadow. (A `.light`-scoped override never matches.) */
   .glass {
-    background: color-mix(in oklab, white 78%, transparent);
+    /* Keep the light fill translucent enough for the gradient-mesh glows to
+       tint the panel through the blur — at ~78% white the panels read as flat
+       opaque slabs and the backdrop color dies (the dark fill is only 5%). */
+    background: color-mix(in oklab, white 50%, transparent);
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
@@ -191,7 +198,7 @@
 
   /* Stronger hero glass with a subtle top highlight. */
   .glass-strong {
-    background: color-mix(in oklab, white 85%, transparent);
+    background: color-mix(in oklab, white 60%, transparent);
     backdrop-filter: blur(28px) saturate(160%);
     -webkit-backdrop-filter: blur(28px) saturate(160%);
     border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
@@ -216,11 +223,14 @@
      soft gradient + top highlight + visible border keep the frosted look without
      flat-black harshness. */
   .glass-popover {
-    background: linear-gradient(to bottom, oklch(1 0 0), oklch(0.985 0.004 230));
-    border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+    /* The light gradient must be perceptible: starting at pure white makes it
+       read as a flat card, so start just off-white and end at a cool blue-gray
+       — the white inset highlight then has something to catch against. */
+    background: linear-gradient(to bottom, oklch(0.995 0.003 220), oklch(0.958 0.012 220));
+    border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
     box-shadow:
       0 1px 0 0 white inset,
-      0 12px 30px -12px rgb(0 0 0 / 0.14);
+      0 12px 30px -12px rgb(0 0 0 / 0.18);
   }
   .dark .glass-popover {
     background: linear-gradient(to bottom, oklch(0.2 0.022 235), oklch(0.15 0.02 235));
@@ -243,9 +253,9 @@
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(40rem 40rem at 12% -8%, oklch(0.6 0.15 200 / 0.2), transparent 60%),
-      radial-gradient(34rem 34rem at 92% 8%, oklch(0.58 0.15 235 / 0.17), transparent 60%),
-      radial-gradient(46rem 46rem at 70% 100%, oklch(0.62 0.14 205 / 0.15), transparent 60%);
+      radial-gradient(40rem 40rem at 12% -8%, oklch(0.58 0.17 200 / 0.38), transparent 60%),
+      radial-gradient(34rem 34rem at 92% 8%, oklch(0.56 0.17 235 / 0.34), transparent 60%),
+      radial-gradient(46rem 46rem at 70% 100%, oklch(0.6 0.16 205 / 0.3), transparent 60%);
     background-color: var(--background);
     animation: mesh-drift 24s ease-in-out infinite alternate;
   }
@@ -284,6 +294,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   .gradient-mesh,
   .animate-pulse-dot {
     animation: none !important;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UserMenu } from "./UserMenu";
 import { Logo } from "./Logo";
+import { NavLinks } from "./NavLinks";
 import { ThemeToggleButton } from "./ThemeToggleButton";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
@@ -45,24 +46,7 @@ export async function Header() {
         <nav className="flex items-center gap-1 text-sm sm:gap-2">
           {/* Text nav collapses on phones — the header otherwise overflows
               narrow viewports and drags the whole page wider. */}
-          <Link
-            href="/screener"
-            className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
-          >
-            Screener
-          </Link>
-          <Link
-            href="/analysis"
-            className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
-          >
-            Analysis
-          </Link>
-          <Link
-            href="/history"
-            className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
-          >
-            History
-          </Link>
+          <NavLinks />
 
           {isPro ? (
             <Link

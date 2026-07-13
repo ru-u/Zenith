@@ -38,8 +38,9 @@ const itemsOf = (opts: { v: string; label: string }[]) =>
 const PRICE_ITEMS = itemsOf(PRICE_OPTIONS);
 const CAP_ITEMS = itemsOf(CAP_OPTIONS);
 
-const TRIGGER = "h-9 w-40 border-foreground/10 bg-foreground/5";
-const CONTENT = "w-(--anchor-width) border border-foreground/10 bg-popover";
+// The popup surface itself comes from the SelectContent primitive
+// (`.glass-popover`) — overriding bg/border here would clobber its gradient.
+const TRIGGER = "h-9 w-40 border-foreground/10 bg-foreground/5 hover:bg-foreground/10";
 
 export function FilterBar() {
   const {
@@ -74,7 +75,7 @@ export function FilterBar() {
         <SelectTrigger className={TRIGGER}>
           <SelectValue placeholder="Price" />
         </SelectTrigger>
-        <SelectContent className={CONTENT} alignItemWithTrigger={false}>
+        <SelectContent alignItemWithTrigger={false}>
           {PRICE_OPTIONS.map((o) => (
             <SelectItem key={o.v} value={o.v}>
               {o.label}
@@ -91,7 +92,7 @@ export function FilterBar() {
         <SelectTrigger className={TRIGGER}>
           <SelectValue placeholder="Market cap" />
         </SelectTrigger>
-        <SelectContent className={CONTENT} alignItemWithTrigger={false}>
+        <SelectContent alignItemWithTrigger={false}>
           {CAP_OPTIONS.map((o) => (
             <SelectItem key={o.v} value={o.v}>
               {o.label}

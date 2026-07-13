@@ -55,6 +55,10 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // Smooth scrolling is set in globals.css for in-page anchors; this
+      // attribute makes Next 16 suppress it during route transitions so
+      // page-to-page navigation still scrolls to top instantly.
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
