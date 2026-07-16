@@ -4,11 +4,13 @@ import type { GainerRow } from "./marketdata/types";
 import { secondsUntilCloseET } from "./market-calendar";
 
 // User-facing pre-close email — the daily "drop" nudge. Distinct from
-// lib/alerts.ts (admin-only failure alerts): this fans out to opted-in users via
-// the Resend batch endpoint. Pro users are pointed at their theses; free users
-// get a teaser + upgrade CTA. The email is the actionable signal — DECA orders
-// placed before the close fill at today's close, so the job is to pull students
-// in while there's still time.
+// lib/alerts.ts (admin-only failure alerts): this fans out via the Resend batch
+// endpoint. Recipients are Pro subscribers only (for now) — the recipient query
+// filters on tier, so free users never receive it even with notify_preclose on.
+// buildHtml keeps its free-tier branch dormant in case the email reopens to
+// free accounts. The email is the actionable signal — DECA orders placed before
+// the close fill at today's close, so the job is to pull students in while
+// there's still time.
 
 const RESEND_BATCH_URL = "https://api.resend.com/emails/batch";
 const BATCH_SIZE = 100; // Resend batch cap
@@ -78,7 +80,7 @@ function buildHtml(opts: {
 }
 
 /**
- * Send the pre-close digest to all opted-in users. Once per (date) — the
+ * Send the pre-close digest to opted-in Pro users. Once per (date) — the
  * system_alerts unique constraint is the dedup, so the read-path firing on many
  * concurrent requests near 3:30 sends a single batch. On a total send failure the
  * claim is released so a later trigger (or the EOD pass) can retry. Returns the
@@ -118,6 +120,7 @@ export async function sendPreCloseEmails(
     .from("profiles")
     .select("email, subscription_tier, unsubscribe_token")
     .eq("notify_preclose", true)
+    .eq("subscription_tier", "pro") // Pro-only for now — see module comment
     .not("email", "is", null);
 
   const list = (data ?? []).filter((r): r is Recipient => !!r.email);

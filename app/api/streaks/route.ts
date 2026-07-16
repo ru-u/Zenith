@@ -1,14 +1,29 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Public: active streaks (>= 2 consecutive days), top 50 by length.
+// Account-gated: active streaks (>= 2 consecutive days), top 50 by length.
+// Signed-out visitors get an empty list (200, not 401 — useStreaks throws on
+// !ok and TanStack Query would retry-spam an endpoint that can never succeed
+// for them; empty just means no badges render).
 // "Active" = last_seen_date equals the table's most recent date. Broken streaks
 // are never deleted (updateStreaks only touches the day's tickers), so without
 // this filter stale rows accumulate past the limit and push live streaks out.
 export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { streaks: [] },
+      { headers: { "cache-control": "no-store" } },
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: latest } = await admin

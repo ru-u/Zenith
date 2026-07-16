@@ -27,7 +27,7 @@ const QA = [
   },
   {
     q: "What do I get without paying?",
-    a: "The full screener (today's ranked gainers, streaks, and charts) with no account at all. A free account adds the last 5 trading days of history and the 3:30 email. Pro ($4.99/mo) adds the daily short theses, unlimited history, and watchlist alerts.",
+    a: "The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, and the last 5 trading days of history. Pro ($4.99/mo) adds the daily short theses, the 3:30 drop email, unlimited history, and watchlist alerts.",
   },
   {
     q: "Is this investment advice?",

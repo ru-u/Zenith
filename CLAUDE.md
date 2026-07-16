@@ -44,7 +44,8 @@ triggering per-render provider calls).
 2. During the regular session (9:30–16:00 ET), if data is stale (>10 min),
    self-fetch the provider and cache it.
 3. ~30 min before the close (the **pre-close "drop"**), generate AI short theses
-   for the top-5 off the intraday data and email opted-in users — via Next's
+   for the top-5 off the intraday data and email opted-in **Pro** users (free
+   tiers get no email for now — `lib/notify.ts` filters recipients) — via Next's
    `after()`, `runPreCloseProcessing` in `lib/eod.ts`. This is the actionable
    moment (see Competition mechanics below). Theses store a `rank` so the AI card
    shows exactly the drop's set.
@@ -56,7 +57,7 @@ triggering per-render provider calls).
 **Write / scheduled** — two idempotent backstops, both reusing the read-path
 logic, secured by `CRON_SECRET`:
 - **Pre-close drop** `GET /api/cron/pre-close` (~3:30 ET): refresh intraday
-  gainers, generate theses, email opted-in users (`runPreCloseProcessing`).
+  gainers, generate theses, email opted-in Pro users (`runPreCloseProcessing`).
 - **EOD finalize** `GET /api/cron/run-eod` (~4:05 ET): finalize the official close
   + streaks (theses fallback).
 
@@ -101,7 +102,8 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   `stripe_customer_id`. RLS: own row only.
 - `daily_gainers` — one row per `(date, ticker)`: price, change_percent, volume,
   relative_volume, market_cap, sector, rank, `is_final`, scraped_at. RLS: public read.
-- `ticker_streaks` — `ticker`, `streak_count`, `last_seen_date`. RLS: public read.
+- `ticker_streaks` — `ticker`, `streak_count`, `last_seen_date`. RLS: public
+  read (the app-level gate lives in `/api/streaks`, which requires a session).
 - `ai_analyses` — `(date, ticker)`: short_thesis, risk_level, key_catalysts,
   recommendation, model. **RLS: Pro only.**
 
@@ -116,6 +118,11 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   cookie on every matched request and auth-gates `/history` (redirects to
   `/auth/login?next=…`).
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
+- **Charts and streak badges require an account** — `ChartDialog` renders a
+  sign-up gate for signed-out visitors (the TradingView widget is client-side;
+  there's no chart API to gate server-side), and `GET /api/streaks` returns an
+  empty list without a session (200, not 401 — `useStreaks` would retry-spam a
+  401). The Pro `/analysis` chart embeds are already behind auth.
 - **TradingView is the sole market-data source** — an undocumented endpoint with
   ToS risk. There's no provider fallback; revisit the licensing/source question
   before any commercial scale. The `MarketDataProvider` interface stays as the

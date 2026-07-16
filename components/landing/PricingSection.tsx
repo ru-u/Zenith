@@ -4,21 +4,23 @@ import { Reveal } from "./Reveal";
 import { PricingCTA } from "./PricingCTA";
 
 // Honest tier lines: the screener itself needs no account; an account adds
-// recent history + the 3:30 email; Pro adds the thesis and depth.
+// charts + streaks + recent history; Pro adds the thesis, the 3:30 email, and
+// depth.
 const TIERS = {
   browse: [
     "Today's full screener: the day's biggest gainers, ranked",
-    "Consecutive-day streak badges",
-    "Simple price charts, built for beginners",
+    "Filters by price, market cap, and ticker search",
+    "Live market status & close countdown",
   ],
   free: [
     "Everything in Browse",
+    "Simple price charts, built for beginners",
+    "Consecutive-day streak badges",
     "The last 5 trading days of history",
-    "The 3:30 drop email: top movers in your inbox before the close",
   ],
   pro: [
     "Quant-AI short thesis on the top 5, every trading day",
-    "Thesis included in the 3:30 email",
+    "The 3:30 drop email: top movers + thesis in your inbox before the close",
     "Unlimited history + per-ticker streak history",
     "Short watchlist & alerts",
   ],

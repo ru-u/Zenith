@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const PRO_FEATURES = [
   "Quant + AI short thesis on the top movers: risk level, catalysts, and base-rate odds",
+  "The 3:30 drop email: top movers + thesis in your inbox before the close",
   "Unlimited history (free is capped at 5 trading days)",
   "Per-ticker streak history",
   "Short watchlist & email alerts",
