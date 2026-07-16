@@ -85,6 +85,11 @@ alter table public.ai_analyses add column if not exists invalidation text;
 -- gainer list shifts before the close.
 alter table public.ai_analyses add column if not exists rank integer;
 alter table public.ai_analyses add column if not exists company_name text;
+-- Realized next-session outcome (calibration data; lib/quant/outcomes.ts)
+alter table public.ai_analyses add column if not exists next_date date;
+alter table public.ai_analyses add column if not exists next_close double precision;
+alter table public.ai_analyses add column if not exists next_change_percent double precision;
+alter table public.ai_analyses add column if not exists outcome_win boolean;
 alter table public.ai_analyses add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists ai_analyses_date_ticker_uidx on public.ai_analyses (date, ticker);

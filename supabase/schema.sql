@@ -74,6 +74,12 @@ create table if not exists public.ai_analyses (
   model                text,
   rank                 integer,  -- denormalized from daily_gainers at the ~3:30 drop
   company_name         text,     -- so the AI card renders the exact drop set, in order
+  -- Realized next-session outcome, recorded by the following day's EOD run —
+  -- the calibration data the scoring Δs get re-fit against (lib/quant/outcomes.ts).
+  next_date            date,              -- the session the outcome was measured on
+  next_close           double precision,  -- that session's close
+  next_change_percent  double precision,  -- close-to-close % vs the scored day
+  outcome_win          boolean,           -- true = closed lower (the short "won")
   created_at           timestamptz not null default now(),
   unique (date, ticker)
 );

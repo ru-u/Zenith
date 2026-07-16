@@ -6,6 +6,7 @@ import { updateStreaks } from "./streaks";
 import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
 import { resolveBaseRate, type BaseRate } from "./baseRates";
+import { recordThesisOutcomes } from "./quant/outcomes";
 
 /** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
 async function fetchStreaks(
@@ -127,6 +128,16 @@ export async function runEodProcessing(
     cleaned.map((g) => g.ticker),
     dateKey,
   );
+
+  // Stamp yesterday's theses with today's close — the calibration data the
+  // scoring Δs get re-fit against. Best-effort: a scanner hiccup here must
+  // never fail the EOD pass; the null-check lets any later same-day trigger
+  // (cron backstop, read-path finalize) fill what this run missed.
+  try {
+    await recordThesisOutcomes(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] outcome recording:", (e as Error)?.message);
+  }
 
   return generateAndStoreTopAnalyses(admin, rows, dateKey, streaks, baseRates, aiCount);
 }

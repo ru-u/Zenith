@@ -59,6 +59,13 @@ export type AIAnalysis = {
   model: string | null;
   rank: number | null;
   company_name: string | null;
+  // Realized next-session outcome, filled by the following day's EOD run
+  // (lib/quant/outcomes.ts). Null until recorded; stays null for rows whose
+  // next session passed before the recorder existed.
+  next_date: string | null;
+  next_close: number | null;
+  next_change_percent: number | null;
+  outcome_win: boolean | null;
   created_at: string;
 };
 
