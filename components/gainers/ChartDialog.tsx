@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LineChart } from "lucide-react";
@@ -15,39 +16,122 @@ import {
 import { useSubscription } from "@/hooks/useSubscription";
 import type { DailyGainer } from "@/lib/supabase/types";
 
-// Charts are account-gated: signed-out visitors get a sign-up prompt where the
-// chart would render. The header (ticker + day meta) stays visible as the
-// teaser. `next` returns the user to the page they were browsing after auth.
-function ChartSignupGate() {
+// Fake intraday walk for the blurred teaser behind the sign-up gate. Seeded by
+// ticker so every stock gets its own stable shape (no flicker across opens),
+// with an upward drift + late pop — these are the day's gainers, so the tease
+// should look like one. Not real data; it renders only behind a blur.
+function teaserPath(ticker: string): { line: string; area: string } {
+  let h = 2166136261;
+  for (let i = 0; i < ticker.length; i++) {
+    h = ((h ^ ticker.charCodeAt(i)) * 16777619) >>> 0;
+  }
+  const rand = () => {
+    h = (h * 1664525 + 1013904223) >>> 0;
+    return h / 4294967296;
+  };
+  const n = 48;
+  let v = 30 + rand() * 25;
+  const pts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    v = Math.max(8, Math.min(92, v + (rand() - 0.42) * 7));
+    if (i > n - 8) v = Math.min(94, v + rand() * 2.5);
+    const x = ((i / (n - 1)) * 800).toFixed(1);
+    const y = (400 - v * 4).toFixed(1);
+    pts.push(`${i ? "L" : "M"}${x},${y}`);
+  }
+  const line = pts.join(" ");
+  return { line, area: `${line} L800,400 L0,400 Z` };
+}
+
+// Charts are account-gated: signed-out visitors get a sign-up prompt over a
+// blurred teaser chart, in the exact footprint the real chart occupies (h-170
+// = StockChart's 680px), so the dialog is indistinguishable size-wise. The
+// header (ticker + day meta) stays visible as part of the tease. `next`
+// returns the user to the page they were browsing after auth.
+function ChartSignupGate({ ticker }: { ticker: string }) {
   const pathname = usePathname();
+  const gradId = useId();
   const next = encodeURIComponent(pathname || "/screener");
+  const { line, area } = teaserPath(ticker);
   return (
-    <div className="flex flex-col items-center justify-center gap-4 px-6 py-24 text-center">
-      <div className="rounded-full bg-brand/10 p-3 text-brand">
-        <LineChart className="h-6 w-6" aria-hidden />
-      </div>
-      <div>
-        <h3 className="text-lg font-semibold tracking-tight">
-          Sign up to view charts
-        </h3>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-          A free account unlocks interactive price charts, streak badges, and
-          the last 5 trading days of history.
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        <Link
-          href={`/auth/signup?next=${next}`}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02]"
+    <div className="relative h-170 w-full overflow-hidden">
+      {/* Blurred fake area chart — same brand-cyan styling as the real
+          TradingView overrides. scale-105 hides the blur's edge fringing. */}
+      <div aria-hidden className="absolute inset-0 scale-105 blur-sm">
+        <svg
+          viewBox="0 0 800 400"
+          preserveAspectRatio="none"
+          className="h-full w-full"
         >
-          Create free account
-        </Link>
-        <Link
-          href={`/auth/login?next=${next}`}
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Sign in
-        </Link>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2EE6E6" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#2EE6E6" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          {[80, 160, 240, 320].map((y) => (
+            <line
+              key={y}
+              x1="0"
+              y1={y}
+              x2="800"
+              y2={y}
+              className="stroke-foreground/10"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {[133, 267, 400, 533, 667].map((x) => (
+            <line
+              key={x}
+              x1={x}
+              y1="0"
+              x2={x}
+              y2="400"
+              className="stroke-foreground/5"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          <path d={area} fill={`url(#${gradId})`} />
+          <path
+            d={line}
+            fill="none"
+            stroke="#2EE6E6"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+      {/* Scrim so the prompt stays legible over the teaser. */}
+      <div aria-hidden className="absolute inset-0 bg-background/55" />
+      <div className="relative flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="rounded-full bg-brand/10 p-3 text-brand">
+          <LineChart className="h-6 w-6" aria-hidden />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold tracking-tight">
+            Sign up to view charts
+          </h3>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            A free account unlocks interactive price charts, streak badges, and
+            the last 5 trading days of history.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/auth/signup?next=${next}`}
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02]"
+          >
+            Create free account
+          </Link>
+          <Link
+            href={`/auth/login?next=${next}`}
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Sign in
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -105,9 +189,9 @@ export function ChartDialog({
           (signedIn ? (
             <StockChart key={gainer.ticker} ticker={gainer.ticker} />
           ) : loading ? (
-            <div className="h-105" aria-busy />
+            <div className="h-170" aria-busy />
           ) : (
-            <ChartSignupGate />
+            <ChartSignupGate ticker={gainer.ticker} />
           ))}
       </DialogContent>
     </Dialog>
