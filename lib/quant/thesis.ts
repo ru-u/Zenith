@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { GainerRow } from "../marketdata/types";
 import { formatBaseRatePrior, type BaseRate } from "../baseRates";
 import type { Technicals } from "./technicals";
+import type { PathFeatures } from "./features";
 
 export const ANALYSIS_MODEL = "claude-haiku-4-5";
 
@@ -36,6 +37,47 @@ export interface ThesisFindings {
   tech: Technicals | null;
   shortScore: number;
   percentWin: number;
+  /** Probability-weighted expected next-day move, % (lib/baseRates.ts). */
+  expectedMove: number | null;
+  /** Price-path/levels context for the chart sentence (lib/quant/features.ts). */
+  path: PathFeatures | null;
+}
+
+/**
+ * One sentence situating today's move on the recent graph — recovery into a
+ * traded range vs price discovery vs pressing a prior peak. Display-only and
+ * direction-neutral: it teaches the chart shape, it does not predict from it
+ * (whether these shapes fade differently is a September calibration question).
+ */
+function levelContextSentence(f: ThesisFindings): string | null {
+  const p = f.path;
+  if (!p) return null;
+  const headroom = p.headroom_to_prior_peak_pct;
+  if (p.is_new_high_3m) {
+    return "On the chart this is price discovery — today's spike took it above everything it's traded in the past three months, so there's no prior level overhead.";
+  }
+  if (headroom != null && headroom >= 8 && p.retracement_fraction != null && p.retracement_fraction >= 0.25) {
+    // headroom is upside TO the peak; convert to the % the price sits BELOW it
+    // (e.g. 115% of upside = 54% below the peak) so the sentence reads true.
+    const below = Math.round((headroom / (100 + headroom)) * 100);
+    return `On the chart this is a recovery, not a breakout — it's climbing back into a range it already traded this quarter, still ~${below}% below that prior peak.`;
+  }
+  if (headroom != null && headroom >= 0 && headroom < 3) {
+    return "On the chart it's pressing right up against its recent peak — the level where sellers showed up before.";
+  }
+  return null;
+}
+
+/** The payoff line: what a fade typically gives back vs what a run costs. */
+function expectedMoveSentence(f: ThesisFindings): string | null {
+  const r = f.baseRate;
+  if (f.expectedMove == null || r?.median_down_move == null || r?.median_up_move == null) {
+    return null;
+  }
+  const em = f.expectedMove;
+  const down = Math.abs(r.median_down_move * 100).toFixed(1);
+  const up = Math.abs(r.median_up_move * 100).toFixed(1);
+  return `Sizing the payoff: when this setup fades it typically gives back ~${down}%, and when it keeps running it typically adds ~${up}% — netting out to an expected ${em >= 0 ? "+" : ""}${em.toFixed(1)}% next-day move${em < 0 ? " in the short's favor" : ", which does NOT favor a short"}.`;
 }
 
 // One plain "how this catalyst type behaves over a single next-day hold" line
@@ -89,9 +131,18 @@ function templateThesis(f: ThesisFindings): string {
     );
   }
 
-  // 3 — the empirical odds (+ streak context when notable).
+  // 3 — where today's move sits on the recent graph (recovery vs discovery).
+  const level = levelContextSentence(f);
+  if (level) sentences.push(level);
+
+  // 4 — the empirical odds (+ streak context when notable).
   const prior = formatBaseRatePrior(f.baseRate);
   if (prior) sentences.push(prior);
+
+  // 5 — the payoff, which is what the game actually grades.
+  const payoff = expectedMoveSentence(f);
+  if (payoff) sentences.push(payoff);
+
   if (f.streakCount != null && f.streakCount > 1) {
     sentences.push(`It has now topped the gainers list ${f.streakCount} days in a row.`);
   }
@@ -115,6 +166,8 @@ async function haikuThesis(f: ThesisFindings): Promise<string | null> {
       change_from_open_percent: f.tech?.changeFromOpen,
       short_score_1_to_10: f.shortScore,
       percent_win_estimate: f.percentWin,
+      expected_next_day_move_percent: f.expectedMove,
+      chart_context: levelContextSentence(f),
     };
     const res = await client.messages.create({
       model: ANALYSIS_MODEL,

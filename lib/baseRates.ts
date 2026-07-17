@@ -36,6 +36,11 @@ export type BaseRate = {
   n: number;
   down_rate: number; // 0..1
   median_next_day_return: number | null;
+  // Conditional medians (fractions, like median_next_day_return): the typical
+  // move when the next day closed lower / higher. Nullable — older table
+  // contents predate these columns, and everything degrades to null.
+  median_down_move: number | null;
+  median_up_move: number | null;
 };
 
 /**
@@ -61,6 +66,23 @@ export function resolveBaseRate(
     if (r && r.n >= MIN_N) return r;
   }
   return map.get("ALL|ALL") ?? null;
+}
+
+/**
+ * Expected next-day move for a short setup, in percent: the probability-weighted
+ * average of the bucket's conditional medians. Negative = the setup typically
+ * pays a short. Null when the bucket predates the conditional-median columns.
+ * This is the payoff dimension the 1-10 score doesn't carry — a merger stock
+ * may close lower 55% of days by ~0%, while a parabolic micro-cap fades 60% of
+ * the time by -8%; the DECA game grades the magnitude, not the hit rate.
+ */
+export function expectedMovePercent(
+  percentWin: number,
+  r: BaseRate | null,
+): number | null {
+  if (!r || r.median_down_move == null || r.median_up_move == null) return null;
+  const p = percentWin / 100;
+  return (p * r.median_down_move + (1 - p) * r.median_up_move) * 100;
 }
 
 /** A one-line empirical prior to drop into the thesis prompt. */

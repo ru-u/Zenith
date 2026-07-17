@@ -80,6 +80,13 @@ create table if not exists public.ai_analyses (
   next_close           double precision,  -- that session's close
   next_change_percent  double precision,  -- close-to-close % vs the scored day
   outcome_win          boolean,           -- true = closed lower (the short "won")
+  -- Candidate-signal snapshot captured at scoring time (lib/quant/features.ts):
+  -- price-path/levels, serial-runner history, FINRA short ratio, pinned-tape.
+  -- Captured but NOT scored until the September re-fit proves a signal out.
+  features             jsonb,
+  -- Payoff dimension: win% × median down-move + loss% × median up-move for the
+  -- ticker's base-rate bucket, in percent (the game grades magnitude, not hits).
+  expected_move_percent double precision,
   created_at           timestamptz not null default now(),
   unique (date, ticker)
 );
@@ -119,6 +126,8 @@ create table if not exists public.gainer_base_rates (
   n                      integer not null,
   down_rate              numeric not null,  -- P(next_day_down), 0..1
   median_next_day_return numeric,
+  median_down_move       numeric,  -- typical move when it closed lower (fraction, < 0)
+  median_up_move         numeric,  -- typical move when it closed higher (fraction, > 0)
   updated_at             timestamptz not null default now(),
   primary key (cap_band, relvol_band)
 );

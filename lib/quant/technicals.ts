@@ -21,6 +21,19 @@ export interface Technicals {
   vwap: number | null;
   high52w: number | null;
   floatShares: number | null;
+  // Price-path context (feature capture — see lib/quant/features.ts):
+  low52w: number | null;
+  perfW: number | null; // % return over the past week
+  perf1M: number | null;
+  perf3M: number | null;
+  high1M: number | null; // windowed highs/lows (include today's session)
+  low1M: number | null;
+  high3M: number | null;
+  low3M: number | null;
+  avgVol10d: number | null;
+  dayOpen: number | null; // today's OHL, for gap/pinned-tape math
+  dayHigh: number | null;
+  dayLow: number | null;
 }
 
 // Column order matters — the response `d` array maps positionally to this list.
@@ -37,6 +50,18 @@ const COLUMNS = [
   "VWAP", // 9
   "price_52_week_high", // 10
   "float_shares_outstanding", // 11
+  "price_52_week_low", // 12
+  "Perf.W", // 13
+  "Perf.1M", // 14
+  "Perf.3M", // 15
+  "High.1M", // 16
+  "Low.1M", // 17
+  "High.3M", // 18
+  "Low.3M", // 19
+  "average_volume_10d_calc", // 20
+  "open", // 21
+  "high", // 22
+  "low", // 23
 ] as const;
 
 function toNum(v: unknown): number | null {
@@ -102,6 +127,18 @@ export async function fetchTechnicals(tickers: string[]): Promise<Map<string, Te
         vwap: toNum(d[9]),
         high52w: toNum(d[10]),
         floatShares: toNum(d[11]),
+        low52w: toNum(d[12]),
+        perfW: toNum(d[13]),
+        perf1M: toNum(d[14]),
+        perf3M: toNum(d[15]),
+        high1M: toNum(d[16]),
+        low1M: toNum(d[17]),
+        high3M: toNum(d[18]),
+        low3M: toNum(d[19]),
+        avgVol10d: toNum(d[20]),
+        dayOpen: toNum(d[21]),
+        dayHigh: toNum(d[22]),
+        dayLow: toNum(d[23]),
       });
     }
   } catch (err) {

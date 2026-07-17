@@ -66,6 +66,10 @@ export type AIAnalysis = {
   next_close: number | null;
   next_change_percent: number | null;
   outcome_win: boolean | null;
+  // Candidate-signal snapshot captured at scoring time (lib/quant/features.ts);
+  // stored for the September re-fit, not scored yet.
+  features: Record<string, unknown> | null;
+  expected_move_percent: number | null;
   created_at: string;
 };
 
@@ -94,6 +98,9 @@ export type GainerBaseRate = {
   n: number;
   down_rate: number;
   median_next_day_return: number | null;
+  // Conditional medians (fractions) for the expected-move dimension.
+  median_down_move: number | null;
+  median_up_move: number | null;
   updated_at: string;
 };
 

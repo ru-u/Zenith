@@ -1,10 +1,15 @@
 // Phase 2 ingest + precompute.
 //   1. Reads the prototype top-gainer CSV (with next-day price) into historical_gainers.
 //   2. Precomputes "closed lower next day" base rates by cap×relvol bucket
-//      (+ cap-only + global) into gainer_base_rates.
+//      (+ cap-only + global) into gainer_base_rates — including the conditional
+//      medians (typical move when down / when up) behind expected_move_percent.
 //
 // Run from the repo root with the service-role key available:
 //   node --env-file=.env.local scripts/historical-base-rates.mjs <path-to-csv>
+//   node --env-file=.env.local scripts/historical-base-rates.mjs --from-db
+//
+// --from-db skips the CSV ingest and recomputes the buckets from the
+// historical_gainers rows already in the database (e.g. after adding columns).
 //
 // Banding thresholds MUST match lib/baseRates.ts (capBand/relvolBand).
 
@@ -13,9 +18,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const csvPath = process.argv[2];
 if (!csvPath) {
-  console.error("usage: node --env-file=.env.local scripts/historical-base-rates.mjs <csv>");
+  console.error(
+    "usage: node --env-file=.env.local scripts/historical-base-rates.mjs <csv | --from-db>",
+  );
   process.exit(1);
 }
+const fromDb = csvPath === "--from-db";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -50,6 +58,29 @@ const num = (v) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : null;
 };
+
+// ── from-db mode: recompute buckets from rows already ingested ──
+if (fromDb) {
+  const all = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("historical_gainers")
+      .select("next_day_return, next_day_down, market_cap, relative_volume")
+      .range(from, from + 999);
+    if (error) {
+      console.error("historical_gainers read error:", error.message);
+      process.exit(1);
+    }
+    all.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const usable = all.filter(
+    (r) => r.next_day_return != null && r.market_cap != null && r.relative_volume != null,
+  );
+  console.log(`Loaded ${usable.length} usable rows from historical_gainers.`);
+  await computeAndWriteBaseRates(usable);
+  process.exit(0);
+}
 
 // ── parse CSV ──
 const text = readFileSync(csvPath, "utf8");
@@ -120,53 +151,65 @@ for (let i = 0; i < deduped.length; i += 500) {
 console.log(`Ingested ${deduped.length} unique rows into historical_gainers.`);
 
 // ── precompute base rates ──
-const groups = new Map(); // key -> { n, down, returns[] }
-function add(key, row) {
-  let g = groups.get(key);
-  if (!g) groups.set(key, (g = { n: 0, down: 0, returns: [] }));
-  g.n++;
-  if (row.next_day_down) g.down++;
-  g.returns.push(row.next_day_return);
-}
-for (const r of rows) {
-  const cb = capBand(r.market_cap);
-  const rb = relvolBand(r.relative_volume);
-  if (cb && rb) add(`${cb}|${rb}`, r);
-  if (cb) add(`${cb}|ALL`, r);
-  add(`ALL|ALL`, r);
-}
-const baseRates = [...groups.entries()].map(([k, g]) => {
-  const [cap_band, relvol_band] = k.split("|");
-  return {
-    cap_band,
-    relvol_band,
-    n: g.n,
-    down_rate: g.down / g.n,
-    median_next_day_return: median(g.returns),
-  };
-});
-
-// Replace the table contents.
-const { error: delErr } = await supabase
-  .from("gainer_base_rates")
-  .delete()
-  .not("cap_band", "is", null);
-if (delErr) {
-  console.error("gainer_base_rates clear error:", delErr.message);
-  process.exit(1);
-}
-const { error: insErr } = await supabase.from("gainer_base_rates").insert(baseRates);
-if (insErr) {
-  console.error("gainer_base_rates insert error:", insErr.message);
-  process.exit(1);
-}
-
-console.log(`\nWrote ${baseRates.length} base-rate buckets:`);
-const g = groups.get("ALL|ALL");
-console.log(`GLOBAL n=${g.n}  down=${(100 * g.down / g.n).toFixed(1)}%`);
-for (const r of baseRates.filter((b) => b.cap_band !== "ALL" && b.relvol_band !== "ALL")) {
-  console.log(
-    `  ${r.cap_band.padEnd(6)} ${r.relvol_band.padEnd(11)} n=${String(r.n).padStart(4)}  down=${(100 * r.down_rate).toFixed(0)}%`,
-  );
-}
+await computeAndWriteBaseRates(rows);
 console.log("Done.");
+
+// Bucket + write, shared by the CSV and --from-db paths. `next_day_down` is
+// recomputed from the return so both row shapes behave identically.
+async function computeAndWriteBaseRates(rows) {
+  const groups = new Map(); // key -> { n, down, returns[] }
+  function add(key, row) {
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { n: 0, down: 0, returns: [] }));
+    g.n++;
+    if (row.next_day_return < 0) g.down++;
+    g.returns.push(row.next_day_return);
+  }
+  for (const r of rows) {
+    const cb = capBand(r.market_cap);
+    const rb = relvolBand(r.relative_volume);
+    if (cb && rb) add(`${cb}|${rb}`, r);
+    if (cb) add(`${cb}|ALL`, r);
+    add(`ALL|ALL`, r);
+  }
+  const baseRates = [...groups.entries()].map(([k, g]) => {
+    const [cap_band, relvol_band] = k.split("|");
+    return {
+      cap_band,
+      relvol_band,
+      n: g.n,
+      down_rate: g.down / g.n,
+      median_next_day_return: median(g.returns),
+      // Conditional medians (fractions): the payoff dimension — what a fade
+      // typically gives back vs what a continued run typically costs a short.
+      median_down_move: median(g.returns.filter((r) => r < 0)),
+      median_up_move: median(g.returns.filter((r) => r >= 0)),
+    };
+  });
+
+  // Replace the table contents.
+  const { error: delErr } = await supabase
+    .from("gainer_base_rates")
+    .delete()
+    .not("cap_band", "is", null);
+  if (delErr) {
+    console.error("gainer_base_rates clear error:", delErr.message);
+    process.exit(1);
+  }
+  const { error: insErr } = await supabase.from("gainer_base_rates").insert(baseRates);
+  if (insErr) {
+    console.error("gainer_base_rates insert error:", insErr.message);
+    process.exit(1);
+  }
+
+  console.log(`\nWrote ${baseRates.length} base-rate buckets:`);
+  const g = groups.get("ALL|ALL");
+  console.log(`GLOBAL n=${g.n}  down=${(100 * g.down / g.n).toFixed(1)}%`);
+  for (const r of baseRates.filter((b) => b.cap_band !== "ALL" && b.relvol_band !== "ALL")) {
+    const md = r.median_down_move != null ? (100 * r.median_down_move).toFixed(1) : "?";
+    const mu = r.median_up_move != null ? (100 * r.median_up_move).toFixed(1) : "?";
+    console.log(
+      `  ${r.cap_band.padEnd(6)} ${r.relvol_band.padEnd(11)} n=${String(r.n).padStart(4)}  down=${(100 * r.down_rate).toFixed(0)}%  medDown=${md}%  medUp=+${mu}%`,
+    );
+  }
+}

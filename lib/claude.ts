@@ -9,10 +9,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GainerRow } from "@/lib/marketdata/types";
 import type { Database } from "@/lib/supabase/types";
-import type { BaseRate } from "@/lib/baseRates";
+import { expectedMovePercent, type BaseRate } from "@/lib/baseRates";
 import { detectCatalyst } from "./quant/edgar";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
 import { scoreShort } from "./quant/score";
+import { buildFeatureSnapshots, type FeatureSnapshot } from "./quant/features";
 import { activeProseMode, generateThesisText } from "./quant/thesis";
 
 // The spend switch + model id live with the only code that can spend now.
@@ -20,7 +21,8 @@ export { aiThesesEnabled, ANALYSIS_MODEL } from "./quant/thesis";
 
 // Versions the scoring rules in the stored `model` column so rows stay
 // comparable when the Δ weights are re-tuned. Bump on scoring changes.
-const QUANT_VERSION = "quant-v1";
+// v2: pinned-tape cap + expected-move/level-context prose + feature capture.
+const QUANT_VERSION = "quant-v2";
 
 // Catalyst classification — drives shortability (a buyout pins; a parabolic runner fades).
 const CATALYST_TYPES = [
@@ -40,6 +42,7 @@ export interface AnalysisResult {
   catalyst_type: string;
   short_score: number;
   percent_win_estimate: number;
+  expected_move_percent: number | null;
 }
 
 // Defensive coercion at the storage boundary, kept from the LLM era — the
@@ -71,13 +74,22 @@ export async function generateAnalysis(
   streakCount: number | null,
   baseRate: BaseRate | null,
   tech: Technicals | null,
+  snapshot: FeatureSnapshot | null = null,
 ): Promise<AnalysisResult | null> {
   try {
     // detectCatalyst degrades to null on its own; a null just means "nothing
     // decisive on file" and the score falls back to price-action + base rate.
     const cat = await detectCatalyst(g.ticker, dateKey);
     const catalyst_type = normalizeCatalystType(cat?.catalyst_type ?? "other");
-    const scored = scoreShort(g, streakCount, baseRate, catalyst_type, tech);
+    const scored = scoreShort(
+      g,
+      streakCount,
+      baseRate,
+      catalyst_type,
+      tech,
+      snapshot?.pinned_tape.pinned ?? false,
+    );
+    const expected_move_percent = expectedMovePercent(scored.percent_win_estimate, baseRate);
     const short_thesis = await generateThesisText({
       g,
       catalyst: cat?.catalyst ?? null,
@@ -87,6 +99,8 @@ export async function generateAnalysis(
       tech,
       shortScore: scored.short_score,
       percentWin: scored.percent_win_estimate,
+      expectedMove: expected_move_percent,
+      path: snapshot?.path ?? null,
     });
     return {
       catalyst:
@@ -97,6 +111,7 @@ export async function generateAnalysis(
       short_thesis,
       short_score: clampInt(scored.short_score, 1, 10, 5),
       percent_win_estimate: clampInt(scored.percent_win_estimate, 0, 100, 50),
+      expected_move_percent,
     };
   } catch (err) {
     console.error(`[quant] analysis failed for ${g.ticker}:`, (err as Error).message);
@@ -148,6 +163,11 @@ export async function generateAndStoreTopAnalyses(
   // scoring proceeds on catalyst + base rate alone.
   const techs = await fetchTechnicals(top.map((g) => g.ticker));
 
+  // Candidate-signal snapshots (levels, serial-runner, FINRA, pinned tape) —
+  // stored with each thesis for the September re-fit. Only `pinned` feeds
+  // scoring (the safety cap); every input degrades independently.
+  const snapshots = await buildFeatureSnapshots(admin, top, dateKey, techs, streaks, baseRates);
+
   // Self-describing rows: the scoring version, plus the prose source when the
   // paid Haiku mode is active (per-row template fallbacks aren't tracked).
   const model = activeProseMode() === "haiku" ? `${QUANT_VERSION}+haiku` : QUANT_VERSION;
@@ -156,12 +176,14 @@ export async function generateAndStoreTopAnalyses(
   for (const g of top) {
     if (remaining <= 0) break; // never exceed the day cap
     if (have.has(g.ticker)) continue;
+    const snapshot = snapshots.get(g.ticker) ?? null;
     const a = await generateAnalysis(
       g,
       dateKey,
       streaks.get(g.ticker) ?? null,
       baseRates.get(g.ticker) ?? null,
       techs.get(g.ticker) ?? null,
+      snapshot,
     );
     if (!a) continue;
     const { error } = await admin.from("ai_analyses").upsert(
@@ -174,6 +196,8 @@ export async function generateAndStoreTopAnalyses(
         catalyst_type: a.catalyst_type,
         short_score: a.short_score,
         percent_win_estimate: a.percent_win_estimate,
+        expected_move_percent: a.expected_move_percent,
+        features: snapshot ? (snapshot as unknown as Record<string, unknown>) : null,
         model,
         // Denormalized so the AI card renders exactly this drop's set, in order,
         // independent of how the live gainer list shifts before the close.

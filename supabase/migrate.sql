@@ -90,6 +90,9 @@ alter table public.ai_analyses add column if not exists next_date date;
 alter table public.ai_analyses add column if not exists next_close double precision;
 alter table public.ai_analyses add column if not exists next_change_percent double precision;
 alter table public.ai_analyses add column if not exists outcome_win boolean;
+-- Candidate-signal snapshot + payoff dimension (lib/quant/features.ts)
+alter table public.ai_analyses add column if not exists features jsonb;
+alter table public.ai_analyses add column if not exists expected_move_percent double precision;
 alter table public.ai_analyses add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists ai_analyses_date_ticker_uidx on public.ai_analyses (date, ticker);
@@ -147,6 +150,10 @@ create table if not exists public.gainer_base_rates (
   updated_at             timestamptz not null default now(),
   primary key (cap_band, relvol_band)
 );
+-- Conditional medians for the expected-move dimension (fractions, like
+-- median_next_day_return): typical move when the next day closed lower / higher.
+alter table public.gainer_base_rates add column if not exists median_down_move numeric;
+alter table public.gainer_base_rates add column if not exists median_up_move numeric;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- fetch_locks + claim_fetch (thundering-herd guard)

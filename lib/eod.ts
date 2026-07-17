@@ -34,7 +34,9 @@ async function fetchBaseRates(
 ): Promise<Map<string, BaseRate | null>> {
   const { data } = await admin
     .from("gainer_base_rates")
-    .select("cap_band, relvol_band, n, down_rate, median_next_day_return");
+    .select(
+      "cap_band, relvol_band, n, down_rate, median_next_day_return, median_down_move, median_up_move",
+    );
   const rates = (data ?? []) as BaseRate[];
   const priors = new Map<string, BaseRate | null>();
   for (const g of rows) {

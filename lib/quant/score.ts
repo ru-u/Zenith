@@ -46,12 +46,18 @@ function winToScore(win: number): number {
   return Math.round(clamp(1 + ((win - 20) * 9) / 60, 1, 10));
 }
 
+// Catalyst classes with a real bullish story — a pinned-looking tape on top of
+// genuine news is ambiguous, so the pinned cap defers to the catalyst there.
+const BULLISH_CATALYSTS = new Set(["earnings", "regulatory", "partnership"]);
+
 export function scoreShort(
   g: GainerRow,
   streakCount: number | null,
   baseRate: BaseRate | null,
   catalystType: string,
   tech: Technicals | null,
+  /** Deal-price tape signature (lib/quant/features.ts computePinnedTape). */
+  pinned = false,
 ): ShortScore {
   let win = baseRate ? baseRate.down_rate * 100 : FALLBACK_WIN;
 
@@ -100,6 +106,11 @@ export function scoreShort(
   // a pinned buyout is never an attractive short; squeezes are too wild).
   if (catalystType === "buyout") score = Math.min(score, 2);
   if (catalystType === "meme_squeeze") score = Math.min(score, 4);
+  // Pinned tape without a known catalyst: the deal-price signature of a merger
+  // announced by press release before any 8-K exists — EDGAR sees nothing, the
+  // move would otherwise score 6-7 as "other". A cap only prevents recommending
+  // shorts with no payoff; it can't create a bad recommendation.
+  if (pinned && !BULLISH_CATALYSTS.has(catalystType)) score = Math.min(score, 3);
 
   return { short_score: score, percent_win_estimate: win };
 }
