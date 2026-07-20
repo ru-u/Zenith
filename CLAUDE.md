@@ -149,6 +149,9 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   on any failure.
 - `SEC_EDGAR_USER_AGENT` — contact string SEC requires on EDGAR requests
   (`lib/quant/edgar.ts`), e.g. `"Zenith Screener you@example.com"`.
+- `FINNHUB_API_KEY` — free-tier Finnhub key for the headline catalyst fallback
+  (`lib/quant/news.ts`; runs only when EDGAR finds no filing). Absent = news
+  step silently skipped. Free-tier dependency — revisit at commercial scale.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper

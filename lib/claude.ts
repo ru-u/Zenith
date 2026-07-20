@@ -11,6 +11,7 @@ import type { GainerRow } from "@/lib/marketdata/types";
 import type { Database } from "@/lib/supabase/types";
 import { expectedMovePercent, type BaseRate } from "@/lib/baseRates";
 import { detectCatalyst } from "./quant/edgar";
+import { detectNewsCatalyst } from "./quant/news";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
 import { scoreShort } from "./quant/score";
 import { buildFeatureSnapshots, type FeatureSnapshot } from "./quant/features";
@@ -77,9 +78,13 @@ export async function generateAnalysis(
   snapshot: FeatureSnapshot | null = null,
 ): Promise<AnalysisResult | null> {
   try {
-    // detectCatalyst degrades to null on its own; a null just means "nothing
-    // decisive on file" and the score falls back to price-action + base rate.
-    const cat = await detectCatalyst(g.ticker, dateKey);
+    // EDGAR is authoritative; headlines only fill the gap when no filing says
+    // anything (deals announced by press release before the 8-K arrives).
+    // Both degrade to null on their own — null means "nothing decisive" and
+    // the score falls back to price-action + base rate.
+    const cat =
+      (await detectCatalyst(g.ticker, dateKey)) ??
+      (await detectNewsCatalyst(g.ticker, dateKey, g.companyName ?? null));
     const catalyst_type = normalizeCatalystType(cat?.catalyst_type ?? "other");
     const scored = scoreShort(
       g,
