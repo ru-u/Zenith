@@ -26,8 +26,9 @@ const QA = [
     a: "Zenith is a research tool: a screener plus analysis, like reading a finance site before you trade. You place your own trades in the official game. Rules can vary by chapter and event, so check yours if you're unsure.",
   },
   {
+    // Free vs Pro split — keep aligned with TIER_FEATURES in lib/pricing.ts.
     q: "What do I get without paying?",
-    a: "The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, and the last 5 trading days of history. Pro ($4.99/mo) adds the daily short theses, the 3:30 drop email, unlimited history, and watchlist alerts.",
+    a: "The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, favorite tickers pinned to the top of the screener, and the last 5 trading days of history. Pro ($4.99/mo) adds the daily short theses, the 3:30 drop email, unlimited history, and email alerts on your favorites.",
   },
   {
     q: "Is this investment advice?",

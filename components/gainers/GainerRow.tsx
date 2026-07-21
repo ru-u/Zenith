@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { StreakBadge } from "./StreakBadge";
+import { FavoriteStar } from "./FavoriteStar";
 import type { DailyGainer } from "@/lib/supabase/types";
 import {
   formatMarketCap,
@@ -17,17 +18,20 @@ export function GainerRow({
   streak,
   displayRank,
   onClick,
+  showFavorite,
 }: {
   gainer: DailyGainer;
   streak?: number;
   displayRank: number;
   onClick?: () => void;
+  // Opt-in so history rows (which reuse this component) stay untouched.
+  showFavorite?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const up = (gainer.change_percent ?? 0) >= 0;
   return (
     <TableRow
-      className={cn("border-foreground/5", onClick && "cursor-pointer")}
+      className={cn("group border-foreground/5", onClick && "cursor-pointer")}
       style={
         onClick && hovered
           ? {
@@ -40,8 +44,22 @@ export function GainerRow({
       onMouseLeave={onClick ? () => setHovered(false) : undefined}
       onClick={onClick}
     >
+      {/* The star lives in the rank cell, right-aligned toward the ticker, in
+          normal flow (ml-auto pushes it to the cell's right edge). It's always
+          rendered — only its opacity toggles — so it never shifts the layout or
+          overlaps the ticker (a different column entirely). This deliberately
+          avoids absolute positioning, which behaved unreliably inside a <td>. */}
       <TableCell className="text-muted-foreground tabular-nums">
-        {displayRank}
+        <div className="flex items-center gap-2">
+          <span>{displayRank}</span>
+          {showFavorite && (
+            <FavoriteStar
+              ticker={gainer.ticker}
+              revealOnHover
+              className="ml-auto"
+            />
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">

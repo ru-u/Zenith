@@ -14,6 +14,7 @@ import { GainerRow } from "./GainerRow";
 import { ChartDialog } from "./ChartDialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
+import { useFavorites } from "@/hooks/useFavorites";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { useFiltersStore } from "@/stores/filtersStore";
 import type { DailyGainer } from "@/lib/supabase/types";
@@ -21,14 +22,17 @@ import type { DailyGainer } from "@/lib/supabase/types";
 export function GainersTable({ limit = 50 }: { limit?: number }) {
   const { data, isLoading, isError } = useGainers();
   const { data: streaks } = useStreaks();
-  const { search, minPrice, minMarketCap } = useFiltersStore();
+  const { data: favorites } = useFavorites();
+  const { search, minPrice, minMarketCap, favoritesOnly } = useFiltersStore();
   const [selected, setSelected] = useState<DailyGainer | null>(null);
   const openTicker = useTickerOpen(setSelected);
 
-  const rows = useMemo(() => {
+  const { rows, rankOf } = useMemo(() => {
     const all = data?.gainers ?? [];
     const q = search.trim().toUpperCase();
-    return all
+    const isFav = (t: string) => favorites instanceof Set && favorites.has(t);
+
+    const filtered = all
       .filter((g) => (minPrice != null ? (g.price ?? 0) >= minPrice : true))
       .filter((g) =>
         minMarketCap != null ? (g.market_cap ?? 0) >= minMarketCap : true,
@@ -39,8 +43,24 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
             (g.company_name ?? "").toUpperCase().includes(q)
           : true,
       )
-      .slice(0, limit);
-  }, [data, search, minPrice, minMarketCap, limit]);
+      .filter((g) => (favoritesOnly ? isFav(g.ticker) : true));
+
+    // Rank labels come from the filtered order BEFORE pinning, so a pinned
+    // favorite keeps its true position-in-view (a #7 stays "7") rather than
+    // being renumbered to look like a top gainer.
+    const ranks = new Map(filtered.map((g, i) => [g.ticker, i + 1]));
+
+    // Pin favorites to the top, preserving relative order within each group.
+    const ordered =
+      favorites instanceof Set && favorites.size > 0
+        ? [
+            ...filtered.filter((g) => isFav(g.ticker)),
+            ...filtered.filter((g) => !isFav(g.ticker)),
+          ]
+        : filtered;
+
+    return { rows: ordered.slice(0, limit), rankOf: ranks };
+  }, [data, search, minPrice, minMarketCap, favoritesOnly, favorites, limit]);
 
   return (
     <>
@@ -53,7 +73,7 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
       <Table>
         <TableHeader>
           <TableRow className="border-foreground/10 hover:bg-transparent">
-            <TableHead className="w-12">#</TableHead>
+            <TableHead className="w-16">#</TableHead>
             <TableHead>Ticker</TableHead>
             <TableHead>Company</TableHead>
             <TableHead className="text-right">Price</TableHead>
@@ -74,13 +94,14 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
             ))}
 
           {!isLoading &&
-            rows.map((g, i) => (
+            rows.map((g) => (
               <GainerRow
                 key={g.ticker}
                 gainer={g}
                 streak={streaks?.get(g.ticker)}
-                displayRank={i + 1}
+                displayRank={rankOf.get(g.ticker) ?? 0}
                 onClick={() => openTicker(g)}
+                showFavorite
               />
             ))}
 
@@ -92,7 +113,9 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
               >
                 {isError
                   ? "Couldn't load gainers. Try again shortly."
-                  : "No gainers match these filters."}
+                  : favoritesOnly
+                    ? "None of your favorites made today's screener. Star a ticker to pin it here."
+                    : "No gainers match these filters."}
               </TableCell>
             </TableRow>
           )}

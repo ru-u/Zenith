@@ -192,6 +192,20 @@ create table if not exists public.feedback (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- favorites — per-user starred tickers, pinned to the top of the screener.
+-- Written only by /api/favorites (service role); the select-own policy below
+-- lets the authed client read its own rows (defense-in-depth). PK (user_id,
+-- ticker) doubles as the per-user lookup index.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.favorites (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  ticker     text not null
+             constraint favorites_ticker_format_check check (ticker ~ '^[A-Z][A-Z0-9.\-]{0,9}$'),
+  created_at timestamptz not null default now(),
+  primary key (user_id, ticker)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Auto-create a profile row when a new auth user signs up
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
@@ -223,6 +237,7 @@ alter table public.ai_analyses    enable row level security;
 alter table public.fetch_locks    enable row level security;
 alter table public.system_alerts  enable row level security;
 alter table public.feedback       enable row level security;
+alter table public.favorites      enable row level security;
 
 -- profiles: a user can read/update only their own row
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -251,6 +266,12 @@ create policy "ai_analyses_pro_read" on public.ai_analyses
       where p.id = auth.uid() and p.subscription_tier = 'pro'
     )
   );
+
+-- favorites: a user can read only their own rows; writes go through the API
+-- (service role) — no insert/delete policy, consistent with every other table.
+drop policy if exists "favorites_select_own" on public.favorites;
+create policy "favorites_select_own" on public.favorites
+  for select using (auth.uid() = user_id);
 
 -- fetch_locks, system_alerts & feedback: no anon/auth access (service-role
 -- only). RLS enabled with no policies = deny all for non-service roles.

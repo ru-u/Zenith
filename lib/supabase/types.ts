@@ -41,6 +41,14 @@ export type TickerStreak = {
   updated_at: string;
 };
 
+// Per-user starred tickers (free-account feature; pinned to the top of the
+// screener). Owner-scoped read via RLS; writes go through /api/favorites.
+export type Favorite = {
+  user_id: string;
+  ticker: string;
+  created_at: string;
+};
+
 export type AIAnalysis = {
   id: number;
   date: string;
@@ -140,6 +148,7 @@ export type Database = {
         message: string;
         created_at: string;
       }>;
+      favorites: Table<Favorite>;
     };
     Views: { [_ in never]: never };
     Functions: {

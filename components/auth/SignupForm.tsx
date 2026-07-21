@@ -3,13 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { resetAuthQueries } from "@/lib/authQueryReset";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AuthDivider, GoogleButton } from "./GoogleButton";
 
 export function SignupForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   // Honor ?next= (e.g. /auth/signup?next=/upgrade from Pro CTAs); default to
   // the screener (the tool), not the marketing landing.
   const next = useSearchParams().get("next") ?? "/screener";
@@ -37,6 +40,8 @@ export function SignupForm() {
     }
     // If email confirmation is required, there's no active session yet.
     if (data.session) {
+      // Drop the guest-scoped cache so favorites/streaks refetch as this user.
+      resetAuthQueries(queryClient);
       router.push(next);
       router.refresh();
     } else {

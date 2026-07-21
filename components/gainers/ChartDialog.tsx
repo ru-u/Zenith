@@ -114,8 +114,8 @@ function ChartSignupGate({ ticker }: { ticker: string }) {
             Sign up to view charts
           </h3>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            A free account unlocks interactive price charts, streak badges, and
-            the last 5 trading days of history.
+            A free account unlocks interactive price charts, streak badges,
+            favorites, and the last 5 trading days of history.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -159,6 +159,10 @@ export function ChartDialog({
     <Dialog open={!!gainer} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
+        // Don't pull focus onto the first control (the metadata-bar favorite
+        // star) when the chart is opened by mouse/touch — that lit its
+        // focus-visible ring on open. Keyboard opens still move focus in.
+        initialFocus={(openType) => openType === "keyboard"}
         className="sm:max-w-5xl p-0 overflow-hidden gap-0 bg-background"
       >
         <DialogHeader className="relative px-6 py-5.25 border-b border-foreground/10">
@@ -180,6 +184,8 @@ export function ChartDialog({
                 changePercent={gainer.change_percent}
                 rank={gainer.rank}
                 streak={streak}
+                ticker={gainer.ticker}
+                showFavorite={signedIn}
               />
             )}
           </div>

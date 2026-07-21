@@ -4,6 +4,7 @@ import { TradeWindowBanner } from "@/components/gainers/TradeWindowBanner";
 import { FilterBar } from "@/components/gainers/FilterBar";
 import { GainersTable } from "@/components/gainers/GainersTable";
 import { AIAnalysisCard } from "@/components/ai/AIAnalysisCard";
+import { SignupPromptDialog } from "@/components/gainers/SignupPromptDialog";
 
 export const metadata: Metadata = {
   title: "Today's Top Short Candidates",
@@ -21,6 +22,8 @@ export default function ScreenerPage() {
         <FilterBar />
         <GainersTable limit={50} />
       </section>
+      {/* One shared, dismissible prompt for guests who click a favorite star. */}
+      <SignupPromptDialog />
     </main>
   );
 }

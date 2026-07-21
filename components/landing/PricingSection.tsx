@@ -2,29 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Reveal } from "./Reveal";
 import { PricingCTA } from "./PricingCTA";
-
-// Honest tier lines: the screener itself needs no account; an account adds
-// charts + streaks + recent history; Pro adds the thesis, the 3:30 email, and
-// depth.
-const TIERS = {
-  browse: [
-    "Today's full screener: the day's biggest gainers, ranked",
-    "Filters by price, market cap, and ticker search",
-    "Live market status & close countdown",
-  ],
-  free: [
-    "Everything in Browse",
-    "Simple price charts, built for beginners",
-    "Consecutive-day streak badges",
-    "The last 5 trading days of history",
-  ],
-  pro: [
-    "Quant-AI short thesis on the top 5, every trading day",
-    "The 3:30 drop email: top movers + thesis in your inbox before the close",
-    "Unlimited history + per-ticker streak history",
-    "Short watchlist & alerts",
-  ],
-} as const;
+import { TIER_FEATURES } from "@/lib/pricing";
 
 function FeatureList({ items }: { items: readonly string[] }) {
   return (
@@ -69,7 +47,7 @@ export function PricingSection({
                 · no account
               </span>
             </p>
-            <FeatureList items={TIERS.browse} />
+            <FeatureList items={TIER_FEATURES.browse} />
             <div className="flex-1" />
             <Link
               href="/screener"
@@ -88,7 +66,7 @@ export function PricingSection({
                 · forever
               </span>
             </p>
-            <FeatureList items={TIERS.free} />
+            <FeatureList items={TIER_FEATURES.free} />
             <div className="flex-1" />
             {isLoggedIn ? (
               <p className="mt-7 rounded-full px-4 py-2.5 text-center text-sm text-muted-foreground ring-1 ring-white/10">
@@ -117,7 +95,7 @@ export function PricingSection({
                 /mo
               </span>
             </p>
-            <FeatureList items={TIERS.pro} />
+            <FeatureList items={TIER_FEATURES.pro} />
             <div className="flex-1" />
             <PricingCTA isLoggedIn={isLoggedIn} isPro={isPro} />
           </div>

@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Menu } from "@base-ui/react/menu";
 import { Settings, LogOut, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { resetAuthQueries } from "@/lib/authQueryReset";
 
 const itemClass =
   "flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 outline-none transition-colors select-none data-[highlighted]:bg-secondary/70";
 
 export function UserMenu({ name, email }: { name: string; email?: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   async function signOut() {
     await createClient().auth.signOut();
+    // Clear this user's favorites/streaks so they don't linger for the next visitor.
+    resetAuthQueries(queryClient);
     router.push("/");
     router.refresh();
   }

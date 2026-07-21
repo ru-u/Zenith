@@ -4,17 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { CheckoutButton } from "@/components/CheckoutButton";
 import { ZenithMark } from "@/components/layout/Logo";
 import { AmbientChevrons } from "@/components/landing/AmbientChevrons";
+import { TIER_FEATURES } from "@/lib/pricing";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
-
-const PRO_FEATURES = [
-  "Quant + AI short thesis on the top movers: risk level, catalysts, and base-rate odds",
-  "The 3:30 drop email: top movers + thesis in your inbox before the close",
-  "Unlimited history (free is capped at 5 trading days)",
-  "Per-ticker streak history",
-  "Short watchlist & email alerts",
-];
 
 export default async function UpgradePage() {
   const supabase = await createClient();
@@ -50,7 +43,7 @@ export default async function UpgradePage() {
           $4.99<span className="text-base text-muted-foreground">/mo</span>
         </h1>
         <ul className="mt-6 flex flex-col gap-3">
-          {PRO_FEATURES.map((f) => (
+          {TIER_FEATURES.pro.map((f) => (
             <li key={f} className="flex items-start gap-2 text-sm">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
               <span className="text-muted-foreground">{f}</span>

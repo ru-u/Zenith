@@ -3,14 +3,7 @@ import { Check } from "lucide-react";
 import { AmbientChevrons } from "./AmbientChevrons";
 import { Reveal } from "./Reveal";
 import { ZenithMark } from "@/components/layout/Logo";
-
-// Mirrors app/upgrade/page.tsx PRO_FEATURES — keep in sync if that changes.
-const PRO_FEATURES = [
-  "Quant-AI short thesis on the top movers: risk level, catalysts, and base-rate odds",
-  "Unlimited history (free is capped at 5 trading days)",
-  "Per-ticker streak history",
-  "Short watchlist & email alerts",
-];
+import { TIER_FEATURES } from "@/lib/pricing";
 
 /**
  * The Pro pitch, shown around one hardcoded EXAMPLE thesis (fictional ticker).
@@ -38,7 +31,7 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             the analysis — posted at 3:30 before the close.
           </p>
           <ul className="mt-5 flex flex-col gap-3">
-            {PRO_FEATURES.map((f) => (
+            {TIER_FEATURES.pro.map((f) => (
               <li key={f} className="flex items-start gap-2 text-sm">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                 <span className="text-muted-foreground">{f}</span>

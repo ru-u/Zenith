@@ -3,13 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { resetAuthQueries } from "@/lib/authQueryReset";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AuthDivider, GoogleButton } from "./GoogleButton";
 
 export function LoginForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useSearchParams();
   // Post-auth default is the screener (the tool), not the marketing landing.
   const next = params.get("next") ?? "/screener";
@@ -30,6 +33,8 @@ export function LoginForm() {
       setLoading(false);
       return;
     }
+    // Drop the guest-scoped cache so favorites/streaks refetch as this user.
+    resetAuthQueries(queryClient);
     router.push(next);
     router.refresh();
   }

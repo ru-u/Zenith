@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { TrendingUp } from "lucide-react";
 import { CountUp } from "./CountUp";
 import { StreakBadge } from "./StreakBadge";
+import { FavoriteStar } from "./FavoriteStar";
 import { ChartDialog } from "./ChartDialog";
 import { MarketStatusBadge } from "./MarketStatusBadge";
 import { useGainers } from "@/hooks/useGainers";
@@ -61,7 +62,10 @@ function HeroCard({
           <span className="min-w-0 truncate text-base font-semibold tracking-tight">
             {gainer.ticker}
           </span>
-          <StreakBadge count={streak} />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <StreakBadge count={streak} />
+            <FavoriteStar ticker={gainer.ticker} revealOnHover />
+          </div>
         </div>
 
         <p className="truncate text-xs text-muted-foreground">

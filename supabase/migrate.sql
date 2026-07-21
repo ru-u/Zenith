@@ -208,6 +208,20 @@ create table if not exists public.feedback (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- favorites — per-user starred tickers, pinned to the top of the screener.
+-- Written only by /api/favorites (service role); select-own RLS below.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.favorites (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  ticker     text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, ticker)
+);
+alter table public.favorites drop constraint if exists favorites_ticker_format_check;
+alter table public.favorites
+  add constraint favorites_ticker_format_check check (ticker ~ '^[A-Z][A-Z0-9.\-]{0,9}$');
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- handle_new_user trigger
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
@@ -246,6 +260,7 @@ alter table public.system_alerts  enable row level security;
 alter table public.historical_gainers enable row level security;
 alter table public.gainer_base_rates  enable row level security;
 alter table public.feedback       enable row level security;
+alter table public.favorites      enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);
@@ -266,6 +281,10 @@ create policy "ai_analyses_pro_read" on public.ai_analyses for select using (
     where p.id = auth.uid() and p.subscription_tier = 'pro'
   )
 );
+
+-- favorites: read-own; writes go through the API (service role), no write policy.
+drop policy if exists "favorites_select_own" on public.favorites;
+create policy "favorites_select_own" on public.favorites for select using (auth.uid() = user_id);
 
 -- Force PostgREST to pick up the new columns immediately.
 notify pgrst, 'reload schema';

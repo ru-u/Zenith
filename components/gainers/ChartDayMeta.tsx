@@ -4,21 +4,31 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDayLabel, formatPercent } from "@/lib/format";
 import { StreakBadge } from "./StreakBadge";
+import { FavoriteStar } from "./FavoriteStar";
 
 // Compact context cluster shown inline in the chart dialog header (every chart,
 // via ChartDialog): which day's gain the chart relates to, plus rank + streak,
 // so the user never second-guesses the date — today or a past session. Lives in
 // our own DOM above the TradingView iframe (which we can't annotate directly).
+//
+// This is also the deliberate place to favorite: the chart is where you decide
+// a ticker is a short, and it's the reliable favorite affordance on touch
+// (where the list's hover-reveal star never appears). Shown only when signed in
+// (`showFavorite`) — guests get the whole-chart signup gate instead.
 export function ChartDayMeta({
   date,
   changePercent,
   rank,
   streak,
+  ticker,
+  showFavorite,
 }: {
   date: string | null | undefined;
   changePercent: number | null | undefined;
   rank: number | null | undefined;
   streak: number | undefined;
+  ticker: string;
+  showFavorite?: boolean;
 }) {
   const up = (changePercent ?? 0) >= 0;
   const Arrow = up ? TrendingUp : TrendingDown;
@@ -52,6 +62,7 @@ export function ChartDayMeta({
         </span>
       )}
       <StreakBadge count={streak} />
+      {showFavorite && <FavoriteStar ticker={ticker} />}
     </div>
   );
 }

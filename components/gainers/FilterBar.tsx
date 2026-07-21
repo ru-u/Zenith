@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search, Star, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useFiltersStore } from "@/stores/filtersStore";
+import { useFavorites } from "@/hooks/useFavorites";
+import { cn } from "@/lib/utils";
 
 const ANY = "any";
 
@@ -47,13 +49,20 @@ export function FilterBar() {
     search,
     minPrice,
     minMarketCap,
+    favoritesOnly,
     setSearch,
     setMinPrice,
     setMinMarketCap,
+    setFavoritesOnly,
     reset,
   } = useFiltersStore();
+  const { data: favorites } = useFavorites();
 
-  const hasFilters = search !== "" || minPrice != null || minMarketCap != null;
+  // Only signed-in users get the chip — for guests the star is the entry point,
+  // and a Set (not undefined/null) also avoids a loading-state flash.
+  const showFavoritesChip = favorites instanceof Set;
+  const hasFilters =
+    search !== "" || minPrice != null || minMarketCap != null || favoritesOnly;
 
   return (
     <div className="glass flex flex-wrap items-center gap-2 rounded-xl p-2">
@@ -100,6 +109,23 @@ export function FilterBar() {
           ))}
         </SelectContent>
       </Select>
+
+      {showFavoritesChip && (
+        <button
+          type="button"
+          onClick={() => setFavoritesOnly(!favoritesOnly)}
+          aria-pressed={favoritesOnly}
+          className={cn(
+            "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors",
+            favoritesOnly
+              ? "border-brand/30 bg-brand/10 text-brand"
+              : "border-foreground/10 bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+          )}
+        >
+          <Star className={cn("h-3.5 w-3.5", favoritesOnly && "fill-brand")} />
+          Favorites
+        </button>
+      )}
 
       {hasFilters && (
         <Button
