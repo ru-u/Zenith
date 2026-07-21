@@ -26,15 +26,27 @@ export default async function UpgradePage() {
   }
 
   return (
-    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
-      {/* The landing's ascent motif, echoed behind the offer. */}
+    <main className="relative flex w-full flex-1 flex-col items-center justify-center overflow-hidden px-6 py-16">
+      {/* The landing's ascent motif, full-bleed behind the offer (like the
+          hero) rather than boxed to the card — otherwise the chevron arms hit
+          the container's side wall and stop mid-page instead of sweeping to
+          the corners. The field is scaled up so the arms reach the bottom
+          corners, and its masks fade only at the top (under the header); the
+          rest stays lit so nothing dims the arms before the edges. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-x-40 inset-y-0 opacity-60 dark:opacity-90"
+        className="pointer-events-none absolute inset-0 opacity-60 dark:opacity-90"
       >
-        <AmbientChevrons variant="echo" unique="upgrade-bg" />
+        <div className="absolute inset-0 scale-[1.35]">
+          <AmbientChevrons
+            variant="echo"
+            unique="upgrade-bg"
+            maskClassName="mask-[radial-gradient(200%_200%_at_50%_50%,black_94%,transparent_100%)]"
+            innerMaskClassName="mask-[linear-gradient(to_bottom,transparent_0%,black_9%,black_100%)]"
+          />
+        </div>
       </div>
-      <div className="glass-strong relative rounded-2xl p-8 shadow-[0_0_80px_-30px] shadow-brand/30">
+      <div className="glass-strong relative z-10 w-full max-w-md rounded-2xl p-8 shadow-[0_0_80px_-30px] shadow-brand/30">
         <p className="flex items-center gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.24em] text-brand">
           <ZenithMark className="h-4 w-4" unique="upgrade" />
           Zenith Pro

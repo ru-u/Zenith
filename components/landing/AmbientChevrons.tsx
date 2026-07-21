@@ -88,10 +88,20 @@ export function AmbientChevrons({
   variant = "hero",
   className,
   unique,
+  maskClassName = "mask-[radial-gradient(120%_90%_at_50%_42%,black_55%,transparent_98%)]",
+  innerMaskClassName = "mask-[linear-gradient(to_bottom,black_70%,transparent_98%)]",
 }: {
   variant?: Variant;
   className?: string;
   unique: string;
+  // The two nested edge-fade masks (see below). Defaulted for the landing's
+  // section usage (fade out before the container's bottom, where a real
+  // section follows). A full-page background — e.g. /upgrade, where the
+  // container's bottom IS the page bottom — overrides these so the field
+  // reaches the bottom edge instead of dying mid-page. Pass literal
+  // `mask-[…]` strings so Tailwind can see them at build time.
+  maskClassName?: string;
+  innerMaskClassName?: string;
 }) {
   const hero = variant === "hero";
   const id = (layer: string) => `ascent-${unique}-${layer}`;
@@ -109,12 +119,12 @@ export function AmbientChevrons({
         // legacy -webkit-mask-composite model), which un-fades the bottom and
         // exposes the hard clip. Nested masks multiply alphas — the same
         // math as `intersect` — and every engine handles one layer/element.
-        "mask-[radial-gradient(120%_90%_at_50%_42%,black_55%,transparent_98%)]",
+        maskClassName,
         className,
       )}
       aria-hidden
     >
-      <div className="absolute inset-0 mask-[linear-gradient(to_bottom,black_70%,transparent_98%)]">
+      <div className={cn("absolute inset-0", innerMaskClassName)}>
         {/* Glow beams — the light source. Heavy blur, slowest drift; the
             breathe lives on the child svg (stacking two animate-* utilities on
             one element would override the `animation` shorthand). */}
