@@ -1,12 +1,12 @@
 "use client";
 
 import { useId } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LineChart } from "lucide-react";
 import { StockChart } from "./StockChart";
 import { ChartDayMeta } from "./ChartDayMeta";
 import { ChartHeaderClose } from "./ChartHeaderClose";
+import { AuthGatePrompt } from "./AuthGatePrompt";
 import {
   Dialog,
   DialogContent,
@@ -105,33 +105,14 @@ function ChartSignupGate({ ticker }: { ticker: string }) {
       </div>
       {/* Scrim so the prompt stays legible over the teaser. */}
       <div aria-hidden className="absolute inset-0 bg-background/55" />
-      <div className="relative flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="rounded-full bg-brand/10 p-3 text-brand">
-          <LineChart className="h-6 w-6" aria-hidden />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold tracking-tight">
-            Sign up to view charts
-          </h3>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            A free account unlocks interactive price charts, streak badges,
-            favorites, and the last 5 trading days of history.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/auth/signup?next=${next}`}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02]"
-          >
-            Create free account
-          </Link>
-          <Link
-            href={`/auth/login?next=${next}`}
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Sign in
-          </Link>
-        </div>
+      <div className="relative flex h-full items-center justify-center px-6">
+        {/* Same medallion + copy + CTA as the favorite popup — one gate system. */}
+        <AuthGatePrompt
+          icon={LineChart}
+          title="Sign up to view charts"
+          description="A free account unlocks interactive price charts, streak badges, favorites, and the last 5 trading days of history."
+          next={next}
+        />
       </div>
     </div>
   );
