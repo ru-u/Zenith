@@ -240,6 +240,30 @@
       0 18px 44px -14px rgb(0 0 0 / 0.65);
   }
 
+  /* Primary CTA fill — "Create free account", "Upgrade to Pro", sign in/up.
+     The signature brand gradient rather than a flat slab of saturated cyan,
+     which reads as loud/pungent at button scale.
+
+     Dark: polar-white → cyan on the same 135° axis as #streak-grad (the streak
+     flame / favourited star), so the CTAs belong to the same system. The dark
+     label (--brand-foreground) sits on the bright end of that ramp, so
+     contrast only improves versus the old flat cyan.
+
+     Light: polar-white is unusable here — the page is near-white AND the label
+     itself is near-white — so it runs cyan → brand-2 blue instead: the same
+     gradient family, still off the flat single tone, with the white label
+     staying legible across both stops. */
+  .btn-brand {
+    background-color: var(--brand);
+    background-image: linear-gradient(135deg, var(--brand), var(--brand-2));
+  }
+  .dark .btn-brand {
+    background-image: linear-gradient(135deg, var(--foreground), var(--brand));
+  }
+  .btn-brand:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+
   /* Gradient-mesh backdrop layer (fixed, behind all content). The base color is
      a FULLY OPAQUE near-white; only the brand glows differ by theme. We do NOT
      use element `opacity` here — that would make the opaque base translucent and

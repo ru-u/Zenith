@@ -81,7 +81,7 @@ export function SignupForm() {
       />
       {error && <p className="text-sm text-down">{error}</p>}
       {notice && <p className="text-sm text-up">{notice}</p>}
-      <Button type="submit" disabled={loading} className="bg-brand text-brand-foreground hover:bg-brand/90">
+      <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
         {loading ? "Creating account…" : "Create free account"}
       </Button>
       <p className="text-center text-xs leading-relaxed text-muted-foreground">

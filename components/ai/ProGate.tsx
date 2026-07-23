@@ -29,7 +29,7 @@ export function ProGate({ children }: { children: React.ReactNode }) {
         <p className="text-sm font-medium">The short thesis is a Pro feature</p>
         <Link
           href="/upgrade"
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.03]"
+          className="rounded-lg bg-brand btn-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.03]"
         >
           Upgrade to Pro · $4.99/mo
         </Link>

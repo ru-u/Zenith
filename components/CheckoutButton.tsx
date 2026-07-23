@@ -26,7 +26,7 @@ export function CheckoutButton({ className }: { className?: string }) {
       onClick={go}
       disabled={loading}
       className={cn(
-        "mt-7 block w-full rounded-lg bg-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02] disabled:opacity-60",
+        "mt-7 block w-full rounded-lg bg-brand btn-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02] disabled:opacity-60",
         className,
       )}
     >

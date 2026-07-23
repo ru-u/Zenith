@@ -60,7 +60,7 @@ export function LoginForm() {
         className="border-foreground/10 bg-foreground/5"
       />
       {error && <p className="text-sm text-down">{error}</p>}
-      <Button type="submit" disabled={loading} className="bg-brand text-brand-foreground hover:bg-brand/90">
+      <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
         {loading ? "Signing in…" : "Sign in"}
       </Button>
       <p className="text-center text-sm text-muted-foreground">

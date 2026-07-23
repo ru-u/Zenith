@@ -101,7 +101,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
             </p>
             <Link
               href="/upgrade"
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground"
+              className="rounded-lg bg-brand btn-brand px-4 py-2 text-sm font-semibold text-brand-foreground"
             >
               Upgrade to Pro
             </Link>

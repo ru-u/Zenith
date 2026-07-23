@@ -154,7 +154,7 @@ export default async function SettingsPage() {
               ) : (
                 <Link
                   href="/upgrade"
-                  className="w-fit rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02]"
+                  className="w-fit rounded-lg bg-brand btn-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.02]"
                 >
                   Upgrade to Pro
                 </Link>
