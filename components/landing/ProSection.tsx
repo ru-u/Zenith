@@ -40,7 +40,7 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
           </ul>
           <Link
             href={isLoggedIn ? "/upgrade" : "/auth/signup?next=/upgrade"}
-            className="mt-7 inline-block rounded-full bg-foreground px-6 py-3 text-sm font-semibold text-background shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
+            className="mt-7 inline-block rounded-full bg-brand btn-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
           >
             Get Pro · $4.99/mo
           </Link>

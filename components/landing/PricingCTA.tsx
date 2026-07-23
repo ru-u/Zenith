@@ -27,13 +27,13 @@ export function PricingCTA({
   }
   if (isLoggedIn) {
     return (
-      <CheckoutButton className="rounded-full bg-foreground text-background shadow-[0_0_44px_-10px] shadow-brand/80 hover:shadow-brand" />
+      <CheckoutButton className="rounded-full bg-brand btn-brand text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 hover:shadow-brand" />
     );
   }
   return (
     <Link
       href="/auth/signup?next=/upgrade"
-      className="mt-7 block rounded-full bg-foreground px-4 py-2.5 text-center text-sm font-semibold text-background shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.02] hover:shadow-brand"
+      className="mt-7 block rounded-full bg-brand btn-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.02] hover:shadow-brand"
     >
       Get Pro · $4.99/mo
     </Link>
