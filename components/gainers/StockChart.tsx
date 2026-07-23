@@ -50,6 +50,13 @@ export function StockChart({ ticker }: { ticker: string }) {
           "mainSeriesProperties.areaStyle.linewidth": 2,
           "mainSeriesProperties.areaStyle.color1": "rgba(46, 230, 230, 0.30)",
           "mainSeriesProperties.areaStyle.color2": "rgba(46, 230, 230, 0.02)",
+          // Regular trading hours only. We pass a bare symbol (no exchange), so
+          // TradingView resolves it to the Cboe One 24h feed and leaks its new
+          // Overnight session onto even the daily chart — a purple "Overnight"
+          // price tag stacked on the last-price tag (burying the axis label),
+          // a moon badge, and a flat line dragging the series past the close.
+          // This is the programmatic equivalent of the chart's RTH toggle.
+          "mainSeriesProperties.sessionId": "regular",
         },
         locale: "en",
         hide_top_toolbar: false,
