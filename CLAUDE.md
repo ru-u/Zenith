@@ -6,7 +6,9 @@ A daily stock screener for **DECA Stock Market Game** competitors (high-school
 students). It surfaces the day's biggest US market gainers — framed as "today's
 top short candidates" — ranked, with consecutive-day streaks and Pro-gated
 Claude AI short theses. The audience is new to markets, so charts default to a
-simple area view (not candlesticks). Status: **pre-launch MVP**.
+simple area view (not candlesticks). Status: **near-final, pre-launch polish**
+— live on Railway; no longer an MVP. Remaining before launch: custom-domain
+cutover, a regulatory/branding compliance pass, and engine calibration tweaks.
 
 ## Stack
 
