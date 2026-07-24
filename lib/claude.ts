@@ -14,7 +14,11 @@ import { detectCatalyst } from "./quant/edgar";
 import { detectNewsCatalyst } from "./quant/news";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
 import { scoreShort } from "./quant/score";
-import { buildFeatureSnapshots, type FeatureSnapshot } from "./quant/features";
+import {
+  buildFeatureSnapshots,
+  type FeatureSnapshot,
+  type SectorContext,
+} from "./quant/features";
 import { activeProseMode, generateThesisText } from "./quant/thesis";
 
 // The spend switch + model id live with the only code that can spend now.
@@ -23,7 +27,9 @@ export { aiThesesEnabled, ANALYSIS_MODEL } from "./quant/thesis";
 // Versions the scoring rules in the stored `model` column so rows stay
 // comparable when the Δ weights are re-tuned. Bump on scoring changes.
 // v2: pinned-tape cap + expected-move/level-context prose + feature capture.
-const QUANT_VERSION = "quant-v2";
+// v3: macro/sector-move class + ≤4 cap (SKYQ 2026-07-23: oil spiked on Middle
+//     East strikes, no filing → the engine called it hype and scored 8/10).
+const QUANT_VERSION = "quant-v3";
 
 // Catalyst classification — drives shortability (a buyout pins; a parabolic runner fades).
 const CATALYST_TYPES = [
@@ -33,6 +39,7 @@ const CATALYST_TYPES = [
   "regulatory",
   "partnership",
   "meme_squeeze",
+  "macro",
   "other",
 ] as const;
 
@@ -58,7 +65,19 @@ function normalizeCatalystType(v: unknown): string {
   if (/fda|regulat|approval|trial|phase \d/.test(s)) return "regulatory";
   if (/partner|contract|collab/.test(s)) return "partnership";
   if (/meme|squeeze|reddit|social/.test(s)) return "meme_squeeze";
+  if (/macro|sector|commodity|market-?wide/.test(s)) return "macro";
   return "other";
+}
+
+/** Honest "why it spiked" when the driver is the sector, not the company. */
+function macroCatalystLine(ticker: string, ctx: SectorContext): string {
+  const best = ctx.proxy_moves
+    .filter((m) => m.change_pct > 0)
+    .sort((a, b) => b.change_pct - a.change_pct)[0];
+  const evidence = best
+    ? `${best.symbol} is up ${best.change_pct.toFixed(1)}% today`
+    : `${ctx.same_sector_on_board} ${ctx.sector} names are on today's gainer board`;
+  return `${ticker} moved with its sector (${ctx.sector}) — ${evidence} — a macro-driven move rather than a company-specific catalyst.`;
 }
 
 // Round + clamp into [lo, hi]; fall back on garbage.
@@ -85,7 +104,15 @@ export async function generateAnalysis(
     const cat =
       (await detectCatalyst(g.ticker, dateKey)) ??
       (await detectNewsCatalyst(g.ticker, dateKey, g.companyName ?? null));
-    const catalyst_type = normalizeCatalystType(cat?.catalyst_type ?? "other");
+    // No company-specific catalyst but the whole sector is in motion → the
+    // spike has macro fuel (oil, metals…), not hype. A real filing/headline
+    // always wins; the sector context then stays capture-only.
+    const sectorCtx = snapshot?.sector ?? null;
+    const macroLine =
+      !cat && sectorCtx?.is_sector_move ? macroCatalystLine(g.ticker, sectorCtx) : null;
+    const catalyst_type = macroLine
+      ? "macro"
+      : normalizeCatalystType(cat?.catalyst_type ?? "other");
     const scored = scoreShort(
       g,
       streakCount,
@@ -97,7 +124,7 @@ export async function generateAnalysis(
     const expected_move_percent = expectedMovePercent(scored.percent_win_estimate, baseRate);
     const short_thesis = await generateThesisText({
       g,
-      catalyst: cat?.catalyst ?? null,
+      catalyst: cat?.catalyst ?? macroLine,
       catalystType: catalyst_type,
       streakCount,
       baseRate,
@@ -110,6 +137,7 @@ export async function generateAnalysis(
     return {
       catalyst:
         cat?.catalyst ??
+        macroLine ??
         `No fresh SEC filing found for ${g.ticker} — the move looks driven by momentum, social buzz, or news outside official filings.`,
       catalyst_url: cat?.catalyst_url ?? "",
       catalyst_type,

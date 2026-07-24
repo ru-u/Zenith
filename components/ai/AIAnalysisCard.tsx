@@ -43,11 +43,18 @@ function SummaryRow({
           >
             {a.ticker}
           </button>
-          {a.short_score != null && (
-            <span className="shrink-0 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
-              Short {a.short_score}/10
-            </span>
-          )}
+          <span className="flex shrink-0 items-center gap-1.5">
+            {a.catalyst_type === "macro" && (
+              <span className="rounded-full border border-amber-600/30 bg-amber-600/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-300">
+                Sector move
+              </span>
+            )}
+            {a.short_score != null && (
+              <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
+                Short {a.short_score}/10
+              </span>
+            )}
+          </span>
         </div>
         {a.catalyst && (
           <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">

@@ -106,6 +106,11 @@ export function scoreShort(
   // a pinned buyout is never an attractive short; squeezes are too wild).
   if (catalystType === "buyout") score = Math.min(score, 2);
   if (catalystType === "meme_squeeze") score = Math.min(score, 4);
+  // Sector/macro-driven spike without a company catalyst (SKYQ 2026-07-23: an
+  // oil name spiked with oil on Middle East news; EDGAR saw nothing, so it
+  // scored 8/10 as "hype"). Commodity-backed rallies have real fuel and don't
+  // mean-revert like single-stock hype — never a top pick.
+  if (catalystType === "macro") score = Math.min(score, 4);
   // Pinned tape without a known catalyst: the deal-price signature of a merger
   // announced by press release before any 8-K exists — EDGAR sees nothing, the
   // move would otherwise score 6-7 as "other". A cap only prevents recommending

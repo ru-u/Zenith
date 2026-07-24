@@ -95,6 +95,8 @@ const BEHAVIOR: Record<string, string> = {
     "Real partnership or contract news can hold its gains, so be careful shorting it.",
   meme_squeeze:
     "Squeeze moves are violent in both directions — dangerous to short even when a fade feels obvious.",
+  macro:
+    "Careful with the usual fade play: sector-wide moves have real fuel behind them, and they don't give it back the way single-stock hype spikes do.",
 };
 
 function templateThesis(f: ThesisFindings): string {

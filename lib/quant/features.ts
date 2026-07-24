@@ -5,15 +5,18 @@
 // traded three weeks earlier, and the engine both ignored the streak
 // (D_STREAK_PER_DAY = 0) and couldn't see the levels at all.
 //
-// One deliberate exception leaves this file as a live input: `pinned` feeds the
-// pinned-tape safety cap in score.ts (a cap, like the buyout cap, can only
-// prevent bad recommendations). Everything else is storage-only.
+// Two deliberate exceptions leave this file as a live input: `pinned` feeds
+// the pinned-tape safety cap in score.ts, and `sector.is_sector_move` feeds
+// the macro/sector cap (a cap, like the buyout cap, can only prevent bad
+// recommendations). Everything else is storage-only.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase/types";
 import type { GainerRow } from "../marketdata/types";
 import type { BaseRate } from "../baseRates";
 import type { Technicals } from "./technicals";
+import { SCAN_URL, USER_AGENT } from "../marketdata/tradingview";
+import { withRetry } from "../retry";
 import { tradingDaysAgoKey } from "../market-calendar";
 import { fetchShortVolumeRatios } from "./finra";
 
@@ -48,6 +51,17 @@ export interface SerialRunnerFeatures {
   last_appearance: string | null;
 }
 
+export interface SectorContext {
+  sector: string;
+  /** Day change % of each mapped proxy ETF that the scanner returned. */
+  proxy_moves: { symbol: string; change_pct: number }[];
+  max_proxy_change_pct: number | null;
+  /** Same-sector names on today's gainer board (incl. this one). */
+  same_sector_on_board: number;
+  /** The whole sector is in motion — the spike has macro fuel, not hype. */
+  is_sector_move: boolean;
+}
+
 export interface FeatureSnapshot {
   path: PathFeatures;
   pinned_tape: PinnedTape;
@@ -56,6 +70,7 @@ export interface FeatureSnapshot {
   finra_short_ratio: number | null;
   streak_count: number | null;
   base_rate_bucket: { cap_band: string; relvol_band: string; n: number } | null;
+  sector: SectorContext | null;
 }
 
 function ratio(num: number, den: number): number | null {
@@ -164,6 +179,139 @@ export async function fetchSerialRunnerFeatures(
   return out;
 }
 
+// Sector → proxy ETFs with day-change thresholds (%). A mapped proxy clearing
+// its threshold marks the whole sector "in motion": the spike has a macro
+// driver (the commodity), not company hype — the SKYQ failure (2026-07-23: oil
+// jumped on Middle East strikes, EDGAR/news found nothing, the engine called
+// it momentum and scored 8/10). Deliberately mapped for commodity-linked
+// sectors only, where a macro driver routinely moves single names double
+// digits; unmapped sectors skip the ETF leg.
+const SECTOR_PROXIES: Record<string, { symbol: string; threshold: number }[]> = {
+  "Energy Minerals": [
+    { symbol: "USO", threshold: 3.0 },
+    { symbol: "XLE", threshold: 2.5 },
+  ],
+  "Non-Energy Minerals": [
+    { symbol: "GDX", threshold: 3.0 },
+    { symbol: "XME", threshold: 2.5 },
+  ],
+};
+// Same-sector breadth is CAPTURED but does not flag: the board stores ~100
+// rows/day, so a handful of same-sector names is routine noise (Health
+// Technology alone ran 22 on 2026-07-23). If the September re-fit finds a
+// breadth level that predicts outcomes, promote it then.
+
+const ETF_REQUEST_TIMEOUT_MS = 8_000;
+
+/**
+ * Day change % for the proxy ETFs — same scanner + posture as outcomes.ts,
+ * but AMEX-prefixed: the funds list on NYSE Arca, so the NASDAQ:/NYSE:
+ * prefixes used for stocks would silently return nothing.
+ */
+async function fetchEtfChanges(symbols: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (symbols.length === 0) return out;
+
+  const post = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ETF_REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(SCAN_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "user-agent": USER_AGENT,
+          origin: "https://www.tradingview.com",
+          referer: "https://www.tradingview.com/",
+        },
+        body: JSON.stringify({
+          symbols: {
+            tickers: symbols.map((s) => `AMEX:${s}`),
+            query: { types: [] },
+          },
+          columns: ["name", "change"],
+          options: { lang: "en" },
+        }),
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`scanner returned ${res.status}`);
+      return (await res.json()) as { data?: Array<{ s: string; d: unknown[] }> };
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  try {
+    const json = await withRetry(post, {
+      onRetry: (err, attempt, delay) =>
+        console.warn(
+          `[features] ETF retry ${attempt} in ${Math.round(delay)}ms:`,
+          (err as Error)?.message,
+        ),
+    });
+    for (const entry of json.data ?? []) {
+      const name = (entry.d[0] as string) ?? entry.s.split(":").pop();
+      const change = entry.d[1];
+      if (name && typeof change === "number" && Number.isFinite(change)) {
+        out.set(name, change);
+      }
+    }
+  } catch (err) {
+    console.warn("[features] sector ETF fetch failed:", (err as Error)?.message);
+  }
+  return out;
+}
+
+/** Same-day sector counts on the gainer board; failure degrades to empty. */
+async function fetchSectorBreadth(
+  admin: SupabaseClient<Database>,
+  sectors: string[],
+  dateKey: string,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (sectors.length === 0) return out;
+  const { data, error } = await admin
+    .from("daily_gainers")
+    .select("sector")
+    .eq("date", dateKey)
+    .in("sector", sectors);
+  if (error) {
+    console.warn("[features] sector breadth query failed:", error.message);
+    return out;
+  }
+  for (const row of data ?? []) {
+    if (row.sector) out.set(row.sector, (out.get(row.sector) ?? 0) + 1);
+  }
+  return out;
+}
+
+function computeSectorContext(
+  sector: string | null,
+  etfChanges: Map<string, number>,
+  sectorCounts: Map<string, number>,
+): SectorContext | null {
+  if (!sector) return null;
+  const proxies = SECTOR_PROXIES[sector] ?? [];
+  const proxy_moves = proxies
+    .filter((p) => etfChanges.has(p.symbol))
+    .map((p) => ({ symbol: p.symbol, change_pct: etfChanges.get(p.symbol)! }));
+  const max_proxy_change_pct = proxy_moves.length
+    ? Math.max(...proxy_moves.map((m) => m.change_pct))
+    : null;
+  const same_sector_on_board = sectorCounts.get(sector) ?? 0;
+  const proxyHit = proxies.some(
+    (p) => (etfChanges.get(p.symbol) ?? -Infinity) >= p.threshold,
+  );
+  return {
+    sector,
+    proxy_moves,
+    max_proxy_change_pct,
+    same_sector_on_board,
+    is_sector_move: proxyHit,
+  };
+}
+
 /**
  * Assemble the per-ticker snapshots for a scored set. Every input degrades
  * independently (nulls, empty maps) — feature capture must never block a thesis.
@@ -177,9 +325,17 @@ export async function buildFeatureSnapshots(
   baseRates: Map<string, BaseRate | null>,
 ): Promise<Map<string, FeatureSnapshot>> {
   const tickers = gainers.map((g) => g.ticker);
-  const [serial, shortRatios] = await Promise.all([
+  const sectors = [
+    ...new Set(gainers.map((g) => g.sector).filter((s): s is string => !!s)),
+  ];
+  const proxySymbols = [
+    ...new Set(sectors.flatMap((s) => SECTOR_PROXIES[s] ?? []).map((p) => p.symbol)),
+  ];
+  const [serial, shortRatios, etfChanges, sectorCounts] = await Promise.all([
     fetchSerialRunnerFeatures(admin, tickers, dateKey),
     fetchShortVolumeRatios(tickers, dateKey),
+    fetchEtfChanges(proxySymbols),
+    fetchSectorBreadth(admin, sectors, dateKey),
   ]);
 
   const out = new Map<string, FeatureSnapshot>();
@@ -195,6 +351,7 @@ export async function buildFeatureSnapshots(
       base_rate_bucket: br
         ? { cap_band: br.cap_band, relvol_band: br.relvol_band, n: br.n }
         : null,
+      sector: computeSectorContext(g.sector, etfChanges, sectorCounts),
     });
   }
   return out;
