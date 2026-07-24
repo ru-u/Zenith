@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ViewTransition } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -6,14 +7,25 @@ import { GradientMesh } from "@/components/layout/GradientMesh";
 import { Header } from "@/components/layout/Header";
 
 // shadcn's @theme maps --font-sans → var(--font-sans); name the variables to match.
+// Next 16 + Turbopack does not emit a render-blocking `<link rel="preload"
+// as="font">` for next/font on any route (verified against production), so on a
+// cold first load the browser only discovers the Geist woff2 once layout needs
+// it. With display:"swap" that produced a fallback→Geist reflow that read as a
+// broken first paint (most visible on the big bg-clip-text hero headline) and
+// "fixed itself" on reload once the font was cached. display:"optional" removes
+// the swap: the size-adjusted fallback (adjustFontFallback, on by default) holds
+// if Geist isn't ready within the block window, and Geist is used from cache on
+// every subsequent view — no post-paint reflow either way.
 const geistSans = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "optional",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "optional",
 });
 
 export const metadata: Metadata = {
@@ -75,7 +87,9 @@ export default function RootLayout({
         <Providers>
           <GradientMesh />
           <Header />
-          {children}
+          {/* Route content cross-fades on navigation; the mesh and header sit
+              outside the transition so the chrome stays rock-still. */}
+          <ViewTransition>{children}</ViewTransition>
         </Providers>
       </body>
     </html>

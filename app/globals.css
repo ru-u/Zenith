@@ -162,12 +162,36 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+  /* Raw links (hero/footer/pricing pills) get the same brand-cyan focus ring
+     the base-ui Button/Input already carry via --ring. Keyboard-only —
+     :focus-visible never fires on click/tap. */
+  a:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
   /* tabular numerals everywhere numbers refresh, so the layout never jitters */
   .tnum,
   table,
   [data-numeric] {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
+  }
+}
+
+/* Route navigations cross-fade via React's <ViewTransition> (app/layout.tsx +
+   experimental.viewTransition). Keep it a quick dissolve — anything slower
+   reads as lag on a data tool — and drop it entirely for reduced motion
+   (the browser API doesn't honor the preference on its own). */
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 200ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 
