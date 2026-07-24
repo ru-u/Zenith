@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
@@ -21,6 +22,11 @@ export function LoginForm() {
   // Seed with any error handed back by /auth/callback (OAuth failures).
   const [error, setError] = useState<string | null>(params.get("error"));
   const [loading, setLoading] = useState(false);
+  // Coded param (not free text) so a crafted URL can't display arbitrary copy.
+  const notice =
+    params.get("reset") === "success"
+      ? "Password updated — sign in with your new password."
+      : null;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,6 +51,10 @@ export function LoginForm() {
       <AuthDivider />
       <Input
         type="email"
+        name="email"
+        autoComplete="email"
+        spellCheck={false}
+        aria-label="Email"
         required
         placeholder="you@email.com"
         value={email}
@@ -53,14 +63,35 @@ export function LoginForm() {
       />
       <Input
         type="password"
+        name="password"
+        autoComplete="current-password"
+        aria-label="Password"
         required
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="border-foreground/10 bg-foreground/5"
       />
-      {error && <p className="text-sm text-down">{error}</p>}
+      <div className="-mt-1.5 text-right">
+        <Link
+          href="/forgot-password"
+          className="text-xs text-muted-foreground transition-colors hover:text-brand"
+        >
+          Forgot password?
+        </Link>
+      </div>
+      {error && (
+        <p aria-live="polite" className="text-sm text-down">
+          {error}
+        </p>
+      )}
+      {notice && !error && (
+        <p aria-live="polite" className="text-sm text-up">
+          {notice}
+        </p>
+      )}
       <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
+        {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Signing in…" : "Sign in"}
       </Button>
       <p className="text-center text-sm text-muted-foreground">

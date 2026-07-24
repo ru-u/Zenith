@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
@@ -56,6 +57,9 @@ export function SignupForm() {
       <AuthDivider />
       <Input
         type="text"
+        name="name"
+        autoComplete="name"
+        aria-label="Your name"
         required
         placeholder="Your name"
         value={name}
@@ -64,6 +68,10 @@ export function SignupForm() {
       />
       <Input
         type="email"
+        name="email"
+        autoComplete="email"
+        spellCheck={false}
+        aria-label="Email"
         required
         placeholder="you@email.com"
         value={email}
@@ -72,16 +80,28 @@ export function SignupForm() {
       />
       <Input
         type="password"
+        name="password"
+        autoComplete="new-password"
+        aria-label="Password"
         required
-        minLength={6}
-        placeholder="Password (min 6 chars)"
+        minLength={8}
+        placeholder="Password (min 8 chars)"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="border-foreground/10 bg-foreground/5"
       />
-      {error && <p className="text-sm text-down">{error}</p>}
-      {notice && <p className="text-sm text-up">{notice}</p>}
+      {error && (
+        <p aria-live="polite" className="text-sm text-down">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p aria-live="polite" className="text-sm text-up">
+          {notice}
+        </p>
+      )}
       <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
+        {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Creating account…" : "Create free account"}
       </Button>
       <p className="text-center text-xs leading-relaxed text-muted-foreground">

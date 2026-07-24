@@ -4,10 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 /**
- * OAuth (PKCE) callback: Supabase redirects here with a one-time `code` after
- * the provider consent screen. Exchanging it sets the same session cookies the
- * password flow uses, so everything downstream (proxy refresh, RLS, Pro-tier
- * reads, the profiles trigger) is shared — no parallel auth path.
+ * PKCE callback: Supabase redirects here with a one-time `code` after the
+ * provider consent screen (OAuth) or a password-recovery email link.
+ * Exchanging it sets the same session cookies the password flow uses, so
+ * everything downstream (proxy refresh, RLS, Pro-tier reads, the profiles
+ * trigger) is shared — no parallel auth path.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -25,6 +26,14 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL(next, url.origin));
     }
     console.error("[auth/callback] code exchange:", error.message);
+  }
+
+  // Recovery links fail into the reset page's error state (it explains the
+  // one-use / same-browser rules), not the login form.
+  if (next.startsWith("/reset-password")) {
+    const reset = new URL("/reset-password", url.origin);
+    reset.searchParams.set("error", "link");
+    return NextResponse.redirect(reset);
   }
 
   // Provider errors (user canceled, misconfiguration) or a missing/spent code
