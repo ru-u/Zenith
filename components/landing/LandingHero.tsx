@@ -34,11 +34,17 @@ export function LandingHero({
         </p>
 
         <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-          {/* The screener link takes the quiet translucent treatment so the
-              paid CTA beside it carries the brand gradient on its own. */}
+          {/* Free/guest: quiet translucent pill so the paid CTA beside it
+              carries the brand gradient on its own. Pro: the upgrade CTA is
+              gone, so the screener link inherits the gradient as the page's
+              primary action. */}
           <Link
             href="/screener"
-            className="rounded-full bg-white/5 px-6 py-3 text-sm font-semibold text-foreground ring-1 ring-white/10 transition-colors hover:text-brand hover:ring-brand/30"
+            className={
+              isPro
+                ? "rounded-full bg-brand btn-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
+                : "rounded-full bg-white/5 px-6 py-3 text-sm font-semibold text-foreground ring-1 ring-white/10 transition-colors hover:text-brand hover:ring-brand/30"
+            }
           >
             {isLoggedIn ? "Launch screener" : "See today's movers"}
           </Link>

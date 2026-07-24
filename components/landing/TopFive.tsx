@@ -45,6 +45,7 @@ function ScoreTease({
       <span className="font-mono text-xs text-muted-foreground">/10</span>
       {!isPro && (
         <Lock
+          role="img"
           className="ml-0.5 h-3 w-3 self-center text-muted-foreground/70"
           aria-label="Short score locked. Unlocks with Pro."
         />
@@ -135,7 +136,7 @@ export function TopFive({ isPro }: { isPro: boolean }) {
             <ul className="divide-y divide-white/5">
               {Array.from({ length: 5 }).map((_, i) => (
                 <li key={i} className="px-4 py-3.5 sm:px-6">
-                  <div className="h-9 animate-pulse rounded-md bg-white/4" />
+                  <div className="h-9 animate-pulse rounded-md bg-white/4 motion-reduce:animate-none" />
                 </li>
               ))}
             </ul>
