@@ -174,7 +174,11 @@ export function ChartDialog({
         </DialogHeader>
         {gainer &&
           (signedIn ? (
-            <StockChart key={gainer.ticker} ticker={gainer.ticker} />
+            <StockChart
+              key={gainer.ticker}
+              ticker={gainer.ticker}
+              exchange={gainer.exchange}
+            />
           ) : loading ? (
             <div className="h-170" aria-busy />
           ) : (

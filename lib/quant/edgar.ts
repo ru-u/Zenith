@@ -12,6 +12,7 @@
 // (SEC_EDGAR_USER_AGENT) and caps at ~10 req/s — we do ~a dozen a day.
 
 import { formatDateKey, isTradingDay } from "../market-calendar";
+import { namesLikelySameCompany } from "./identity";
 
 const CIK_MAP_URL = "https://www.sec.gov/files/company_tickers.json";
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -78,15 +79,25 @@ async function edgarFetch(url: string): Promise<Response> {
 
 // ── ticker → CIK, cached in-process (Railway runs a single replica) ──
 
-let cikCache: { map: Map<string, number>; fetchedAt: number } | null = null;
+interface CikEntry {
+  cik: number;
+  title: string; // registrant name per SEC — the identity cross-check anchor
+}
+
+let cikCache: { map: Map<string, CikEntry>; fetchedAt: number } | null = null;
 const CIK_TTL_MS = 24 * 60 * 60 * 1000;
 
-async function tickerToCik(ticker: string): Promise<number | null> {
+async function tickerToCik(ticker: string): Promise<CikEntry | null> {
   if (!cikCache || Date.now() - cikCache.fetchedAt > CIK_TTL_MS) {
     const res = await edgarFetch(CIK_MAP_URL);
-    const json = (await res.json()) as Record<string, { cik_str: number; ticker: string }>;
-    const map = new Map<string, number>();
-    for (const v of Object.values(json)) map.set(v.ticker.toUpperCase(), v.cik_str);
+    const json = (await res.json()) as Record<
+      string,
+      { cik_str: number; ticker: string; title?: string }
+    >;
+    const map = new Map<string, CikEntry>();
+    for (const v of Object.values(json)) {
+      map.set(v.ticker.toUpperCase(), { cik: v.cik_str, title: v.title ?? "" });
+    }
     cikCache = { map, fetchedAt: Date.now() };
   }
   const t = ticker.toUpperCase();
@@ -207,14 +218,29 @@ function describe(type: EdgarCatalystType, ticker: string, f: Filing): string {
 /**
  * Best-effort catalyst detection from SEC filings in the last few trading days.
  * Returns null when nothing decisive is on file — never throws.
+ *
+ * `companyName` (the scanner's name for the ticker) guards against ticker
+ * collisions: SEC's map can lag a listing-day symbol change or still hold a
+ * prior owner of the symbol, and pulling that CIK's filings would attribute a
+ * different company's catalysts to this gainer. On a name mismatch we skip —
+ * missing catalyst beats wrong-company catalyst.
  */
 export async function detectCatalyst(
   ticker: string,
   dateKey: string,
+  companyName: string | null = null,
 ): Promise<EdgarCatalyst | null> {
   try {
-    const cik = await tickerToCik(ticker);
-    if (cik == null) return null;
+    const entry = await tickerToCik(ticker);
+    if (entry == null) return null;
+    if (!namesLikelySameCompany(companyName, entry.title)) {
+      console.warn(
+        `[edgar] identity mismatch for ${ticker}: scanner says "${companyName}", ` +
+          `SEC map says "${entry.title}" (CIK ${entry.cik}) — skipping filings lookup`,
+      );
+      return null;
+    }
+    const cik = entry.cik;
 
     const startKey = lookbackStartKey(dateKey, LOOKBACK_TRADING_DAYS);
     const filings = await fetchWindowFilings(cik, startKey, dateKey);

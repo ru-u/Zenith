@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { useTheme } from "next-themes";
+import { qualifiedSymbol } from "@/lib/marketdata/symbols";
 
 declare global {
   interface Window {
@@ -18,7 +19,27 @@ declare global {
 // `autosize: true` is what keeps the chart fully interactive: it fills the
 // container and re-fits as the dialog animates open, instead of locking to a
 // fixed size measured mid-animation (which renders a dead snapshot).
-export function StockChart({ ticker }: { ticker: string }) {
+//
+// autosize alone is not enough, though — see the nudge() in the effect: the
+// embed sizes itself from its iframe's viewport once at bootstrap and after
+// that only re-fits on `resize` events *inside* the iframe. When it bootstraps
+// before the browser has pushed the iframe's real bounds (a race — the dialog
+// opening mid view-transition/animation, or the main thread busy committing
+// the popup), it lays out against Chromium's default 800×600 frame viewport;
+// the iframe's true geometry never changes afterwards, so no resize ever
+// fires and the chart stays a letterboxed 800×600 snapshot in the corner of
+// the dialog.
+export function StockChart({
+  ticker,
+  exchange = null,
+}: {
+  ticker: string;
+  // Listing venue ("NASDAQ" | "NYSE") — REQUIRED whenever the caller has it.
+  // A bare symbol makes TradingView guess the venue, and for brand-new
+  // listings it guesses wrong (day-one "BIOT" resolved to a BitMEX crypto
+  // index). Null only for legacy rows stored before the exchange column.
+  exchange?: string | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   // Unique per instance. TradingView resolves the mount point via
   // document.getElementById(container_id), so a shared id is dangerous: during a
@@ -33,13 +54,39 @@ export function StockChart({ ticker }: { ticker: string }) {
   useEffect(() => {
     let cancelled = false;
     const el = containerRef.current;
+    const timers: number[] = [];
+    let iframe: HTMLIFrameElement | null = null;
+
+    // Force a real `resize` event inside the TradingView iframe: shrink the
+    // container by 1px for one frame, then restore it. If the embed booted
+    // against a stale/default viewport (see header comment), this makes it
+    // re-measure and fill the dialog; if it was already right, the one-frame
+    // 1px blip is invisible.
+    function nudge() {
+      if (cancelled || !el) return;
+      el.style.height = "calc(100% - 1px)";
+      requestAnimationFrame(() => {
+        if (!cancelled && el) el.style.height = "100%";
+      });
+    }
+
+    // Straddle the embed's async bootstrap: once as it loads, again after its
+    // chart bundle has had time to parse and attach, once more for slow loads.
+    function onFrameLoad() {
+      for (const ms of [0, 600, 2000]) {
+        timers.push(window.setTimeout(nudge, ms));
+      }
+    }
 
     function init() {
       if (cancelled || !el) return;
       el.innerHTML = ""; // clear any prior widget (StrictMode / remount safety)
+      el.style.height = "100%"; // in case a prior cleanup landed mid-nudge
       new window.TradingView.widget({
         autosize: true,
-        symbol: ticker,
+        // Qualified "NASDAQ:BIOT"-style symbol — a bare ticker lets
+        // TradingView pick the venue, which mis-resolves new listings.
+        symbol: qualifiedSymbol(exchange, ticker),
         interval: "D",
         timezone: "America/New_York",
         theme: chartTheme, // follow the app's light/dark theme
@@ -50,12 +97,13 @@ export function StockChart({ ticker }: { ticker: string }) {
           "mainSeriesProperties.areaStyle.linewidth": 2,
           "mainSeriesProperties.areaStyle.color1": "rgba(46, 230, 230, 0.30)",
           "mainSeriesProperties.areaStyle.color2": "rgba(46, 230, 230, 0.02)",
-          // Regular trading hours only. We pass a bare symbol (no exchange), so
-          // TradingView resolves it to the Cboe One 24h feed and leaks its new
-          // Overnight session onto even the daily chart — a purple "Overnight"
-          // price tag stacked on the last-price tag (burying the axis label),
-          // a moon badge, and a flat line dragging the series past the close.
-          // This is the programmatic equivalent of the chart's RTH toggle.
+          // Regular trading hours only. Legacy rows without an exchange still
+          // pass a bare symbol, which TradingView resolves to the Cboe One 24h
+          // feed and leaks its new Overnight session onto even the daily chart
+          // — a purple "Overnight" price tag stacked on the last-price tag
+          // (burying the axis label), a moon badge, and a flat line dragging
+          // the series past the close. Harmless on qualified symbols, so it
+          // stays for both. This is the programmatic RTH toggle.
           "mainSeriesProperties.sessionId": "regular",
         },
         locale: "en",
@@ -65,6 +113,10 @@ export function StockChart({ ticker }: { ticker: string }) {
         save_image: false,
         container_id: containerId,
       });
+      // The widget inserts its iframe synchronously; watch it come up so the
+      // post-load nudges can heal a wrong-viewport bootstrap.
+      iframe = el.querySelector("iframe");
+      iframe?.addEventListener("load", onFrameLoad);
     }
 
     if (typeof window.TradingView !== "undefined") {
@@ -85,9 +137,11 @@ export function StockChart({ ticker }: { ticker: string }) {
 
     return () => {
       cancelled = true;
+      iframe?.removeEventListener("load", onFrameLoad);
+      for (const t of timers) window.clearTimeout(t);
       if (el) el.innerHTML = "";
     };
-  }, [ticker, chartTheme, containerId]);
+  }, [ticker, exchange, chartTheme, containerId]);
 
   return (
     <div className="w-full" style={{ height: 680 }}>

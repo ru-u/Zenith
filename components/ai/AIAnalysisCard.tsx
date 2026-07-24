@@ -205,6 +205,14 @@ export function AIAnalysisCard() {
     )
     .slice(0, 5);
   const companyByTicker = new Map(ordered.map((a) => [a.ticker, a.company_name]));
+  // Venue qualifies the chart symbol (bare tickers mis-resolve new listings).
+  // Thesis rows carry it denormalized; fall back to the live gainer row for
+  // theses stored before the exchange column existed.
+  const chartExchange = chartTicker
+    ? (ordered.find((a) => a.ticker === chartTicker)?.exchange ??
+      top.find((g) => g.ticker === chartTicker)?.exchange ??
+      null)
+    : null;
 
   return (
     <section className="flex flex-col gap-3">
@@ -223,7 +231,13 @@ export function AIAnalysisCard() {
               )}
             </DialogTitle>
           </DialogHeader>
-          {chartTicker && <StockChart key={chartTicker} ticker={chartTicker} />}
+          {chartTicker && (
+            <StockChart
+              key={chartTicker}
+              ticker={chartTicker}
+              exchange={chartExchange}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

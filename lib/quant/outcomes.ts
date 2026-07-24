@@ -14,15 +14,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase/types";
 import { SCAN_URL, USER_AGENT } from "../marketdata/tradingview";
+import { isAllowedExchange } from "../marketdata/symbols";
+import type { SymbolRef } from "./technicals";
 import { withRetry } from "../retry";
 import { tradingDaysAgoKey } from "../market-calendar";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
-/** Current close for a small ticker list — same scanner + posture as technicals.ts. */
-async function fetchCloses(tickers: string[]): Promise<Map<string, number>> {
+/** Current close for a small symbol list — same scanner + posture as technicals.ts. */
+async function fetchCloses(refs: SymbolRef[]): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  if (tickers.length === 0) return out;
+  if (refs.length === 0) return out;
 
   const post = async () => {
     const controller = new AbortController();
@@ -38,7 +40,13 @@ async function fetchCloses(tickers: string[]): Promise<Map<string, number>> {
         },
         body: JSON.stringify({
           symbols: {
-            tickers: tickers.flatMap((t) => [`NASDAQ:${t}`, `NYSE:${t}`]),
+            // Exact venue when the thesis row carries it; both-prefix guess
+            // only for rows stored before the exchange column existed.
+            tickers: refs.flatMap((r) =>
+              r.exchange && isAllowedExchange(r.exchange)
+                ? [`${r.exchange}:${r.ticker}`]
+                : [`NASDAQ:${r.ticker}`, `NYSE:${r.ticker}`],
+            ),
             query: { types: [] },
           },
           columns: ["name", "close"],
@@ -90,7 +98,7 @@ export async function recordThesisOutcomes(
 
   const { data: pending } = await admin
     .from("ai_analyses")
-    .select("id, ticker")
+    .select("id, ticker, exchange")
     .eq("date", prevKey)
     .not("short_score", "is", null)
     .is("next_close", null);
@@ -110,7 +118,11 @@ export async function recordThesisOutcomes(
       .map((r) => [r.ticker, r.price as number]),
   );
 
-  const nextClose = await fetchCloses(tickers.filter((t) => prevClose.has(t)));
+  const nextClose = await fetchCloses(
+    pending
+      .filter((r) => prevClose.has(r.ticker))
+      .map((r) => ({ ticker: r.ticker, exchange: r.exchange ?? null })),
+  );
 
   let recorded = 0;
   for (const row of pending) {

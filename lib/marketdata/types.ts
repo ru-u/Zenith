@@ -2,6 +2,11 @@
 // only ever see GainerRow — swapping providers never changes anything downstream.
 export interface GainerRow {
   ticker: string;
+  // Listing venue ("NASDAQ" | "NYSE") from the scanner's qualified symbol. A
+  // bare ticker is ambiguous across venues (see lib/marketdata/symbols.ts) —
+  // every symbol string handed to an external system must be qualified with
+  // this. Null only for a provider that can't supply it.
+  exchange: string | null;
   companyName: string | null;
   price: number | null;
   changePercent: number | null;

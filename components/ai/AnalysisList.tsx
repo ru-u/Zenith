@@ -20,6 +20,9 @@ export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
       (a.rank ?? 99) - (b.rank ?? 99),
   );
   const companyByTicker = new Map(ordered.map((a) => [a.ticker, a.company_name]));
+  // Venue qualifies the chart symbol — a bare ticker makes TradingView guess
+  // the instrument (wrong for new listings). Null on pre-column rows.
+  const exchangeByTicker = new Map(ordered.map((a) => [a.ticker, a.exchange]));
   const [chartTicker, setChartTicker] = useState<string | null>(null);
 
   return (
@@ -39,7 +42,13 @@ export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
               )}
             </DialogTitle>
           </DialogHeader>
-          {chartTicker && <StockChart key={chartTicker} ticker={chartTicker} />}
+          {chartTicker && (
+            <StockChart
+              key={chartTicker}
+              ticker={chartTicker}
+              exchange={exchangeByTicker.get(chartTicker) ?? null}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

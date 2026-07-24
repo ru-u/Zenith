@@ -1,13 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
-import { isLikelySplitArtifact } from "./marketdata/normalize";
+import { isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
+import { isAllowedExchange } from "./marketdata/symbols";
+import { maybeAlert } from "./alerts";
 
 /** Map a normalized provider row to a daily_gainers insert. */
 function toDbRow(row: GainerRow, dateKey: string, isFinal: boolean, scrapedAt: string) {
   return {
     date: dateKey,
     ticker: row.ticker,
+    exchange: row.exchange,
     company_name: row.companyName,
     price: row.price,
     change_percent: row.changePercent,
@@ -23,14 +26,65 @@ function toDbRow(row: GainerRow, dateKey: string, isFinal: boolean, scrapedAt: s
   };
 }
 
+/**
+ * Symbol-integrity gate at the ingest boundary. Every row we store must be
+ * unambiguously identifiable, or downstream consumers (chart embeds, EDGAR,
+ * Finnhub) resolve the bare ticker string to some other instrument that shares
+ * it (the BIOT incident: a day-one Nasdaq listing whose bare symbol resolved
+ * to a BitMEX crypto index in the chart widget). Rows with a malformed ticker
+ * or an unexpected venue are dropped; rows missing the exchange entirely are
+ * kept (a provider swap must not blank the product) but flagged. Either case
+ * fires one deduped ops alert — this should never happen while the provider's
+ * own exchange filter holds, so any hit means the upstream contract changed.
+ */
+function checkSymbolIntegrity(rows: GainerRow[]): {
+  kept: GainerRow[];
+  dropped: GainerRow[];
+  unqualified: GainerRow[];
+} {
+  const dropped = rows.filter(
+    (r) =>
+      !TICKER_RE.test(r.ticker) ||
+      (r.exchange != null && !isAllowedExchange(r.exchange)),
+  );
+  const kept =
+    dropped.length === 0
+      ? rows
+      : rows
+          .filter((r) => !dropped.includes(r))
+          .map((r, i) => ({ ...r, rank: i + 1 }));
+  return { kept, dropped, unqualified: kept.filter((r) => r.exchange == null) };
+}
+
 /** Upsert a ranked set of gainers for a date. Uses the service-role client. */
 export async function persistGainers(
   admin: SupabaseClient<Database>,
-  rows: GainerRow[],
+  allRows: GainerRow[],
   dateKey: string,
   isFinal: boolean,
 ): Promise<void> {
+  if (allRows.length === 0) return;
+
+  const { kept: rows, dropped, unqualified } = checkSymbolIntegrity(allRows);
+  if (dropped.length > 0 || unqualified.length > 0) {
+    const label = (r: GainerRow) => `${r.exchange ?? "?"}:${r.ticker}`;
+    console.error(
+      `[gainers] symbol integrity: dropped [${dropped.map(label).join(", ")}], missing exchange [${unqualified.map(label).join(", ")}]`,
+    );
+    await maybeAlert(admin, {
+      date: dateKey,
+      type: "symbol_integrity",
+      subject: `Zenith: ${dropped.length} gainer row(s) failed symbol integrity (${dateKey})`,
+      body:
+        `The scanner returned rows the ingest gate couldn't safely qualify.\n\n` +
+        `Dropped (bad ticker/venue): ${dropped.map(label).join(", ") || "none"}\n` +
+        `Kept but missing exchange: ${unqualified.map(label).join(", ") || "none"}\n\n` +
+        `The provider's NASDAQ/NYSE filter should make this impossible — check whether ` +
+        `the TradingView scanner contract changed (lib/marketdata/tradingview.ts).`,
+    });
+  }
   if (rows.length === 0) return;
+
   const scrapedAt = new Date().toISOString();
   const dbRows = rows.map((r) => toDbRow(r, dateKey, isFinal, scrapedAt));
   const { error } = await admin

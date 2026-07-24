@@ -22,6 +22,10 @@ export type DailyGainer = {
   id: number;
   date: string; // YYYY-MM-DD
   ticker: string;
+  // Listing venue ("NASDAQ" | "NYSE") — qualifies the ticker for external
+  // lookups (chart embeds etc.); a bare ticker is ambiguous across venues.
+  // Null on rows persisted before the column existed.
+  exchange: string | null;
   company_name: string | null;
   price: number | null;
   change_percent: number | null;
@@ -67,6 +71,9 @@ export type AIAnalysis = {
   model: string | null;
   rank: number | null;
   company_name: string | null;
+  // Denormalized listing venue (like rank/company_name) so the Pro analysis
+  // chart embeds can qualify the symbol without joining daily_gainers.
+  exchange: string | null;
   // Realized next-session outcome, filled by the following day's EOD run
   // (lib/quant/outcomes.ts). Null until recorded; stays null for rows whose
   // next session passed before the recorder existed.

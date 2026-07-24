@@ -102,7 +102,7 @@ export async function generateAnalysis(
     // Both degrade to null on their own — null means "nothing decisive" and
     // the score falls back to price-action + base rate.
     const cat =
-      (await detectCatalyst(g.ticker, dateKey)) ??
+      (await detectCatalyst(g.ticker, dateKey, g.companyName ?? null)) ??
       (await detectNewsCatalyst(g.ticker, dateKey, g.companyName ?? null));
     // No company-specific catalyst but the whole sector is in motion → the
     // spike has macro fuel (oil, metals…), not hype. A real filing/headline
@@ -194,7 +194,9 @@ export async function generateAndStoreTopAnalyses(
 
   // One scanner call covers every ticker; failure yields an empty map and
   // scoring proceeds on catalyst + base rate alone.
-  const techs = await fetchTechnicals(top.map((g) => g.ticker));
+  const techs = await fetchTechnicals(
+    top.map((g) => ({ ticker: g.ticker, exchange: g.exchange })),
+  );
 
   // Candidate-signal snapshots (levels, serial-runner, FINRA, pinned tape) —
   // stored with each thesis for the September re-fit. Only `pinned` feeds
@@ -233,9 +235,11 @@ export async function generateAndStoreTopAnalyses(
         features: snapshot ? (snapshot as unknown as Record<string, unknown>) : null,
         model,
         // Denormalized so the AI card renders exactly this drop's set, in order,
-        // independent of how the live gainer list shifts before the close.
+        // independent of how the live gainer list shifts before the close
+        // (exchange: so its chart embed opens the right venue's symbol).
         rank: g.rank,
         company_name: g.companyName,
+        exchange: g.exchange,
       },
       { onConflict: "date,ticker" },
     );

@@ -6,9 +6,16 @@
 // ProviderError→cached-serve resilience pattern.
 
 import { SCAN_URL, USER_AGENT } from "../marketdata/tradingview";
+import { isAllowedExchange } from "../marketdata/symbols";
 import { withRetry } from "../retry";
 
 const REQUEST_TIMEOUT_MS = 8_000;
+
+/** Ticker + its listing venue; exchange null only for pre-column stored rows. */
+export interface SymbolRef {
+  ticker: string;
+  exchange: string | null;
+}
 
 export interface Technicals {
   rsi: number | null; // RSI(14), daily
@@ -68,7 +75,7 @@ function toNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-async function postScan(tickers: string[]): Promise<{ data?: Array<{ s: string; d: unknown[] }> }> {
+async function postScan(refs: SymbolRef[]): Promise<{ data?: Array<{ s: string; d: unknown[] }> }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -81,10 +88,15 @@ async function postScan(tickers: string[]): Promise<{ data?: Array<{ s: string; 
         referer: "https://www.tradingview.com/",
       },
       body: JSON.stringify({
-        // We only know the bare symbol, not the exchange — request both
+        // Exact qualified symbols when the row carries its venue (it always
+        // does for fresh scans). Legacy rows without one request both major
         // prefixes; unknown combinations are simply omitted from the response.
         symbols: {
-          tickers: tickers.flatMap((t) => [`NASDAQ:${t}`, `NYSE:${t}`]),
+          tickers: refs.flatMap((r) =>
+            r.exchange && isAllowedExchange(r.exchange)
+              ? [`${r.exchange}:${r.ticker}`]
+              : [`NASDAQ:${r.ticker}`, `NYSE:${r.ticker}`],
+          ),
           query: { types: [] },
         },
         columns: [...COLUMNS],
@@ -100,12 +112,12 @@ async function postScan(tickers: string[]): Promise<{ data?: Array<{ s: string; 
   }
 }
 
-/** Technicals for a small ticker list, keyed by bare symbol. Empty map on failure. */
-export async function fetchTechnicals(tickers: string[]): Promise<Map<string, Technicals>> {
+/** Technicals for a small symbol list, keyed by bare ticker. Empty map on failure. */
+export async function fetchTechnicals(refs: SymbolRef[]): Promise<Map<string, Technicals>> {
   const out = new Map<string, Technicals>();
-  if (tickers.length === 0) return out;
+  if (refs.length === 0) return out;
   try {
-    const json = await withRetry(() => postScan(tickers), {
+    const json = await withRetry(() => postScan(refs), {
       onRetry: (err, attempt, delay) =>
         console.warn(
           `[technicals] retry ${attempt} in ${Math.round(delay)}ms:`,

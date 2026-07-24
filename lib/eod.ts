@@ -49,6 +49,7 @@ async function fetchBaseRates(
 function toGainerRows(cleaned: DailyGainer[]): GainerRow[] {
   return cleaned.map((g, i) => ({
     ticker: g.ticker,
+    exchange: g.exchange,
     companyName: g.company_name,
     price: g.price,
     changePercent: g.change_percent,

@@ -33,6 +33,7 @@ create table if not exists public.daily_gainers (
 );
 alter table public.daily_gainers add column if not exists date date;
 alter table public.daily_gainers add column if not exists ticker text;
+alter table public.daily_gainers add column if not exists exchange text;
 alter table public.daily_gainers add column if not exists company_name text;
 alter table public.daily_gainers add column if not exists price numeric;
 alter table public.daily_gainers add column if not exists change_percent numeric;
@@ -85,6 +86,7 @@ alter table public.ai_analyses add column if not exists invalidation text;
 -- gainer list shifts before the close.
 alter table public.ai_analyses add column if not exists rank integer;
 alter table public.ai_analyses add column if not exists company_name text;
+alter table public.ai_analyses add column if not exists exchange text;
 -- Realized next-session outcome (calibration data; lib/quant/outcomes.ts)
 alter table public.ai_analyses add column if not exists next_date date;
 alter table public.ai_analyses add column if not exists next_close double precision;

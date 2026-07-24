@@ -6,6 +6,7 @@ import {
   ProviderError,
 } from "./types";
 import { rankAndFilter, MIN_PRICE } from "./normalize";
+import { exchangeFromScannerSymbol } from "./symbols";
 import { getMarketSession } from "../market-calendar";
 import { withRetry } from "../retry";
 
@@ -102,6 +103,9 @@ function mapRow(entry: { s: string; d: unknown[] }): RawGainer {
   const d = entry.d;
   return {
     ticker: (d[0] as string) ?? entry.s.split(":").pop() ?? entry.s,
+    // `s` is the qualified symbol ("NASDAQ:BIOT") — keep the venue. Bare
+    // tickers are ambiguous across exchanges (lib/marketdata/symbols.ts).
+    exchange: exchangeFromScannerSymbol(entry.s),
     companyName: (d[1] as string) ?? null,
     price: toNum(d[2]),
     changePercent: toNum(d[3]),

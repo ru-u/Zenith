@@ -102,12 +102,14 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 
 - `profiles` — `id`, `email`, `subscription_tier` (`free` | `pro`),
   `stripe_customer_id`. RLS: own row only.
-- `daily_gainers` — one row per `(date, ticker)`: price, change_percent, volume,
-  relative_volume, market_cap, sector, rank, `is_final`, scraped_at. RLS: public read.
+- `daily_gainers` — one row per `(date, ticker)`: exchange, price,
+  change_percent, volume, relative_volume, market_cap, sector, rank, `is_final`,
+  scraped_at. RLS: public read.
 - `ticker_streaks` — `ticker`, `streak_count`, `last_seen_date`. RLS: public
   read (the app-level gate lives in `/api/streaks`, which requires a session).
 - `ai_analyses` — `(date, ticker)`: short_thesis, risk_level, key_catalysts,
-  recommendation, model. **RLS: Pro only.**
+  recommendation, model, denormalized rank/company_name/exchange. **RLS: Pro
+  only.**
 
 ## Conventions & gotchas
 
@@ -129,6 +131,17 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   ToS risk. There's no provider fallback; revisit the licensing/source question
   before any commercial scale. The `MarketDataProvider` interface stays as the
   seam if another source is added.
+- **A bare ticker is NOT an identifier** — symbols collide across venues and
+  get reused across companies (the BIOT incident, 2026-07-24: a day-one Nasdaq
+  listing whose bare symbol the chart widget resolved to a BitMEX crypto
+  index). Every symbol string handed to an external system must be qualified
+  via `lib/marketdata/symbols.ts` (`qualifiedSymbol`, exchange plumbed
+  provider → DB → UI/quant). Guard rails: `persistGainers` drops/alerts rows it
+  can't qualify (`symbol_integrity` alert), and EDGAR lookups cross-check the
+  SEC registrant name against the scanner's company name
+  (`lib/quant/identity.ts`) — a ticker the SEC map attributes to a different
+  company yields *no* catalyst rather than the wrong company's filings.
+  Finnhub headlines are guarded by `mentionsCompany` in `lib/quant/news.ts`.
 - **Branding:** cyan→teal + polar-white on near-black (logo
   `components/layout/Logo.tsx`, favicon `app/icon.png`). Tokens
   `--brand`/`--brand-2`/`--up`/`--down` in `app/globals.css` (light `:root` +

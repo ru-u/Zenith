@@ -26,6 +26,7 @@ create table if not exists public.daily_gainers (
   id              bigint generated always as identity primary key,
   date            date not null,
   ticker          text not null,
+  exchange        text,  -- listing venue (NASDAQ | NYSE); qualifies the ticker for external lookups
   company_name    text,
   price           numeric,
   change_percent  numeric,
@@ -74,6 +75,7 @@ create table if not exists public.ai_analyses (
   model                text,
   rank                 integer,  -- denormalized from daily_gainers at the ~3:30 drop
   company_name         text,     -- so the AI card renders the exact drop set, in order
+  exchange             text,     -- denormalized venue so chart embeds can qualify the symbol
   -- Realized next-session outcome, recorded by the following day's EOD run —
   -- the calibration data the scoring Δs get re-fit against (lib/quant/outcomes.ts).
   next_date            date,              -- the session the outcome was measured on
