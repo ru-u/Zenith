@@ -128,6 +128,21 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   Config `redirects` run **before** `proxy.ts` (Next's documented order), so www
   requests never pay for a Supabase session refresh. Session cookies are
   host-only — deliberate, since nothing but the apex serves the app.
+- **Never build a redirect from `request.url` in a route handler** — behind
+  Railway's proxy it resolves to the container's own listening address, so
+  `url.origin` is `http://localhost:$PORT`. `app/auth/callback/route.ts` did
+  this and sent every Google sign-in and password reset to
+  `localhost:8080` (the session cookie was already set, so returning to the
+  site looked signed-in — it hid for months). Redirect against `siteUrl()`;
+  `request.url` is only safe for `searchParams`. `proxy.ts` is fine — it emits
+  a relative `Location` via `nextUrl.clone()`.
+- **The display name is `user_metadata.display_name`, not `full_name`** —
+  GoTrue re-merges the OAuth provider's identity payload into `user_metadata`
+  on *every* sign-in, and Google's payload includes `name` and `full_name`, so
+  anything written there is reverted on the next Google login. `display_name`
+  is a key no provider sends. Resolution order lives in `lib/displayName.ts`
+  (`storedName` for the edit form, `displayName` for UI chrome) — don't inline
+  it, it has two readers and two writers.
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
 - **Charts and streak badges require an account** — `ChartDialog` renders a
   sign-up gate for signed-out visitors (the TradingView widget is client-side;
