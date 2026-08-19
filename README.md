@@ -209,6 +209,10 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 
 SEC_EDGAR_USER_AGENT=              # SEC requires a contact string, e.g. "Zenith you@example.com"
 
+# Public base URL — read by lib/site.ts siteUrl() in this order. Production is
+# https://zenithscreener.com for both. NEXT_PUBLIC_* is inlined at BUILD time,
+# so changing these on Railway requires a rebuild, not a restart.
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Anthropic — OFF by default. The quant engine needs none of this.
@@ -219,7 +223,8 @@ ANTHROPIC_API_KEY=                 # only read in haiku prose mode
 # Email — pre-close drop + scraper failure alerts (optional; console-only if unset)
 RESEND_API_KEY=
 ALERT_EMAIL_TO=
-ALERT_EMAIL_FROM=                  # verified Resend sender
+ALERT_EMAIL_FROM=                  # verified Resend sender, e.g. "Zenith <drops@zenithscreener.com>";
+                                   # the onboarding@resend.dev default only reaches the account owner
 ```
 
 ### 3. Database

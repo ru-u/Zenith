@@ -5,6 +5,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { GradientMesh } from "@/components/layout/GradientMesh";
 import { Header } from "@/components/layout/Header";
+import { siteUrl } from "@/lib/site";
 
 // shadcn's @theme maps --font-sans → var(--font-sans); name the variables to match.
 // Next 16 + Turbopack does not emit a render-blocking `<link rel="preload"
@@ -29,9 +30,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
+  metadataBase: new URL(siteUrl()),
   title: {
     default: "Zenith — Today's Top Short Candidates",
     template: "%s — Zenith",
@@ -51,6 +50,18 @@ export const metadata: Metadata = {
     title: "Zenith — Today's Top Short Candidates",
     description:
       "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
+  },
+  other: {
+    // Opt out of Dark Reader (and compatible auto-dark extensions) — Zenith is
+    // dark-native with its own light mode. Dark Reader can't parse the oklch/
+    // lab()+color-mix token pipeline: it rewrote --input into a red-toned
+    // oklab (maroon search/filter fields) and stripped the landing headline's
+    // background-image, leaving bg-clip-text letters fully transparent.
+    // Reproduced 1:1 by injecting the darkreader npm engine; this meta is the
+    // extension's documented site-level off switch, honored since DR 4.9.35.
+    // (DR checks only the tag's presence; Next drops empty `other` values, so
+    // it needs a non-empty content.)
+    "darkreader-lock": "true",
   },
 };
 

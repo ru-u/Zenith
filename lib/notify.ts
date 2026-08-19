@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
 import { secondsUntilCloseET } from "./market-calendar";
+import { siteUrl } from "./site";
 
 // User-facing pre-close email — the daily "drop" nudge. Distinct from
 // lib/alerts.ts (admin-only failure alerts): this fans out via the Resend batch
@@ -20,14 +21,6 @@ type Recipient = {
   subscription_tier: "free" | "pro";
   unsubscribe_token: string;
 };
-
-function siteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    "https://zenith.app"
-  ).replace(/\/$/, "");
-}
 
 function esc(s: string): string {
   return s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]!);

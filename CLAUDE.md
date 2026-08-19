@@ -7,8 +7,8 @@ students). It surfaces the day's biggest US market gainers — framed as "today'
 top short candidates" — ranked, with consecutive-day streaks and Pro-gated
 Claude AI short theses. The audience is new to markets, so charts default to a
 simple area view (not candlesticks). Status: **near-final, pre-launch polish**
-— live on Railway; no longer an MVP. Remaining before launch: custom-domain
-cutover, a regulatory/branding compliance pass, and engine calibration tweaks.
+— live on Railway at **zenithscreener.com**; no longer an MVP. Remaining before
+launch: a regulatory/branding compliance pass and engine calibration tweaks.
 
 ## Stack
 
@@ -121,6 +121,13 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (export `proxy()`, not `middleware()`). It refreshes the Supabase session
   cookie on every matched request and auth-gates `/history` (redirects to
   `/auth/login?next=…`).
+- **The apex `zenithscreener.com` is canonical**; `www` 301s to it via
+  `redirects()` in `next.config.ts` (host-matched on `CANONICAL_HOST` from
+  `lib/site.ts`). Both are registered as Railway custom domains so both get
+  certs, and the old `*.up.railway.app` host stays live as an unlinked fallback.
+  Config `redirects` run **before** `proxy.ts` (Next's documented order), so www
+  requests never pay for a Supabase session refresh. Session cookies are
+  host-only — deliberate, since nothing but the apex serves the app.
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
 - **Charts and streak badges require an account** — `ChartDialog` renders a
   sign-up gate for signed-out visitors (the TradingView widget is client-side;
@@ -171,8 +178,17 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper
   failure alerts via `lib/alerts.ts`; if unset, alerts log to console only, no
-  email. Dedup + audit log live in the `system_alerts` table.)
-- `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL`
+  email. Dedup + audit log live in the `system_alerts` table.) `ALERT_EMAIL_FROM`
+  also sends the pre-close drop; its `onboarding@resend.dev` default is Resend's
+  **sandbox sender and only delivers to the Resend account owner**, so it must be
+  a verified `@zenithscreener.com` address in production.
+- `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` — the public base URL, read
+  **only** via `siteUrl()` in `lib/site.ts` (SITE first, APP as fallback, then
+  `localhost:3000` for dev). Never read either directly: the old split, where
+  `layout.tsx` read one and the Stripe routes read the other, left
+  `metadataBase` resolving to localhost in production. Both are `NEXT_PUBLIC_*`
+  and therefore **inlined at build time** — changing them on Railway needs a
+  rebuild, not a restart.
 
 ## Commands
 

@@ -32,7 +32,15 @@ export function SignupForm() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name.trim() } },
+      options: {
+        data: { full_name: name.trim() },
+        // Confirm back to the origin the user actually signed up on, matching
+        // ForgotPasswordForm/GoogleButton. Without this, Supabase builds the
+        // link from the dashboard's Site URL — so with one project shared
+        // between dev and prod, a localhost signup confirms into production.
+        // Bare /auth/callback lands on /screener (the route's `next` default).
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
     if (error) {
       setError(error.message);
