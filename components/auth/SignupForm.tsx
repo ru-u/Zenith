@@ -33,7 +33,7 @@ export function SignupForm() {
       email,
       password,
       options: {
-        data: { full_name: name.trim() },
+        data: { display_name: name.trim(), full_name: name.trim() },
         // Confirm back to the origin the user actually signed up on, matching
         // ForgotPasswordForm/GoogleButton. Without this, Supabase builds the
         // link from the dashboard's Site URL — so with one project shared

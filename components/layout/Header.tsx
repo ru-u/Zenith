@@ -5,19 +5,7 @@ import { Logo } from "./Logo";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggleButton } from "./ThemeToggleButton";
 import type { SubscriptionTier } from "@/lib/supabase/types";
-
-function displayName(user: {
-  email?: string | null;
-  user_metadata?: Record<string, unknown>;
-}): string {
-  const meta = user.user_metadata ?? {};
-  const fromMeta =
-    (meta.full_name as string) || (meta.name as string) || "";
-  if (fromMeta.trim()) return fromMeta.trim();
-  // Fall back to the email's local part (e.g. "jane.doe") for accounts
-  // created before we collected names.
-  return user.email?.split("@")[0] ?? "Account";
-}
+import { displayName } from "@/lib/displayName";
 
 export async function Header() {
   const supabase = await createClient();

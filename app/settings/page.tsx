@@ -11,6 +11,7 @@ import { ManageBillingButton } from "@/components/settings/ManageBillingButton";
 import { SignOutButton } from "@/components/settings/SignOutButton";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal";
+import { storedName } from "@/lib/displayName";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -78,9 +79,7 @@ export default async function SettingsPage() {
     .maybeSingle<{ subscription_tier: SubscriptionTier; created_at: string }>();
 
   const isPro = profile?.subscription_tier === "pro";
-  const meta = user.user_metadata ?? {};
-  const name =
-    (meta.full_name as string) || (meta.name as string) || "";
+  const name = storedName(user);
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("en-US", {
         year: "numeric",

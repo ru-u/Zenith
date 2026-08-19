@@ -26,8 +26,12 @@ export function ProfileForm({
     setSaving(true);
     setError(null);
     setSaved(false);
+    // display_name is the key that survives — Google's identity payload
+    // re-merges name/full_name into user_metadata on every OAuth sign-in and
+    // would revert this edit. full_name is kept in sync for anything reading
+    // the conventional key.
     const { error } = await createClient().auth.updateUser({
-      data: { full_name: name.trim() },
+      data: { display_name: name.trim(), full_name: name.trim() },
     });
     setSaving(false);
     if (error) {
