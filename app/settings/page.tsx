@@ -120,8 +120,8 @@ export default async function SettingsPage() {
           </Section>
 
           <Section
-            title="Ticker click"
-            description="What happens when you click a stock on the screener or in history."
+            title="Ticker links"
+            description="What opens when you click a stock on the screener or in history."
           >
             <TickerClickToggle />
           </Section>

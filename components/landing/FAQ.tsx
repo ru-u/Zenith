@@ -15,7 +15,7 @@ const QA = [
   },
   {
     q: "Where do the theses come from?",
-    a: "A quantitative engine we built, not a chatbot. For each of the top five it pulls the SEC filing behind the spike, checks how similar spikes have historically played out (the base rates), and reads the day's technicals, then scores the setup out of 10. AI's only job is sharpening the wording — every number in a thesis is computed, never generated.",
+    a: "A quantitative engine we built, not a chatbot. For each of the top five it works from public market data — filings, how similar past spikes played out, price and volume — and scores the setup out of 10. Every number in a thesis is computed from that data, and the write-up follows from the numbers — nothing is generated. What it does and doesn't claim, and where it gets things wrong, is written up at /engine.",
   },
   {
     q: "How do trades work in the DECA Stock Market Game?",

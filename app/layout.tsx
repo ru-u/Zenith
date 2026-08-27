@@ -5,6 +5,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { GradientMesh } from "@/components/layout/GradientMesh";
 import { Header } from "@/components/layout/Header";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { siteUrl } from "@/lib/site";
 
 // shadcn's @theme maps --font-sans → var(--font-sans); name the variables to match.
@@ -98,9 +99,12 @@ export default function RootLayout({
         <Providers>
           <GradientMesh />
           <Header />
-          {/* Route content cross-fades on navigation; the mesh and header sit
-              outside the transition so the chrome stays rock-still. */}
+          {/* Route content cross-fades on navigation; the mesh, header and
+              footer sit outside the transition so the chrome stays rock-still. */}
           <ViewTransition>{children}</ViewTransition>
+          {/* Legal footer on every route except "/" (which has LandingFooter).
+              Carries the not-advice + DECA non-affiliation lines site-wide. */}
+          <AppFooter />
         </Providers>
       </body>
     </html>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AmbientChevrons } from "./AmbientChevrons";
 import { Logo } from "@/components/layout/Logo";
+import { LEGAL_CONTACT_EMAIL, NOT_ADVICE, NOT_AFFILIATED } from "@/lib/legal";
 
 export function LandingFooter() {
   return (
@@ -37,10 +38,13 @@ export function LandingFooter() {
             </Link>
           </nav>
         </div>
+        {/* Same two lines as <AppFooter> and <Disclaimer>, from lib/legal.ts —
+            the wording is legal text and must not drift between surfaces. */}
         <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-          Not affiliated with or endorsed by DECA Inc. Zenith is a research tool
-          for a simulated trading competition; nothing here is investment
-          advice. Market data may be delayed.
+          <strong className="font-semibold text-foreground">{NOT_ADVICE}</strong>{" "}
+          {NOT_AFFILIATED} DECA and The Stock Market Game are trademarks of their
+          respective owners. Zenith does not execute trades. Market data may be
+          delayed or incomplete.
         </p>
         <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <Link
@@ -56,11 +60,23 @@ export function LandingFooter() {
             Terms &amp; Conditions
           </Link>
           <Link
+            href="/engine"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            The Engine
+          </Link>
+          <Link
             href="/cookies"
             className="text-muted-foreground transition-colors hover:text-foreground"
           >
             Cookie Policy
           </Link>
+          <a
+            href={`mailto:${LEGAL_CONTACT_EMAIL}`}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {LEGAL_CONTACT_EMAIL}
+          </a>
         </nav>
       </div>
     </footer>

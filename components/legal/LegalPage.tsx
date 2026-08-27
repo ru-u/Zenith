@@ -2,21 +2,26 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { LEGAL_UPDATED } from "@/lib/legal";
 
 /**
- * Shared shell for the legal pages (/privacy, /terms, /cookies): PageHeader
- * with the ascent echo, a "last updated" stamp, and prose sections. Server
- * components only; theme-aware like other app pages.
+ * Shared shell for the policy pages (/privacy, /terms, /cookies) and /engine:
+ * PageHeader with the ascent echo, a "last updated" stamp, and prose sections.
+ * Server components only; theme-aware like other app pages.
+ *
+ * `updated` defaults to LEGAL_UPDATED. /engine passes ENGINE_UPDATED instead —
+ * the engine changes on its own cadence and shouldn't force a policy date bump.
  */
 export function LegalShell({
   eyebrow,
   title,
   description,
   unique,
+  updated = LEGAL_UPDATED,
   children,
 }: {
   eyebrow: string;
   title: string;
   description?: string;
   unique: string;
+  updated?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -28,7 +33,7 @@ export function LegalShell({
         unique={unique}
       />
       <p className="mt-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-        Last updated: {LEGAL_UPDATED}
+        Last updated: {updated}
       </p>
       <div className="mt-10 flex flex-col gap-9">{children}</div>
     </main>

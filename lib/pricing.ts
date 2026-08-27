@@ -22,7 +22,10 @@ export const TIER_FEATURES = {
   ],
   // Pro adds the thesis, the 3:30 email, depth, and alerts.
   pro: [
-    "Quant-AI short thesis on the top 5, every trading day",
+    // "Quant-AI" until 2026-08-26: Haiku prose mode is not enabled, so no model
+    // touches a thesis today. Don't put AI back in the paid-feature bullet
+    // unless AI_PROSE_MODE=haiku is actually live.
+    "Quant short thesis on the top 5, every trading day",
     "The 3:30 drop email: top movers + thesis in your inbox before the close",
     "Unlimited history + per-ticker streak history",
     "Email alerts on your favorites",

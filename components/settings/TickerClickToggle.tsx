@@ -53,8 +53,8 @@ export function TickerClickToggle({ className }: { className?: string }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {active === "google"
-          ? "Clicking a ticker opens a Google search for the stock in a new tab."
-          : "Clicking a ticker opens the price chart right here on the page."}
+          ? "Opens a Google search for the stock in a new tab."
+          : "Opens the price chart without leaving the page."}
       </p>
     </div>
   );

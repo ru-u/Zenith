@@ -22,6 +22,8 @@ export default function ScreenerPage() {
         <FilterBar />
         <GainersTable limit={50} />
       </section>
+      {/* No repeat below the table: <AppFooter> lands immediately after it and
+          carries the same two lines. */}
       {/* One shared, dismissible prompt for guests who click a favorite star. */}
       <SignupPromptDialog />
     </main>

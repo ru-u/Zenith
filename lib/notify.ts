@@ -3,6 +3,7 @@ import type { Database } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
 import { secondsUntilCloseET } from "./market-calendar";
 import { siteUrl } from "./site";
+import { DISCLAIMER_LINE, LEGAL_CONTACT_EMAIL } from "./legal";
 
 // User-facing pre-close email — the daily "drop" nudge. Distinct from
 // lib/alerts.ts (admin-only failure alerts): this fans out via the Resend batch
@@ -65,8 +66,11 @@ function buildHtml(opts: {
     <table style="width:100%;border-collapse:collapse;font-size:15px;margin-bottom:20px">${rows}</table>
     <p style="margin:0 0 16px;color:#374151;font-size:14px">${sub}</p>
     ${cta}
-    <p style="color:#9ca3af;font-size:12px;margin-top:28px">
-      Educational, for the DECA Stock Market Game — not financial advice.<br/>
+    <p style="color:#9ca3af;font-size:12px;margin-top:28px;line-height:1.5">
+      ${DISCLAIMER_LINE} Zenith is a research aid for a simulated competition,
+      not a recommendation to buy, sell, or short any real security.
+      <a href="${site}/terms" style="color:#9ca3af">Terms</a> ·
+      <a href="mailto:${LEGAL_CONTACT_EMAIL}" style="color:#9ca3af">${LEGAL_CONTACT_EMAIL}</a><br/>
       <a href="${unsubUrl}" style="color:#9ca3af">Unsubscribe from these alerts</a>
     </p>
   </div>`;
@@ -124,7 +128,8 @@ export async function sendPreCloseEmails(
     const s = secondsUntilCloseET();
     return s == null ? 0 : Math.round(s / 60);
   })();
-  const from = process.env.ALERT_EMAIL_FROM ?? "Zenith <onboarding@resend.dev>";
+  // See lib/alerts.ts — never fall back to Resend's sandbox sender.
+  const from = process.env.ALERT_EMAIL_FROM ?? `Zenith <${LEGAL_CONTACT_EMAIL}>`;
   const subject = `📈 Today's top short candidates${mins > 0 ? ` — ${mins} min to the close` : ""}`;
 
   let sent = 0;

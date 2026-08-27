@@ -11,8 +11,9 @@ import {
 import type { AIAnalysis } from "@/lib/supabase/types";
 
 // Full-detail thesis view for the Pro /analysis page: one well-spaced block per
-// thesis, ordered metadata → why it spiked → thesis → score/win %. No clamping —
-// this is the depth view (the home card is the compact summary).
+// thesis, ordered metadata → score → why it spiked → thesis. No clamping — this
+// is the depth view (the home card is the compact summary). Like the home card,
+// percent_win_estimate is never rendered as a figure.
 export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
   const ordered = [...analyses].sort(
     (a, b) =>

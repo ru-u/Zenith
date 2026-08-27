@@ -13,12 +13,15 @@ import {
 import { useAiAnalyses } from "@/hooks/useAiAnalyses";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGainers } from "@/hooks/useGainers";
+import { Disclaimer } from "@/components/legal/Disclaimer";
 import { cn } from "@/lib/utils";
 import type { AIAnalysis } from "@/lib/supabase/types";
 
-// One compact, ranked row — ticker (→ chart) on the left, score + win % on the
-// right, a single clamped "why it spiked" line beneath. Full detail lives on
-// /analysis, so rows stay uniform regardless of how long the model wrote.
+// One compact, ranked row — ticker (→ chart) on the left, the 1-10 short score
+// on the right, a single clamped "why it spiked" line beneath. Full detail
+// lives on /analysis, so rows stay uniform however long the thesis runs.
+// percent_win_estimate is computed and stored but deliberately NOT rendered
+// anywhere; the odds reach the reader as prose inside the thesis instead.
 function SummaryRow({
   a,
   rank,
@@ -244,16 +247,21 @@ export function AIAnalysisCard() {
       {renderHeader(ordered.length > 0)}
       {!collapsed &&
         (ordered.length > 0 ? (
-          <ul className="glass divide-y divide-foreground/5 overflow-hidden rounded-2xl">
-            {ordered.map((a, i) => (
-              <SummaryRow
-                key={a.ticker}
-                a={a}
-                rank={i + 1}
-                onTickerClick={setChartTicker}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="glass divide-y divide-foreground/5 overflow-hidden rounded-2xl">
+              {ordered.map((a, i) => (
+                <SummaryRow
+                  key={a.ticker}
+                  a={a}
+                  rank={i + 1}
+                  onTickerClick={setChartTicker}
+                />
+              ))}
+            </ul>
+            {/* Every thesis carries the disclaimer with it — a scored "short
+                8/10" on a real ticker is exactly the claim that needs it. */}
+            <Disclaimer />
+          </>
         ) : (
           <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
             Today&apos;s short theses post about 30 minutes before the close — check

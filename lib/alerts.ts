@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./supabase/types";
+import { LEGAL_CONTACT_EMAIL } from "./legal";
 
 // Critical-failure alerting for the scraper pipeline. Every other failure path
 // degrades gracefully (serve stale cache, null thesis) — these are the cases
@@ -18,7 +19,11 @@ export type AlertType =
 export async function sendOpsEmail(subject: string, body: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.ALERT_EMAIL_TO;
-  const from = process.env.ALERT_EMAIL_FROM ?? "Zenith Alerts <onboarding@resend.dev>";
+  // Default to the verified zenithscreener.com sender, NOT Resend's
+  // `onboarding@resend.dev` sandbox — that only delivers to the Resend account
+  // owner, and an unset ALERT_EMAIL_FROM on Railway silently swallowed the
+  // pre-close drop for weeks before it was caught.
+  const from = process.env.ALERT_EMAIL_FROM ?? `Zenith Alerts <${LEGAL_CONTACT_EMAIL}>`;
   if (!apiKey || !to) {
     console.warn(
       "[alerts] RESEND_API_KEY / ALERT_EMAIL_TO not set — skipping email:",
