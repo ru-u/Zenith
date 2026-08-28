@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    # Zenith is a one-person project: a PR per patch bump is noise that gets
+    # ignored, and ignored Dependabot PRs are worse than none — they train you
+    # to dismiss the security ones too. Group the routine churn into a single
+    # weekly PR and let anything with a CVE come through on its own.
+    groups:
+      production-dependencies:
+        applies-to: version-updates
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      development-dependencies:
+        applies-to: version-updates
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    # Next and React are pinned exactly on purpose (AGENTS.md: this Next version
+    # differs from what the docs and models assume). Major bumps land as their
+    # own PR so they get read, not merged on a Monday reflex.
+    ignore:
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
