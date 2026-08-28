@@ -106,11 +106,26 @@ export function clientIp(req: Request): string {
  */
 export function checkLimit(
   req: Request,
-  opts: { route: string; limit: number; windowSeconds: number; userId?: string },
+  opts: {
+    route: string;
+    limit: number;
+    windowSeconds: number;
+    userId?: string;
+    /**
+     * Budget against something other than the caller — an email address, or a
+     * constant for a limit shared by every request to the route. Takes
+     * precedence over userId/IP.
+     */
+    key?: string;
+  },
 ): NextResponse | null {
-  // Prefer the user id: it survives IP rotation and is the thing we actually
-  // want to budget. Fall back to IP for unauthenticated routes.
-  const identity = opts.userId ? `u:${opts.userId}` : `ip:${clientIp(req)}`;
+  // Prefer an explicit key, then the user id (survives IP rotation and is the
+  // thing we actually want to budget), then IP for unauthenticated routes.
+  const identity = opts.key
+    ? `k:${opts.key}`
+    : opts.userId
+      ? `u:${opts.userId}`
+      : `ip:${clientIp(req)}`;
   const result = rateLimit(`${opts.route}:${identity}`, opts.limit, opts.windowSeconds);
   if (result.success) return null;
 
