@@ -56,5 +56,20 @@ export async function register() {
     { timezone: "America/New_York" },
   );
 
-  console.log("[scheduler] in-process pre-close + EOD scheduler armed (ET)");
+  // Unconfirmed-account cleanup. Hourly, EVERY day — deliberately not the
+  // weekday/trading-day gate above: people sign up on weekends, and an account
+  // created Friday evening shouldn't outlive its 24h window until Monday.
+  // Hourly rather than daily is what makes the window mean 24-25h instead of
+  // 24-48h. The endpoint is idempotent and usually finds nothing.
+  cron.schedule(
+    "17 * * * *",
+    async () => {
+      await ping("/api/cron/prune-unconfirmed");
+    },
+    { timezone: "America/New_York" },
+  );
+
+  console.log(
+    "[scheduler] in-process pre-close + EOD (ET) + hourly unconfirmed-account prune armed",
+  );
 }
