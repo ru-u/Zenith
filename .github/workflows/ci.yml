@@ -54,6 +54,6 @@ jobs:
           fetch-depth: 0 # full history — a secret deleted in a later commit is still a leaked secret
 
       - name: Scan history for secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
