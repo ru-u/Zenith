@@ -241,14 +241,31 @@ alter table public.system_alerts  enable row level security;
 alter table public.feedback       enable row level security;
 alter table public.favorites      enable row level security;
 
--- profiles: a user can read/update only their own row
+-- profiles: a user can READ only their own row. There is deliberately NO update
+-- policy.
+--
+-- There used to be a `profiles_update_own` policy (`for update using
+-- (auth.uid() = id)`). Postgres RLS gates rows, not columns, so "update your
+-- own row" meant "update ANY column of your own row" — and the anon key ships
+-- to every browser. Any signed-in user could open devtools and run
+--
+--   supabase.from('profiles').update({ subscription_tier: 'pro' }).eq('id', me)
+--
+-- to grant themselves Zenith Pro (the ai_analyses RLS policy trusts this exact
+-- column), or write someone else's `stripe_customer_id` into their own row and
+-- then hit /api/stripe/create-portal to open the Stripe Billing Portal against
+-- that stranger's customer — their invoices, card, and cancel button.
+--
+-- No client code ever updated this table: every legitimate write is server-side
+-- through the service role (the Stripe webhook sets the tier, checkout stores
+-- the customer id, /api/unsubscribe flips notify_preclose). So the policy
+-- granted nothing the product used and everything an attacker wanted. Any
+-- future user-editable field needs an API route that whitelists the columns.
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles
   for select using (auth.uid() = id);
 
 drop policy if exists "profiles_update_own" on public.profiles;
-create policy "profiles_update_own" on public.profiles
-  for update using (auth.uid() = id);
 
 -- daily_gainers & ticker_streaks: public read
 drop policy if exists "daily_gainers_public_read" on public.daily_gainers;
@@ -277,3 +294,27 @@ create policy "favorites_select_own" on public.favorites
 
 -- fetch_locks, system_alerts & feedback: no anon/auth access (service-role
 -- only). RLS enabled with no policies = deny all for non-service roles.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Table grants — the second lock on every write.
+--
+-- RLS is not the only thing standing between the public anon key and this data;
+-- the underlying GRANTs are. Supabase's default privileges hand `anon` and
+-- `authenticated` full DML on new public tables, which means a single
+-- over-broad policy (or a policy added in a hurry from the SQL editor) is all
+-- that separates a browser from an UPDATE. Zenith has no client-side writes at
+-- all — every mutation goes through an API route on the service role — so the
+-- write grants are revoked outright. A missing GRANT fails closed even if a
+-- permissive policy shows up later.
+--
+-- Read grants are left intact: the select policies above are doing real work
+-- (public gainers/streaks, own-profile, own-favorites, Pro-only analyses).
+-- ─────────────────────────────────────────────────────────────────────────────
+revoke insert, update, delete, truncate on all tables in schema public from anon, authenticated;
+
+-- And for tables added later, so this doesn't silently decay.
+alter default privileges in schema public
+  revoke insert, update, delete on tables from anon, authenticated;
+
+-- claim_fetch is security definer — keep it callable only by the server.
+revoke all on function public.claim_fetch(text, integer) from public, anon, authenticated;

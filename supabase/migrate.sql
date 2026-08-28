@@ -267,8 +267,14 @@ alter table public.favorites      enable row level security;
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);
 
+-- SECURITY FIX (2026-08-26): drop profiles_update_own, do NOT recreate it.
+-- RLS gates rows, not columns, so "update your own row" let any signed-in user
+-- self-grant `subscription_tier = 'pro'` from the browser with the public anon
+-- key, or plant another user's `stripe_customer_id` on their own row and open
+-- that person's Stripe Billing Portal via /api/stripe/create-portal. Nothing in
+-- the app ever updated profiles client-side — every write is service-role — so
+-- removing the policy costs no functionality. See schema.sql for the long form.
 drop policy if exists "profiles_update_own" on public.profiles;
-create policy "profiles_update_own" on public.profiles for update using (auth.uid() = id);
 
 drop policy if exists "daily_gainers_public_read" on public.daily_gainers;
 create policy "daily_gainers_public_read" on public.daily_gainers for select using (true);
@@ -287,6 +293,19 @@ create policy "ai_analyses_pro_read" on public.ai_analyses for select using (
 -- favorites: read-own; writes go through the API (service role), no write policy.
 drop policy if exists "favorites_select_own" on public.favorites;
 create policy "favorites_select_own" on public.favorites for select using (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Table grants — second lock on every write (see schema.sql for the rationale).
+-- Supabase's default privileges give anon/authenticated full DML on public
+-- tables; Zenith has no client-side writes, so revoke them. Fails closed even
+-- if an over-broad policy is added later.
+-- ─────────────────────────────────────────────────────────────────────────────
+revoke insert, update, delete, truncate on all tables in schema public from anon, authenticated;
+
+alter default privileges in schema public
+  revoke insert, update, delete on tables from anon, authenticated;
+
+revoke all on function public.claim_fetch(text, integer) from public, anon, authenticated;
 
 -- Force PostgREST to pick up the new columns immediately.
 notify pgrst, 'reload schema';
