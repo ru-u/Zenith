@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCleanedGainers, latestScrapedAt } from "@/lib/gainers";
 import { tradingDaysAgoKey } from "@/lib/market-calendar";
 import type { SubscriptionTier } from "@/lib/supabase/types";
+import { checkLimit } from "@/lib/ratelimit";
+import { clientIp, logSecurityEvent } from "@/lib/seclog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,7 +17,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FREE_HISTORY_TRADING_DAYS = 5;
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ date: string }> },
 ) {
   const { date } = await params;
@@ -32,6 +34,24 @@ export async function GET(
     return NextResponse.json({ error: "auth required" }, { status: 401 });
   }
 
+  // Walking the date param backwards is how you'd bulk-export the archive that
+  // Pro is sold on. The free-tier window below already blocks the old dates;
+  // this caps the rate of the walk itself, for Pro accounts too.
+  const limited = checkLimit(req, {
+    route: "gainers:date",
+    limit: 120,
+    windowSeconds: 300,
+    userId: user.id,
+  });
+  if (limited) {
+    logSecurityEvent("ratelimit.exceeded", {
+      ip: clientIp(req),
+      userId: user.id,
+      route: "GET /api/gainers/[date]",
+    });
+    return limited;
+  }
+
   // Free tier: the last 5 trading days. Pro: unlimited.
   const { data: profile } = await supabase
     .from("profiles")
@@ -42,6 +62,12 @@ export async function GET(
   // Both are YYYY-MM-DD, so a lexicographic compare is a date compare.
   const oldestFree = tradingDaysAgoKey(FREE_HISTORY_TRADING_DAYS);
   if (!isPro && date < oldestFree) {
+    logSecurityEvent("authz.tier_denied", {
+      ip: clientIp(req),
+      userId: user.id,
+      route: "GET /api/gainers/[date]",
+      detail: `date=${date} oldestFree=${oldestFree}`,
+    });
     return NextResponse.json(
       { error: "upgrade_required", limitDays: FREE_HISTORY_TRADING_DAYS },
       { status: 403 },
