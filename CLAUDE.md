@@ -207,6 +207,34 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 - **Security events log as single-line JSON** (`lib/seclog.ts`,
   `{"kind":"security",…}`); spikes escalate to one `security_spike` ops email
   per day via `maybeAlert`. Grep Railway logs for `'"kind":"security"'`.
+- **Email confirmation is ON, and unconfirmed accounts are pruned.** A signup
+  creates the `auth.users` row (and, via `handle_new_user`, a `profiles` row)
+  *before* the address is confirmed — so profiles can hold accounts that can
+  never sign in. `profiles.email_confirmed_at` is mirrored from `auth.users` by
+  trigger (PostgREST can't join into the `auth` schema) so recipient queries and
+  user counts can tell the difference, and
+  `lib/pruneUnconfirmed.ts` deletes unconfirmed accounts hourly once they're 24h
+  past their **last confirmation email** — `confirmation_sent_at`, not
+  `created_at`, so a resend buys a fresh window instead of being deleted an hour
+  later. Deleting the auth user cascades to `profiles`/`favorites`;
+  `feedback.user_id` is `on delete set null`, so bug reports outlive their
+  author. The job refuses to act above 100 rows (`prune_anomaly` alert) — it's
+  the only irreversible operation here and it runs unattended.
+- **All user-triggered auth email goes through `/api/auth/email`**, never
+  browser→Supabase directly, so it passes `lib/ratelimit.ts` and lands in the
+  security log. Three budgets: 3/hr per address, 5/hr per IP, **15/hr globally**.
+  The global one matters — **signups bypass this route entirely**
+  (`SignupForm` calls `supabase.auth.signUp` client-side), so the route
+  deliberately claims under half of Supabase's 50/hr and leaves the rest for
+  people creating accounts.
+- **Two email ceilings, and the smaller one isn't the obvious one.** Supabase
+  caps auth email at 50/hour (dashboard, free to raise). **Resend's free tier
+  caps *everything* at 100/day** — auth email *plus* the pre-close drop *plus*
+  ops alerts. The drop sends one email per Pro subscriber per trading day, so
+  subscriber growth eats the auth budget: near ~80 Pro, signups start failing
+  for reasons unrelated to signups. They're alerted separately
+  (`auth_email_rate_limited` vs `resend_quota_exhausted`) because one is a
+  toggle and the other is a billing decision.
 - **Recovery + backups: `docs/RECOVERY.md`**, `scripts/backup-db.sh`,
   `scripts/restore-rehearsal.sh`. The backups are **unproven until the
   rehearsal table in that doc has a row.**

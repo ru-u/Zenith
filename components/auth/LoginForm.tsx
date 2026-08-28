@@ -10,6 +10,7 @@ import { resetAuthQueries } from "@/lib/authQueryReset";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AuthDivider, GoogleButton } from "./GoogleButton";
+import { ResendConfirmation } from "./ResendConfirmation";
 
 export function LoginForm() {
   const router = useRouter();
@@ -22,6 +23,10 @@ export function LoginForm() {
   // Seed with any error handed back by /auth/callback (OAuth failures).
   const [error, setError] = useState<string | null>(params.get("error"));
   const [loading, setLoading] = useState(false);
+  // Sign-in failed specifically because the address was never confirmed —
+  // the one failure the user can fix themselves, so it gets its own state and
+  // a resend control rather than a dead-end error string.
+  const [unconfirmed, setUnconfirmed] = useState(false);
   // Coded param (not free text) so a crafted URL can't display arbitrary copy.
   const notice =
     params.get("reset") === "success"
@@ -32,10 +37,27 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setUnconfirmed(false);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setError(error.message);
+      // Supabase's raw message here is "Email not confirmed", which told the
+      // user nothing actionable and offered no way out — the account was
+      // simply unreachable forever. Match on the code (supabase-js exposes it)
+      // with a message fallback, and swap in an explanation plus resend.
+      //
+      // Note this branch stops appearing once the account is pruned 24h after
+      // its last confirmation email: sign-in then fails as invalid credentials
+      // and the user is pointed at signup, which is the right destination.
+      const isUnconfirmed =
+        error.code === "email_not_confirmed" ||
+        /email not confirmed/i.test(error.message);
+      if (isUnconfirmed) {
+        setUnconfirmed(true);
+        setError(null);
+      } else {
+        setError(error.message);
+      }
       setLoading(false);
       return;
     }
@@ -85,7 +107,20 @@ export function LoginForm() {
           {error}
         </p>
       )}
-      {notice && !error && (
+      {unconfirmed && (
+        <div
+          aria-live="polite"
+          className="rounded-lg border border-foreground/10 bg-foreground/5 p-3"
+        >
+          <p className="text-sm font-medium">Confirm your email first</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            We sent a link to {email}. Click it to activate your account — then
+            sign in here.
+          </p>
+          <ResendConfirmation email={email} className="mt-2" />
+        </div>
+      )}
+      {notice && !error && !unconfirmed && (
         <p aria-live="polite" className="text-sm text-up">
           {notice}
         </p>
