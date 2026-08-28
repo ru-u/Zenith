@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { checkLimit } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,7 +13,7 @@ export const runtime = "nodejs";
 // "Active" = last_seen_date equals the table's most recent date. Broken streaks
 // are never deleted (updateStreaks only touches the day's tickers), so without
 // this filter stale rows accumulate past the limit and push live streaks out.
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,6 +24,15 @@ export async function GET() {
       { headers: { "cache-control": "no-store" } },
     );
   }
+
+  // Two DB round-trips per call; cheap, but not free at volume.
+  const limited = checkLimit(req, {
+    route: "streaks",
+    limit: 120,
+    windowSeconds: 300,
+    userId: user.id,
+  });
+  if (limited) return limited;
 
   const admin = createAdminClient();
 

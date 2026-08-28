@@ -135,17 +135,30 @@ export async function sendPreCloseEmails(
   let sent = 0;
   for (let i = 0; i < list.length; i += BATCH_SIZE) {
     const chunk = list.slice(i, i + BATCH_SIZE);
-    const payload = chunk.map((r) => ({
-      from,
-      to: [r.email],
-      subject,
-      html: buildHtml({
-        top,
-        mins,
-        isPro: r.subscription_tier === "pro",
-        unsubUrl: `${siteUrl()}/api/unsubscribe?token=${r.unsubscribe_token}`,
-      }),
-    }));
+    const payload = chunk.map((r) => {
+      const unsubUrl = `${siteUrl()}/api/unsubscribe?token=${r.unsubscribe_token}`;
+      return {
+        from,
+        to: [r.email],
+        subject,
+        // RFC 8058 one-click. Gmail and Outlook surface a native "Unsubscribe"
+        // control from these and POST to the URL directly — which the route now
+        // handles, so those clicks no longer land on the confirm page. Bulk
+        // senders are also increasingly required to offer this to stay out of
+        // spam folders. The visible link in the body still goes through the
+        // GET confirmation page.
+        headers: {
+          "List-Unsubscribe": `<${unsubUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+        html: buildHtml({
+          top,
+          mins,
+          isPro: r.subscription_tier === "pro",
+          unsubUrl,
+        }),
+      };
+    });
     try {
       const res = await fetch(RESEND_BATCH_URL, {
         method: "POST",

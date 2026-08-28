@@ -20,6 +20,8 @@ import {
   minutesSinceCloseET,
   secondsUntilCloseET,
 } from "@/lib/market-calendar";
+import { checkLimit } from "@/lib/ratelimit";
+import { clientIp, logSecurityEvent } from "@/lib/seclog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,7 +39,29 @@ const CLOSE_SETTLE_MINUTES = 5;
 // to read the theses and place orders.
 const PRECLOSE_WINDOW_MINUTES = 30;
 
-export async function GET() {
+// Deliberately loose. This is the only unauthenticated endpoint and it backs
+// the home page, whose audience is high-school DECA teams — a whole classroom
+// commonly shares one school NAT address, so a tight per-IP limit would lock
+// out real users long before it inconvenienced anyone. 240/min still caps the
+// `while true; do curl` case at a rate the DB and the 10-minute provider
+// freshness guard both absorb without noticing.
+const RATE_LIMIT = 240;
+const RATE_WINDOW_SECONDS = 60;
+
+export async function GET(req: Request) {
+  const limited = checkLimit(req, {
+    route: "gainers",
+    limit: RATE_LIMIT,
+    windowSeconds: RATE_WINDOW_SECONDS,
+  });
+  if (limited) {
+    logSecurityEvent("ratelimit.exceeded", {
+      ip: clientIp(req),
+      route: "GET /api/gainers",
+    });
+    return limited;
+  }
+
   const admin = createAdminClient();
   const dateKey = getTodayET();
 

@@ -10,7 +10,8 @@ export type AlertType =
   | "provider_failed" // both retries exhausted on a trading day — no fresh data
   | "eod_not_finalized" // no is_final row locked for a trading day
   | "ai_all_failed" // 0 theses generated for a finalized day with gainers
-  | "symbol_integrity"; // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
+  | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
+  | "security_spike"; // failed logins / authz denials / bad cron auth spiking from one IP
 
 /**
  * Send one ops email (alerts, feedback notifications) to ALERT_EMAIL_TO via

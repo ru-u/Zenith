@@ -5,6 +5,7 @@ import { getCachedGainers, persistGainers } from "@/lib/gainers";
 import { runPreCloseProcessing } from "@/lib/eod";
 import { maybeAlert } from "@/lib/alerts";
 import { getTodayET, isTradingDay } from "@/lib/market-calendar";
+import { requireCronAuth } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,21 +13,14 @@ export const maxDuration = 60;
 
 const FETCH_LIMIT = 100;
 
-function authorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
-}
-
 // Pre-close "drop": refresh the intraday gainers, generate AI theses for the
 // top-N, and email opted-in users (~30 min before the close). The in-process
 // scheduler (instrumentation.ts) is the primary trigger; this secured endpoint
 // is for manual/external triggers + local testing. Idempotent: theses skip
 // existing, the email is deduped once/day.
 export async function GET(req: Request) {
-  if (!authorized(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const unauthorized = requireCronAuth(req, "pre-close");
+  if (unauthorized) return unauthorized;
 
   const dateKey = getTodayET();
   if (!isTradingDay()) {
