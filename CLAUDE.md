@@ -170,6 +170,47 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   `.dark`). Decorative accents/glows/CTAs use **brand cyan/white**; **green only
   for semantic meaning** (gains, "market live", low-risk) — never decorative.
 
+## Security model
+
+- **There are NO client-side writes. None.** Every mutation goes through an API
+  route on the service role. `profiles` deliberately has no UPDATE policy, and
+  `revoke insert, update, delete` is applied to `anon`/`authenticated` across
+  the whole public schema (plus `alter default privileges` so new tables
+  inherit it). This is not stylistic. RLS gates *rows*, not *columns*, so the
+  old `profiles_update_own` policy (`for update using (auth.uid() = id)`) let
+  any signed-in user run
+  `supabase.from('profiles').update({ subscription_tier: 'pro' })` from
+  devtools with the public anon key — free Pro forever — or plant someone
+  else's `stripe_customer_id` on their own row and open that person's Stripe
+  Billing Portal. **To add a user-editable field, add an API route that
+  whitelists the columns — do not add a write policy.**
+- **The RLS fix is in `supabase/migrate.sql` and must be RUN.** Deploying the
+  code does nothing to a live database on its own.
+- **Rate limiting is in-memory** (`lib/ratelimit.ts`) and therefore
+  **per-process** — correct only because Railway runs a single replica, the
+  same constraint the `node-cron` scheduler already imposes. Counters reset on
+  deploy. If this ever scales past one replica, `checkLimit` is the single
+  function to repoint at Upstash. `/api/gainers` is deliberately loose (240/min
+  per IP): a whole DECA classroom shares one school NAT address.
+- **`requireSameOrigin` (`lib/csrf.ts`) guards cookie-authed mutations** —
+  favorites, feedback, both Stripe POSTs. Do NOT add it to the Stripe webhook
+  (signature-authed, no Origin) or the cron routes (bearer-authed).
+- **`/api/unsubscribe`: GET renders, POST mutates.** GET used to flip the flag,
+  which meant Outlook SafeLinks and other mail scanners silently unsubscribed
+  people by pre-fetching the link. The emails send RFC 8058
+  `List-Unsubscribe-Post` headers so native mail-client unsubscribe still works
+  in one click.
+- **CSP allows `'unsafe-inline'` for scripts** (`next.config.ts`) — a conscious
+  tradeoff, since nonces would force every page dynamic and the app renders no
+  user-generated HTML (no `dangerouslySetInnerHTML` anywhere). **If
+  user-authored content ever gets rendered as HTML, move to a nonce first.**
+- **Security events log as single-line JSON** (`lib/seclog.ts`,
+  `{"kind":"security",…}`); spikes escalate to one `security_spike` ops email
+  per day via `maybeAlert`. Grep Railway logs for `'"kind":"security"'`.
+- **Recovery + backups: `docs/RECOVERY.md`**, `scripts/backup-db.sh`,
+  `scripts/restore-rehearsal.sh`. The backups are **unproven until the
+  rehearsal table in that doc has a row.**
+
 ## Environment (`.env.local`)
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
