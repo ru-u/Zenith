@@ -54,7 +54,12 @@ const csp = [
   // The only form on the site posts to /api/unsubscribe. Stripe Checkout is a
   // top-level navigation, not a form submission, so it needs nothing here.
   `form-action 'self'`,
-  `upgrade-insecure-requests`,
+  // Production only. Chromium exempts "potentially trustworthy" origins from
+  // the upgrade, so localhost is spared; WebKit does not, so Safari rewrites
+  // every http://localhost:PORT dev request to https:// — which the dev server
+  // doesn't serve, killing the document, its chunks, and the HMR socket.
+  // Chrome stays fine, which makes this look like a Safari bug. It isn't.
+  ...(isDev ? [] : [`upgrade-insecure-requests`]),
 ].join("; ");
 
 const securityHeaders = [
@@ -72,11 +77,17 @@ const securityHeaders = [
     value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), midi=(), interest-cohort=()",
   },
   // Two years + preload. Railway terminates TLS and the apex is HTTPS-only, so
-  // there is no plaintext origin this can lock users out of.
-  {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains; preload",
-  },
+  // there is no plaintext origin this can lock users out of. Dev-gated: RFC
+  // 6797 says a UA must ignore HSTS received over plain HTTP, but there's no
+  // reason to hand a two-year preload pin to a browser that isn't strict.
+  ...(isDev
+    ? []
+    : [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=63072000; includeSubDomains; preload",
+        },
+      ]),
   // Keeps this origin out of other sites' process, hardening against
   // cross-origin side-channel reads (Spectre-class).
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
