@@ -18,6 +18,8 @@ alter table public.profiles add column if not exists updated_at timestamptz not 
 -- forged to unsubscribe other users.
 alter table public.profiles add column if not exists notify_preclose boolean not null default true;
 alter table public.profiles add column if not exists unsubscribe_token uuid not null default gen_random_uuid();
+-- Mirrored from auth.users (see the triggers below). Null = never confirmed.
+alter table public.profiles add column if not exists email_confirmed_at timestamptz;
 create unique index if not exists profiles_unsubscribe_token_uidx on public.profiles (unsubscribe_token);
 
 alter table public.profiles drop constraint if exists profiles_subscription_tier_check;
@@ -224,7 +226,13 @@ alter table public.favorites
   add constraint favorites_ticker_format_check check (ticker ~ '^[A-Z][A-Z0-9.\-]{0,9}$');
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- handle_new_user trigger
+-- handle_new_user trigger + confirmation mirroring
+--
+-- Email confirmation is ON, so auth.users gets its row at signup and this fires
+-- before the address is confirmed — profiles can therefore hold accounts that
+-- can never sign in. email_confirmed_at is mirrored here so recipient queries
+-- and user counts can tell the difference (PostgREST cannot join into auth),
+-- and unconfirmed rows are pruned after 24h by lib/pruneUnconfirmed.ts.
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
 returns trigger
@@ -233,8 +241,8 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email)
-  values (new.id, new.email)
+  insert into public.profiles (id, email, email_confirmed_at)
+  values (new.id, new.email, new.email_confirmed_at)
   on conflict (id) do nothing;
   return new;
 end;
@@ -245,10 +253,59 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Mirror the confirmation timestamp through when the user clicks the link.
+create or replace function public.handle_user_confirmed()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles
+     set email_confirmed_at = new.email_confirmed_at
+   where id = new.id;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_confirmed on auth.users;
+create trigger on_auth_user_confirmed
+  after update of email_confirmed_at on auth.users
+  for each row
+  when (old.email_confirmed_at is distinct from new.email_confirmed_at)
+  execute function public.handle_user_confirmed();
+
+-- Accounts that never confirm are deleted after 24h. Measured from
+-- confirmation_sent_at, NOT created_at: a flat 24h-from-signup rule would give
+-- someone who resends at hour 23 a fresh link and delete them an hour later.
+-- A row with email_confirmed_at null cannot sign in, so this is lossless.
+create or replace function public.list_prunable_unconfirmed(p_hours integer default 24)
+returns table (id uuid)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select u.id
+  from auth.users u
+  where u.email_confirmed_at is null
+    and coalesce(u.confirmation_sent_at, u.created_at) < now() - make_interval(hours => p_hours)
+$$;
+
 -- Backfill profiles for any pre-existing auth users.
-insert into public.profiles (id, email)
-select u.id, u.email from auth.users u
+insert into public.profiles (id, email, email_confirmed_at)
+select u.id, u.email, u.email_confirmed_at from auth.users u
 on conflict (id) do nothing;
+
+-- Backfill the mirrored confirmation timestamp onto profiles that already
+-- existed before the column did. Without this every pre-existing profile looks
+-- unconfirmed, which would exclude real Pro subscribers from the pre-close
+-- email the moment notify.ts starts filtering on it.
+update public.profiles p
+   set email_confirmed_at = u.email_confirmed_at
+  from auth.users u
+ where u.id = p.id
+   and p.email_confirmed_at is distinct from u.email_confirmed_at;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Row Level Security
@@ -306,6 +363,9 @@ alter default privileges in schema public
   revoke insert, update, delete on tables from anon, authenticated;
 
 revoke all on function public.claim_fetch(text, integer) from public, anon, authenticated;
+-- list_prunable_unconfirmed reads auth.users; exposing it would leak which
+-- accounts exist and are unconfirmed.
+revoke all on function public.list_prunable_unconfirmed(integer) from public, anon, authenticated;
 
 -- Force PostgREST to pick up the new columns immediately.
 notify pgrst, 'reload schema';
