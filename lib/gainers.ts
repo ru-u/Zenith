@@ -56,6 +56,34 @@ function checkSymbolIntegrity(rows: GainerRow[]): {
   return { kept, dropped, unqualified: kept.filter((r) => r.exchange == null) };
 }
 
+/**
+ * Tickers that already have an AI thesis for this date. The pre-close drop
+ * writes theses off the 15:30 board, so a ticker can be top-5 then and gone
+ * from the board by the finalize scrape — AEHL on 2026-08-31 straddled the
+ * $25M market-cap floor (3.9M shares outstanding put the cutoff at a $6.47
+ * share price) and was filtered out at 16:10, after which the prune deleted
+ * the row its thesis pointed at. The Analysis tab then advertises a stock the
+ * screener doesn't list. These stay pinned for the day regardless of rank.
+ * Returns null if the lookup fails — the caller skips the prune rather than
+ * guess.
+ */
+async function tickersWithTheses(
+  admin: SupabaseClient<Database>,
+  dateKey: string,
+): Promise<string[] | null> {
+  const { data, error } = await admin
+    .from("ai_analyses")
+    .select("ticker")
+    .eq("date", dateKey);
+  if (error) {
+    console.error("[gainers] thesis pin lookup failed:", error.message);
+    return null;
+  }
+  // Interpolated into a PostgREST filter list below — admit only well-formed
+  // tickers, matching the ingest gate.
+  return (data ?? []).map((r) => r.ticker).filter((t) => TICKER_RE.test(t));
+}
+
 /** Upsert a ranked set of gainers for a date. Uses the service-role client. */
 export async function persistGainers(
   admin: SupabaseClient<Database>,
@@ -96,7 +124,11 @@ export async function persistGainers(
   // ranked set (the top-N shifts intraday, and upsert leaves orphans). Guarded
   // so a thin/failed fetch can't wipe the table.
   if (rows.length >= 10) {
-    const keep = rows.map((r) => r.ticker);
+    const pinned = await tickersWithTheses(admin, dateKey);
+    // Couldn't read the theses — skip the prune entirely rather than risk
+    // deleting a thesis's row. Orphan rows are cosmetic; an orphan thesis isn't.
+    if (pinned == null) return;
+    const keep = [...new Set([...rows.map((r) => r.ticker), ...pinned])];
     const { error: pruneError } = await admin
       .from("daily_gainers")
       .delete()
@@ -117,7 +149,12 @@ export async function getCachedGainers(
     .from("daily_gainers")
     .select("*")
     .eq("date", dateKey)
-    .order("rank", { ascending: true });
+    .order("rank", { ascending: true })
+    // Tiebreak: a ticker pinned by `tickersWithTheses` keeps the rank it held
+    // at the scrape that last saw it, so it can collide with a later row's
+    // rank. Change% desc makes that order deterministic and correct — the
+    // pinned row was, by definition, out-gaining whatever inherited its rank.
+    .order("change_percent", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }

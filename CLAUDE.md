@@ -51,7 +51,7 @@ triggering per-render provider calls).
    `after()`, `runPreCloseProcessing` in `lib/eod.ts`. This is the actionable
    moment (see Competition mechanics below). Theses store a `rank` so the AI card
    shows exactly the drop's set.
-4. ~5 min after the 16:00 close, the first read **finalizes** the official close
+4. ~20 min after the 16:00 close, the first read **finalizes** the official close
    (`is_final`) and runs end-of-day processing (streaks; theses only as a
    **fallback** if the drop failed) in the background — `lib/eod.ts`.
 5. Off-hours / weekends / holidays: serve the last finalized day.
@@ -60,7 +60,7 @@ triggering per-render provider calls).
 logic, secured by `CRON_SECRET`:
 - **Pre-close drop** `GET /api/cron/pre-close` (~3:30 ET): refresh intraday
   gainers, generate theses, email opted-in Pro users (`runPreCloseProcessing`).
-- **EOD finalize** `GET /api/cron/run-eod` (~4:05 ET): finalize the official close
+- **EOD finalize** `GET /api/cron/run-eod` (~4:20 ET): finalize the official close
   + streaks (theses fallback).
 
 On **Railway** (the deploy target) these fire via an in-process `node-cron`

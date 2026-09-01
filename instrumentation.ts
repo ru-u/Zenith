@@ -26,7 +26,15 @@ export async function register() {
 
   const base = `http://127.0.0.1:${process.env.PORT ?? 3000}`;
   const PRECLOSE_WINDOW_MIN = 30; // generate theses + email within 30 min of close
-  const SETTLE_MIN = 5; // wait for the closing auction before finalizing
+  // Wait out BOTH the closing auction and the provider's feed delay before
+  // finalizing. TradingView's scanner reports `update_mode:
+  // "delayed_streaming_900"` — a 15-minute delay — so a snapshot taken at 4:05
+  // records the ~3:50 price and calls it the close. On 2026-08-31 that stored
+  // USDE at 9.015/+33.4% against a real close of 8.87/+31.2%, and knocked AEHL
+  // (whose price-derived market cap straddled the $25M floor) off the board
+  // entirely. DECA orders fill AT the close, so this number has to clear the
+  // delay, not just the auction.
+  const SETTLE_MIN = 20;
 
   async function ping(path: string) {
     try {
@@ -49,7 +57,11 @@ export async function register() {
       const sinceClose = minutesSinceCloseET();
       if (sClose != null && sClose <= PRECLOSE_WINDOW_MIN * 60) {
         await ping("/api/cron/pre-close");
-      } else if (sinceClose != null && sinceClose >= SETTLE_MIN && sinceClose < 15) {
+      } else if (
+        sinceClose != null &&
+        sinceClose >= SETTLE_MIN &&
+        sinceClose < SETTLE_MIN + 10
+      ) {
         await ping("/api/cron/run-eod");
       }
     },

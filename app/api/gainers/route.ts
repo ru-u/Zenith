@@ -31,9 +31,12 @@ export const maxDuration = 60;
 
 const FETCH_LIMIT = 100;
 const FRESHNESS_MINUTES = 10;
-// Wait this long after the 4:00 PM ET close before freezing the official close,
-// so the NYSE/Nasdaq closing auction has fully settled.
-const CLOSE_SETTLE_MINUTES = 5;
+// Wait this long after the 4:00 PM ET close before freezing the official close.
+// Covers the NYSE/Nasdaq closing auction AND the provider's 15-minute feed
+// delay (`update_mode: "delayed_streaming_900"`) — at 4:05 the scanner is still
+// serving ~3:50 prices, so finalizing then stores a pre-close snapshot as the
+// official close. Keep in sync with SETTLE_MIN in instrumentation.ts.
+const CLOSE_SETTLE_MINUTES = 20;
 // Minutes before the close to generate AI theses (the actionable "drop"). DECA
 // orders placed before the close fill at today's close, so this leaves a window
 // to read the theses and place orders.
@@ -79,9 +82,10 @@ export async function GET(req: Request) {
     !alreadyFinal &&
     (rows.length === 0 || isDataStale(asOf, FRESHNESS_MINUTES));
 
-  // Capture the official close on read — once the closing auction has settled
-  // (a few minutes after 4:00 PM ET), the first page load freezes the real
-  // close instead of waiting for the 5:05 PM EOD cron. After this, `alreadyFinal`
+  // Capture the official close on read — once the auction has settled AND the
+  // provider's delayed feed has caught up (see CLOSE_SETTLE_MINUTES), the first
+  // page load freezes the real close instead of waiting for the EOD cron. Until
+  // then the board stays non-final and reports DELAYED. After this, `alreadyFinal`
   // short-circuits all further scrapes; the cron later re-confirms + runs
   // streaks/AI. DECA orders execute at the close, so this is the number to lock.
   const sinceClose = minutesSinceCloseET();
@@ -99,7 +103,7 @@ export async function GET(req: Request) {
 
       // The moment we freeze the close, kick off streaks + AI theses in the
       // background (after the response flushes — never blocks the page). The
-      // 5:05 PM EOD cron is a backstop; both steps are idempotent.
+      // ~4:20 PM EOD cron is a backstop; both steps are idempotent.
       if (shouldFinalize && rows.length > 0) {
         after(async () => {
           try {
