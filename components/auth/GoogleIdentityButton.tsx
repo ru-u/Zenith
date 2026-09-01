@@ -14,6 +14,10 @@ const SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 // wifi, short enough that nobody sits looking at a skeleton.
 const READY_TIMEOUT_MS = 2500;
 
+// Last-resort width if neither the container nor its parent can be measured:
+// max-w-sm (384) − px-6 (48) − the card's p-7 (56).
+const AUTH_CARD_WIDTH_PX = 280;
+
 type GsiIdApi = {
   initialize(config: {
     client_id: string;
@@ -151,15 +155,24 @@ function GisButton({ next, clientId }: { next: string; clientId: string }) {
         // Re-rendering the button is cheap and safe to repeat; only the
         // initialize above must not be.
         el.innerHTML = "";
+        // Measure the CONTAINER, not a guess: this div is display:none until
+        // mode flips to "gis", so its own clientWidth is 0 here — fall through
+        // to the parent (the form column), which is laid out and is the width
+        // the inputs and submit button actually take. A hardcoded fallback
+        // rendered the button ~48px wider than the card's content box.
+        const available =
+          el.clientWidth || el.parentElement?.clientWidth || AUTH_CARD_WIDTH_PX;
         id.renderButton(el, {
           type: "standard",
           theme: buttonTheme,
-          size: "large",
+          // "medium" is 32px tall, matching the h-8 Input/Button next to it;
+          // "large" is 40px and stood proud of every other field.
+          size: "medium",
           text: "continue_with",
           shape: "rectangular",
           logo_alignment: "left",
-          // GIS only accepts 200–400px; the auth card is ~328px inside its padding.
-          width: Math.round(Math.min(400, Math.max(200, el.clientWidth || 328))),
+          // GIS only accepts 200–400px, so clamp whatever we measured.
+          width: Math.round(Math.min(400, Math.max(200, available))),
         });
         setMode("gis");
       })
@@ -178,12 +191,18 @@ function GisButton({ next, clientId }: { next: string; clientId: string }) {
       {/* Kept mounted (just hidden) so the ref is valid when renderButton runs. */}
       <div
         ref={containerRef}
-        className={mode === "gis" ? "flex min-h-[44px] justify-center" : "hidden"}
+        // h-8 to match the Input/Button row; the clamp keeps Google's own
+        // fixed-width markup from spilling past the card on narrow phones.
+        className={
+          mode === "gis"
+            ? "flex h-8 justify-center [&>*]:max-w-full"
+            : "hidden"
+        }
       />
       {mode === "loading" && (
         <div
           aria-hidden
-          className="h-[44px] animate-pulse rounded-lg border border-foreground/10 bg-foreground/5"
+          className="h-8 animate-pulse rounded-lg border border-foreground/10 bg-foreground/5"
         />
       )}
       {mode === "fallback" && <GoogleButton next={next} />}
