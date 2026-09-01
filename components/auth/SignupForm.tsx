@@ -9,7 +9,9 @@ import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AuthDivider, GoogleButton } from "./GoogleButton";
+import { AuthDivider } from "./GoogleButton";
+import { GoogleIdentityButton } from "./GoogleIdentityButton";
+import { ResendConfirmation } from "./ResendConfirmation";
 
 export function SignupForm() {
   const router = useRouter();
@@ -54,14 +56,19 @@ export function SignupForm() {
       router.push(next);
       router.refresh();
     } else {
-      setNotice("Check your email to confirm your account, then sign in.");
+      // No session means confirmation is required. Name the expiry: the link is
+      // good for 24 hours and the unconfirmed account is deleted 24 hours after
+      // the last send, so "get to this today" is real information, not filler.
+      setNotice(
+        "Check your email to confirm your account, then sign in. The link expires in 24 hours.",
+      );
       setLoading(false);
     }
   }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <GoogleButton next={next} />
+      <GoogleIdentityButton next={next} />
       <AuthDivider />
       <Input
         type="text"
@@ -104,9 +111,15 @@ export function SignupForm() {
         </p>
       )}
       {notice && (
-        <p aria-live="polite" className="text-sm text-up">
-          {notice}
-        </p>
+        <div
+          aria-live="polite"
+          className="rounded-lg border border-up/20 bg-up/5 p-3"
+        >
+          <p className="text-sm text-up">{notice}</p>
+          {/* The mail can land in spam or never arrive at all; without this the
+              only recovery is signing up again after the account is pruned. */}
+          <ResendConfirmation email={email} className="mt-2" />
+        </div>
       )}
       <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
 import { secondsUntilCloseET } from "./market-calendar";
+import { maybeAlert } from "./alerts";
 import { siteUrl } from "./site";
 import { DISCLAIMER_LINE, LEGAL_CONTACT_EMAIL } from "./legal";
 
@@ -118,7 +119,12 @@ export async function sendPreCloseEmails(
     .select("email, subscription_tier, unsubscribe_token")
     .eq("notify_preclose", true)
     .eq("subscription_tier", "pro") // Pro-only for now — see module comment
-    .not("email", "is", null);
+    .not("email", "is", null)
+    // Never mail an address nobody proved they own. Redundant while this query
+    // is also Pro-only (an unconfirmed account can't sign in, so it can't pay),
+    // but it is the hard requirement the moment the tier filter above is
+    // relaxed — and doing it now keeps that a genuine one-line change.
+    .not("email_confirmed_at", "is", null);
 
   const list = (data ?? []).filter((r): r is Recipient => !!r.email);
   if (list.length === 0) return 0;
@@ -166,7 +172,32 @@ export async function sendPreCloseEmails(
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        console.error("[notify] resend batch", res.status, await res.text().catch(() => ""));
+        const detail = await res.text().catch(() => "");
+        console.error("[notify] resend batch", res.status, detail);
+        // The drop is the product, so a quota refusal here is the loudest
+        // version of this failure: subscribers paid for an email that did not
+        // arrive. maybeAlert records it in system_alerts even if the alert
+        // email itself can't get out on an exhausted quota — the durable row is
+        // the point, and it dedups to one per day.
+        if (res.status === 429 || /quota|limit/i.test(detail)) {
+          await maybeAlert(admin, {
+            date: dateKey,
+            type: "resend_quota_exhausted",
+            subject: "Zenith: Resend refused the pre-close drop (quota)",
+            body: [
+              `Resend returned ${res.status} sending the ${dateKey} pre-close drop.`,
+              "Pro subscribers did not receive today's email.",
+              "",
+              "The free tier allows 100 emails/day across EVERYTHING — this drop,",
+              "auth email (signups, confirmations, password resets), ops alerts,",
+              "and feedback notifications. One email per Pro subscriber per",
+              "trading day means the drop alone consumes the quota as Pro grows.",
+              "",
+              "Check usage in the Resend dashboard. The fix is a paid plan, not a",
+              "code change.",
+            ].join("\n"),
+          });
+        }
       } else {
         sent += chunk.length;
       }

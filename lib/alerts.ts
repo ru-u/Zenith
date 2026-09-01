@@ -11,7 +11,13 @@ export type AlertType =
   | "eod_not_finalized" // no is_final row locked for a trading day
   | "ai_all_failed" // 0 theses generated for a finalized day with gainers
   | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
-  | "security_spike"; // failed logins / authz denials / bad cron auth spiking from one IP
+  | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP
+  | "prune_anomaly" // unconfirmed-account prune found an implausible number of rows
+  // The two email ceilings, kept apart on purpose: one is a free dashboard
+  // toggle, the other a billing decision, and "email failed" would leave you
+  // guessing which at the moment guessing is most expensive.
+  | "auth_email_rate_limited" // Supabase's hourly auth-email cap (50/hr) refused a send
+  | "resend_quota_exhausted"; // Resend's daily account quota (100/day free) refused a send
 
 /**
  * Send one ops email (alerts, feedback notifications) to ALERT_EMAIL_TO via
@@ -42,11 +48,23 @@ export async function sendOpsEmail(subject: string, body: string): Promise<boole
       body: JSON.stringify({ from, to: [to], subject, text: body }),
     });
     if (!res.ok) {
-      console.error(
-        "[alerts] resend returned",
-        res.status,
-        await res.text().catch(() => ""),
-      );
+      const detail = await res.text().catch(() => "");
+      console.error("[alerts] resend returned", res.status, detail);
+      // Deliberately logged, NOT escalated through maybeAlert: this function is
+      // what maybeAlert uses to send, so alerting from here about a send
+      // failure would recurse — and there is no point emailing someone to tell
+      // them email is broken. A structured line is greppable and does not lie.
+      if (res.status === 429 || /quota|limit/i.test(detail)) {
+        console.error(
+          JSON.stringify({
+            kind: "email_quota",
+            source: "resend",
+            status: res.status,
+            at: new Date().toISOString(),
+            detail: "Resend refused a send — daily account quota likely exhausted",
+          }),
+        );
+      }
       return false;
     }
     return true;

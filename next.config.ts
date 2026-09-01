@@ -40,21 +40,33 @@ const supabaseOrigin = (() => {
 const csp = [
   `default-src 'self'`,
   // s3.tradingview.com serves tv.js, which builds the chart widget.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://s3.tradingview.com`,
-  `style-src 'self' 'unsafe-inline'`,
+  // accounts.google.com/gsi/client is the Google Identity Services library that
+  // renders the sign-in button (see components/auth/GoogleIdentityButton.tsx).
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://s3.tradingview.com https://accounts.google.com/gsi/client`,
+  `style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style`,
   `img-src 'self' blob: data: https://*.tradingview.com`,
   // next/font self-hosts Geist at build time, so no external font origin.
   `font-src 'self' data:`,
-  `connect-src 'self' ${supabaseOrigin} https://*.tradingview.com wss://*.tradingview.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
-  // We frame TradingView; nobody frames us.
-  `frame-src https://*.tradingview.com`,
+  // The GIS origins are the `gsi/` parent paths, not individual endpoints, so a
+  // Google-side change of endpoint doesn't silently break sign-in.
+  `connect-src 'self' ${supabaseOrigin} https://*.tradingview.com wss://*.tradingview.com https://accounts.google.com/gsi/${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
+  // We frame TradingView and the GIS button; nobody frames us.
+  `frame-src https://*.tradingview.com https://accounts.google.com/gsi/`,
   `frame-ancestors 'none'`,
   `object-src 'none'`,
   `base-uri 'self'`,
-  // The only form on the site posts to /api/unsubscribe. Stripe Checkout is a
+  // /api/unsubscribe posts here, and Google Identity Services navigates to
+  // accounts.google.com by form submission — Chrome enforces form-action across
+  // the redirect chain, so omitting that origin blocks Google sign-in in Chrome
+  // with nothing but a console line to show for it. Stripe Checkout is a
   // top-level navigation, not a form submission, so it needs nothing here.
-  `form-action 'self'`,
-  `upgrade-insecure-requests`,
+  `form-action 'self' https://accounts.google.com`,
+  // Production only. Chromium exempts "potentially trustworthy" origins from
+  // the upgrade, so localhost is spared; WebKit does not, so Safari rewrites
+  // every http://localhost:PORT dev request to https:// — which the dev server
+  // doesn't serve, killing the document, its chunks, and the HMR socket.
+  // Chrome stays fine, which makes this look like a Safari bug. It isn't.
+  ...(isDev ? [] : [`upgrade-insecure-requests`]),
 ].join("; ");
 
 const securityHeaders = [
@@ -72,11 +84,17 @@ const securityHeaders = [
     value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), midi=(), interest-cohort=()",
   },
   // Two years + preload. Railway terminates TLS and the apex is HTTPS-only, so
-  // there is no plaintext origin this can lock users out of.
-  {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains; preload",
-  },
+  // there is no plaintext origin this can lock users out of. Dev-gated: RFC
+  // 6797 says a UA must ignore HSTS received over plain HTTP, but there's no
+  // reason to hand a two-year preload pin to a browser that isn't strict.
+  ...(isDev
+    ? []
+    : [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=63072000; includeSubDomains; preload",
+        },
+      ]),
   // Keeps this origin out of other sites' process, hardening against
   // cross-origin side-channel reads (Spectre-class).
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },

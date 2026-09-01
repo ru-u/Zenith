@@ -14,6 +14,8 @@ export type Profile = {
   stripe_customer_id: string | null;
   notify_preclose: boolean;
   unsubscribe_token: string;
+  /** Mirrored from auth.users by trigger. Null = signed up, never confirmed. */
+  email_confirmed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -162,6 +164,10 @@ export type Database = {
       claim_fetch: {
         Args: { p_key: string; p_ttl_seconds: number };
         Returns: boolean;
+      };
+      list_prunable_unconfirmed: {
+        Args: { p_hours: number };
+        Returns: { id: string }[];
       };
     };
     Enums: { [_ in never]: never };

@@ -13,6 +13,11 @@ create table if not exists public.profiles (
   stripe_customer_id text,
   notify_preclose   boolean not null default true,            -- pre-close email opt-out
   unsubscribe_token uuid not null default gen_random_uuid(),  -- unguessable unsubscribe link
+  -- Mirrored from auth.users by the triggers below. PostgREST cannot join
+  -- across into the auth schema, so without this copy there is no way to filter
+  -- unconfirmed addresses out of an email recipient query, or to count real
+  -- users. Null = signed up but never confirmed (and pruned after 24h).
+  email_confirmed_at timestamptz,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
@@ -208,7 +213,17 @@ create table if not exists public.favorites (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Auto-create a profile row when a new auth user signs up
+-- Auto-create a profile row when a new auth user signs up.
+--
+-- The row is created at SIGNUP, before the address is confirmed — email
+-- confirmation is on, so `auth.users` gets its row immediately and this fires
+-- then. That means profiles can hold accounts that will never be able to sign
+-- in, which is why `email_confirmed_at` is mirrored here (so recipient queries
+-- and user counts can tell the difference without reaching across schemas into
+-- auth, which PostgREST cannot do) and why unconfirmed rows are pruned hourly.
+--
+-- The mirrored value is copied on INSERT because OAuth users arrive already
+-- confirmed, and updated by the trigger below when a password signup confirms.
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.handle_new_user()
 returns trigger
@@ -217,8 +232,8 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email)
-  values (new.id, new.email)
+  insert into public.profiles (id, email, email_confirmed_at)
+  values (new.id, new.email, new.email_confirmed_at)
   on conflict (id) do nothing;
   return new;
 end;
@@ -228,6 +243,52 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Mirror the confirmation timestamp through when the user clicks the link.
+create or replace function public.handle_user_confirmed()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles
+     set email_confirmed_at = new.email_confirmed_at
+   where id = new.id;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_confirmed on auth.users;
+create trigger on_auth_user_confirmed
+  after update of email_confirmed_at on auth.users
+  for each row
+  when (old.email_confirmed_at is distinct from new.email_confirmed_at)
+  execute function public.handle_user_confirmed();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Accounts that never confirm are deleted after 24h (lib/pruneUnconfirmed.ts).
+--
+-- Measured from `confirmation_sent_at`, NOT `created_at`: a flat 24h-from-signup
+-- rule would hand someone who resends at hour 23 a fresh link and then delete
+-- the account an hour later. Coalescing means every resend buys a full window.
+--
+-- A row with email_confirmed_at null cannot sign in, so deleting it is lossless
+-- (assumes no phone auth, where that would not hold). Returning ids only — the
+-- caller resolves them through the admin API.
+-- ─────────────────────────────────────────────────────────────────────────────
+create or replace function public.list_prunable_unconfirmed(p_hours integer default 24)
+returns table (id uuid)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select u.id
+  from auth.users u
+  where u.email_confirmed_at is null
+    and coalesce(u.confirmation_sent_at, u.created_at) < now() - make_interval(hours => p_hours)
+$$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Row Level Security
@@ -316,5 +377,8 @@ revoke insert, update, delete, truncate on all tables in schema public from anon
 alter default privileges in schema public
   revoke insert, update, delete on tables from anon, authenticated;
 
--- claim_fetch is security definer — keep it callable only by the server.
+-- Security-definer functions — keep them callable only by the server.
+-- list_prunable_unconfirmed reads auth.users; exposing it would leak which
+-- accounts exist and are unconfirmed.
 revoke all on function public.claim_fetch(text, integer) from public, anon, authenticated;
+revoke all on function public.list_prunable_unconfirmed(integer) from public, anon, authenticated;

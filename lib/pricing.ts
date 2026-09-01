@@ -15,19 +15,19 @@ export const TIER_FEATURES = {
   // A free account adds charts, streaks, favorites, and recent history.
   free: [
     "Everything in Browse",
-    "Simple price charts, built for beginners",
+    "Interactive price charts, built for all levels",
     "Consecutive-day streak badges",
     "Favorite tickers, pinned to the top of your screener",
     "The last 5 trading days of history",
   ],
-  // Pro adds the thesis, the 3:30 email, depth, and alerts.
+  // Pro adds the thesis, the 3:30 email, and full history depth.
   pro: [
     // "Quant-AI" until 2026-08-26: Haiku prose mode is not enabled, so no model
     // touches a thesis today. Don't put AI back in the paid-feature bullet
     // unless AI_PROSE_MODE=haiku is actually live.
+    "Everything in Free account",
     "Quant short thesis on the top 5, every trading day",
     "The 3:30 drop email: top movers + thesis in your inbox before the close",
-    "Unlimited history + per-ticker streak history",
-    "Email alerts on your favorites",
+    "Unlimited history: all of Zenith's past trading days",
   ],
 } as const;

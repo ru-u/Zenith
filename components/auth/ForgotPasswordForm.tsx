@@ -1,44 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useCooldown } from "@/hooks/useCooldown";
+import { authEmailMessage, requestAuthEmail } from "@/lib/authEmail";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-// Matches Supabase's own per-address resend limit.
-const COOLDOWN_SECONDS = 60;
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-
-  useEffect(() => {
-    if (cooldown === 0) return;
-    const id = setTimeout(() => setCooldown((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [cooldown]);
+  const cooldown = useCooldown();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (loading || cooldown > 0) return;
+    if (loading || cooldown.active) return;
     setLoading(true);
-    const supabase = createClient();
-    try {
-      // The result is deliberately ignored: the notice must read the same
-      // whether or not the account exists.
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-      });
-    } catch {
-      // Swallow transport errors too — same generic notice either way.
-    }
-    setNotice("If an account exists for that email, we've sent a reset link.");
+    // Goes through /api/auth/email rather than straight to Supabase, so the
+    // send passes our rate limiter and lands in the security log. The route
+    // returns the same generic result whether or not the account exists, so the
+    // enumeration safety this form has always had is preserved — it just lives
+    // on the server now.
+    const result = await requestAuthEmail("password_reset", email);
+    setNotice(authEmailMessage(result, "password_reset"));
     setLoading(false);
-    setCooldown(COOLDOWN_SECONDS);
+    // Don't make the user sit out a cooldown for a send that never happened.
+    if (result === "ok") cooldown.start();
   }
 
   return (
@@ -62,14 +51,14 @@ export function ForgotPasswordForm() {
       )}
       <Button
         type="submit"
-        disabled={loading || cooldown > 0}
+        disabled={loading || cooldown.active}
         className="bg-brand btn-brand text-brand-foreground"
       >
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading
           ? "Sending…"
-          : cooldown > 0
-            ? `Resend in ${cooldown}s`
+          : cooldown.active
+            ? `Resend in ${cooldown.remaining}s`
             : "Send reset link"}
       </Button>
       <p className="text-center text-sm text-muted-foreground">
