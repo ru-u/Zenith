@@ -194,7 +194,31 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   per IP): a whole DECA classroom shares one school NAT address.
 - **`requireSameOrigin` (`lib/csrf.ts`) guards cookie-authed mutations** —
   favorites, feedback, both Stripe POSTs. Do NOT add it to the Stripe webhook
-  (signature-authed, no Origin) or the cron routes (bearer-authed).
+  (signature-authed, no Origin) or the cron routes (bearer-authed) or
+  `/api/auth/google-callback` (Google posts it from accounts.google.com).
+- **Google sign-in runs through Google Identity Services, not
+  `signInWithOAuth`** — `lib/googleIdentity.ts` +
+  `components/auth/GoogleIdentityButton.tsx` +
+  `/api/auth/{google-nonce,google-callback}`. Supabase's redirect flow sends the
+  browser to `<project-ref>.supabase.co`, and Google names that host on the
+  consent screen; it only shows an app *name* to verified brands, and
+  `supabase.co` isn't ours to verify. GIS issues the token against our own JS
+  origin, so the screen reads `zenithscreener.com`. Four things that are load-
+  bearing and look optional:
+  - **`ux_mode: "redirect"` for every browser.** iOS Safari's ITP requires it;
+    using it everywhere keeps one code path and avoids relaxing
+    `Cross-Origin-Opener-Policy: same-origin`, which popup mode would force.
+  - **The nonce cookie is `SameSite=None; Secure`.** Google's POST back is a
+    cross-site top-level POST and `Lax` cookies are withheld from those — with
+    `Lax` this fails on 100% of production sign-ins while looking correct.
+  - **CSP needs `form-action https://accounts.google.com`.** GIS navigates by
+    form submission and Chrome enforces `form-action` across redirects; `'self'`
+    alone blocks Google sign-in in Chrome only.
+  - **The callback redirects with 303**, not the `NextResponse.redirect`
+    default of 307, which would re-POST the body to the destination page.
+  `GoogleButton.tsx` (the old flow) is retained as the fallback for in-app
+  webviews, where Google doesn't support GIS. `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+  unset ⇒ every user takes that fallback.
 - **`/api/unsubscribe`: GET renders, POST mutates.** GET used to flip the flag,
   which meant Outlook SafeLinks and other mail scanners silently unsubscribed
   people by pre-fetching the link. The emails send RFC 8058
@@ -259,6 +283,10 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (`lib/quant/news.ts`; runs only when EDGAR finds no filing). Absent = news
   step silently skipped. Free-tier dependency — revisit at commercial scale.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — the Google Identity Services web client ID.
+  Public by design, but `NEXT_PUBLIC_*` is inlined at BUILD time, so a Railway
+  change needs a rebuild, not a restart. Unset ⇒ auth pages silently fall back
+  to the Supabase redirect flow (and its `supabase.co` consent screen).
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper
   failure alerts via `lib/alerts.ts`; if unset, alerts log to console only, no

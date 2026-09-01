@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AuthDivider, GoogleButton } from "./GoogleButton";
+import { AuthDivider } from "./GoogleButton";
+import { GoogleIdentityButton } from "./GoogleIdentityButton";
 import { ResendConfirmation } from "./ResendConfirmation";
 
 export function SignupForm() {
@@ -67,7 +68,7 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <GoogleButton next={next} />
+      <GoogleIdentityButton next={next} />
       <AuthDivider />
       <Input
         type="text"
