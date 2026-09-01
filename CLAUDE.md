@@ -283,6 +283,13 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (`lib/quant/news.ts`; runs only when EDGAR finds no filing). Absent = news
   step silently skipped. Free-tier dependency — revisit at commercial scale.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_ID` — the Stripe **Price** object for Zenith Pro ($4.99/mo).
+  `create-checkout` fails closed without it (500) rather than falling back to an
+  inline price. **Mode-specific**: the test and live ids are different objects,
+  so `.env.local` holds the test one and Railway the live one; crossing them
+  yields `resource_missing` at checkout. The amount now lives in the Stripe
+  dashboard, not in the repo — changing it there changes what customers are
+  charged with no deploy.
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — the Google Identity Services web client ID.
   Public by design, but `NEXT_PUBLIC_*` is inlined at BUILD time, so a Railway
   change needs a rebuild, not a restart. Unset ⇒ auth pages silently fall back

@@ -209,7 +209,7 @@ CRON_SECRET=                       # long random string; sent as `Authorization:
 
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+STRIPE_PRICE_ID=                   # Zenith Pro $4.99/mo Price object; mode-specific
 
 SEC_EDGAR_USER_AGENT=              # SEC requires a contact string, e.g. "Zenith you@example.com"
 

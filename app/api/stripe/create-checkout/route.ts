@@ -10,13 +10,32 @@ import { clientIp, logSecurityEvent } from "@/lib/seclog";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// The price is set here, server-side (unit_amount: 499), and the route accepts
-// no request body at all — there is nothing for a client to tamper with. Kept
-// that way deliberately: the moment a plan/amount/coupon arrives from the
-// browser, it has to be validated against a server-side allowlist instead.
+// The route accepts no request body at all — there is nothing for a client to
+// tamper with. Kept that way deliberately: the moment a plan/amount/coupon
+// arrives from the browser, it has to be validated against a server-side
+// allowlist instead.
+//
+// The amount itself now lives on a Stripe Price object (STRIPE_PRICE_ID) rather
+// than inline in this file. That trade was made knowingly: an inline
+// `price_data` mints a THROWAWAY Product + Price per checkout session, which
+// splinters revenue reporting across one product per subscriber and — the
+// reason it had to change — leaves nothing stable for the Billing Portal to
+// name when offering a plan switch. Cost of the trade: $4.99/mo is no longer
+// greppable here, and changing it in the dashboard changes what people are
+// charged with no deploy and no diff.
 export async function POST(req: Request) {
   const badOrigin = requireSameOrigin(req);
   if (badOrigin) return badOrigin;
+
+  // Fail closed rather than falling back to an inline price. A silent fallback
+  // would quietly restore the throwaway-Product behaviour this replaced, and a
+  // misconfigured deploy would look like it was working. Same reasoning as the
+  // webhook's missing-secret guard.
+  const priceId = process.env.STRIPE_PRICE_ID;
+  if (!priceId) {
+    console.error("[stripe/create-checkout] STRIPE_PRICE_ID is not set");
+    return NextResponse.json({ error: "not configured" }, { status: 500 });
+  }
 
   const supabase = await createClient();
   const {
@@ -98,26 +117,33 @@ export async function POST(req: Request) {
 
   const appUrl = siteUrl();
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [
-      {
-        // Inline recurring price — no pre-created Price object needed.
-        price_data: {
-          currency: "usd",
-          product_data: { name: "Zenith Pro" },
-          unit_amount: 499,
-          recurring: { interval: "month" },
-        },
-        quantity: 1,
-      },
-    ],
-    success_url: `${appUrl}/screener?upgraded=1`,
-    cancel_url: `${appUrl}/upgrade`,
-    metadata: { supabase_user_id: user.id },
-    subscription_data: { metadata: { supabase_user_id: user.id } },
-  });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      // Zenith Pro, $4.99/mo. The recurring interval and the amount live on the
+      // Price object in Stripe; this id is mode-specific, so the test and live
+      // values are different objects and must never be crossed over.
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${appUrl}/screener?upgraded=1`,
+      cancel_url: `${appUrl}/upgrade`,
+      metadata: { supabase_user_id: user.id },
+      subscription_data: { metadata: { supabase_user_id: user.id } },
+    });
 
-  return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    // The likeliest cause by far is a STRIPE_PRICE_ID from the other mode: a
+    // test price under a live key (or the reverse) comes back as
+    // `resource_missing`, which reads like a code bug unless it's named here.
+    const e = err as { code?: string; message?: string };
+    if (e?.code === "resource_missing") {
+      console.error(
+        `[stripe/create-checkout] price ${priceId} does not exist under this key — check STRIPE_PRICE_ID matches the key's mode`,
+      );
+    } else {
+      console.error("[stripe/create-checkout]", e?.message);
+    }
+    return NextResponse.json({ error: "checkout_unavailable" }, { status: 502 });
+  }
 }
