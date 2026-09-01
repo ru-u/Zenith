@@ -81,7 +81,8 @@ export function GoogleButton({ next }: { next: string }) {
         type="button"
         onClick={go}
         disabled={loading}
-        className="flex items-center justify-center gap-2.5 rounded-lg border border-foreground/10 bg-foreground/5 px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-foreground/10 disabled:opacity-60"
+        // h-8 to sit on the same rhythm as the Input/Button fields below it.
+        className="flex h-8 items-center justify-center gap-2.5 rounded-lg border border-foreground/10 bg-foreground/5 px-4 text-sm font-semibold text-foreground transition-colors hover:bg-foreground/10 disabled:opacity-60"
       >
         <GoogleG />
         {loading ? "Redirecting to Google…" : "Continue with Google"}
