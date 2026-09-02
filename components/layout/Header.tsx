@@ -1,29 +1,16 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { UserMenu } from "./UserMenu";
 import { Logo } from "./Logo";
 import { NavLinks } from "./NavLinks";
 import { MobileNav } from "./MobileNav";
 import { ThemeToggleButton } from "./ThemeToggleButton";
-import type { SubscriptionTier } from "@/lib/supabase/types";
 import { displayName } from "@/lib/displayName";
 
 export async function Header() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Pro status drives the nav: free/guest see "Upgrade", Pro see a "Pro" badge.
-  let isPro = false;
-  if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .maybeSingle<{ subscription_tier: SubscriptionTier }>();
-    isPro = data?.subscription_tier === "pro";
-  }
+  // Shared with the page being rendered — see lib/viewer.ts. Pro status drives
+  // the nav: free/guest see "Upgrade", Pro see a "Pro" badge.
+  const { user, isPro } = await getViewer();
 
   return (
     <header className="sticky top-0 z-20 border-b border-foreground/5 backdrop-blur-md">

@@ -1,9 +1,6 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { LEGAL_CONTACT_EMAIL, NOT_ADVICE, NOT_AFFILIATED } from "@/lib/legal";
-import { LINKS } from "./NavLinks";
+import { LINKS } from "@/lib/nav";
 
 // The app-side legal footer. Until this existed, <LandingFooter> was the only
 // footer in the product and it renders on "/" alone — so /screener, /analysis,
@@ -11,12 +8,10 @@ import { LINKS } from "./NavLinks";
 // at all. Mounted in the root layout (rather than added page by page) so every
 // route added later inherits it by default.
 //
-// Client-only for the pathname check: "/" already ends in <LandingFooter>, which
-// carries the same two lines in the marketing footer's own styling.
+// "/" already ends in <LandingFooter>, which carries the same two lines in the
+// marketing footer's own styling — <HideOnLanding> in the root layout does that
+// check, so this stays a server component.
 export function AppFooter() {
-  const pathname = usePathname();
-  if (pathname === "/") return null;
-
   return (
     <footer className="mt-auto border-t border-foreground/5">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-6 py-8">

@@ -11,7 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { LINKS, isActivePath } from "./NavLinks";
+import { LINKS, isActivePath } from "@/lib/nav";
 import { useSignOut } from "@/hooks/useSignOut";
 import { cn } from "@/lib/utils";
 

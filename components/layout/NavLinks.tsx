@@ -3,21 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-// The app's primary routes. Exported because <MobileNav> renders the same set
-// in the drawer — the desktop nav below hides itself under `sm:`, so this list
-// is the single definition feeding both. Adding a route here reaches phones and
-// desktop at once.
-export const LINKS = [
-  { href: "/screener", label: "Screener" },
-  { href: "/analysis", label: "Analysis" },
-  { href: "/history", label: "History" },
-];
-
-/** Whether `pathname` is `href` or a route nested under it. */
-export function isActivePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+import { LINKS, isActivePath } from "@/lib/nav";
 
 /** The header's text nav. Client-side only for `usePathname` — the active
  *  link takes a brand→foreground gradient (cyan fading into polar white in

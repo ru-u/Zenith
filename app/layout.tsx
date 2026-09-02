@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { GradientMesh } from "@/components/layout/GradientMesh";
 import { Header } from "@/components/layout/Header";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { HideOnLanding } from "@/components/layout/HideOnLanding";
 import { siteUrl } from "@/lib/site";
 
 // shadcn's @theme maps --font-sans → var(--font-sans); name the variables to match.
@@ -104,7 +105,9 @@ export default function RootLayout({
           <ViewTransition>{children}</ViewTransition>
           {/* Legal footer on every route except "/" (which has LandingFooter).
               Carries the not-advice + DECA non-affiliation lines site-wide. */}
-          <AppFooter />
+          <HideOnLanding>
+            <AppFooter />
+          </HideOnLanding>
         </Providers>
       </body>
     </html>

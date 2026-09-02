@@ -4,7 +4,6 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
 const TEN_MINUTES = 10 * 60 * 1000;
 
@@ -37,9 +36,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
       forcedTheme={pathname === "/" ? "dark" : undefined}
     >
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>{children}</TooltipProvider>
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </ThemeProvider>
   );
 }

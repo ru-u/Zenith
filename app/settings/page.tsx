@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
-import type { SubscriptionTier } from "@/lib/supabase/types";
+import { getViewer } from "@/lib/viewer";
 import { ThemeToggle } from "@/components/settings/ThemeToggle";
 import { TickerClickToggle } from "@/components/settings/TickerClickToggle";
 import { ProfileForm } from "@/components/settings/ProfileForm";
@@ -66,19 +65,10 @@ function Section({
 }
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Shared with <Header> for this request — see lib/viewer.ts. getViewer()
+  // selects created_at precisely so this page needs no second query.
+  const { user, profile, isPro } = await getViewer();
   if (!user) redirect("/auth/login?next=/settings");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("subscription_tier, created_at")
-    .eq("id", user.id)
-    .maybeSingle<{ subscription_tier: SubscriptionTier; created_at: string }>();
-
-  const isPro = profile?.subscription_tier === "pro";
   const name = storedName(user);
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("en-US", {

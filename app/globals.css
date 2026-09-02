@@ -238,6 +238,32 @@
       0 16px 48px -12px rgb(0 0 0 / 0.6);
   }
 
+  /* Phones drop the backdrop-filter entirely. /screener stacks roughly a dozen
+     of these at once (five hero cards, two status pills, the trade-window
+     banner, the filter bar, the table shell, the AI tiles) and every one is a
+     separate compositing pass — the likeliest cause of scroll jank on a
+     mid-range Android.
+ 
+     It costs almost nothing visually: what sits behind these panels is the
+     gradient mesh, and blurring a large smooth gradient is close to a no-op.
+     The one blur doing real work — the sticky header, which has actual
+     scrolling content behind it — is a Tailwind utility on <Header> and is
+     deliberately left alone. Light fills come up slightly, since those were
+     tuned to read *through* a blur. Matches Tailwind's `sm` breakpoint. */
+  @media (max-width: 40rem) {
+    .glass,
+    .glass-strong {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    .glass {
+      background: color-mix(in oklab, white 62%, transparent);
+    }
+    .glass-strong {
+      background: color-mix(in oklab, white 70%, transparent);
+    }
+  }
+
   /* Popover / dropdown surface (account menu, etc.). Deliberately OPAQUE and
      free of `backdrop-filter`: base-ui positions popups with a transform, which
      breaks backdrop blur in Chrome (the blur gets no backdrop root), so a glassy
@@ -417,6 +443,32 @@
   }
   .animate-hero-rise {
     animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Staggered mount for the screener's five hero cards. The caller sets
+     animation-delay per card. Was a framer-motion `animate` prop — the whole
+     library was ~40KB gzip on both the landing and the screener to do this
+     and .reveal below, and both are plain opacity/transform. */
+  .animate-card-rise {
+    opacity: 0;
+    animation: hero-rise 0.4s ease-out forwards;
+  }
+
+  /* The landing's one scroll effect: a section fades up as it enters, once.
+     <Reveal> sets data-revealed via IntersectionObserver. Deliberately scoped
+     to this media query — under reduced motion the rules never apply, so the
+     content is simply visible with no JS involvement, which is what
+     framer-motion's reducedMotion="user" did. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 0.55s ease-out,
+      transform 0.55s ease-out;
+  }
+  .reveal[data-revealed="true"] {
+    opacity: 1;
+    transform: none;
   }
 }
 
