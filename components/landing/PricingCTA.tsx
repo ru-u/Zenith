@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CheckoutButton } from "@/components/CheckoutButton";
+import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 
 /**
  * The Pro card's action, switched on server-read auth state (no client
@@ -35,7 +36,7 @@ export function PricingCTA({
       href="/auth/signup?next=/upgrade"
       className="mt-7 block rounded-full bg-brand btn-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.02] hover:shadow-brand"
     >
-      Get Pro · $4.99/mo
+      Get Pro · {PRO_PRICE_MONTHLY}
     </Link>
   );
 }

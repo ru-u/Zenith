@@ -20,7 +20,7 @@ export const runtime = "nodejs";
 // `price_data` mints a THROWAWAY Product + Price per checkout session, which
 // splinters revenue reporting across one product per subscriber and — the
 // reason it had to change — leaves nothing stable for the Billing Portal to
-// name when offering a plan switch. Cost of the trade: $4.99/mo is no longer
+// name when offering a plan switch. Cost of the trade: the price is no longer
 // greppable here, and changing it in the dashboard changes what people are
 // charged with no deploy and no diff.
 export async function POST(req: Request) {
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      // Zenith Pro, $4.99/mo. The recurring interval and the amount live on the
+      // Zenith Pro. The recurring interval and the amount live on the
       // Price object in Stripe; this id is mode-specific, so the test and live
       // values are different objects and must never be crossed over.
       line_items: [{ price: priceId, quantity: 1 }],

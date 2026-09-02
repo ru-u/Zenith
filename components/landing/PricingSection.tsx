@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Reveal } from "./Reveal";
 import { PricingCTA } from "./PricingCTA";
-import { TIER_FEATURES } from "@/lib/pricing";
+import { PRO_PRICE, TIER_FEATURES } from "@/lib/pricing";
 
 function FeatureList({ items }: { items: readonly string[] }) {
   return (
@@ -28,7 +28,7 @@ export function PricingSection({
     <section id="pricing" className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-20">
       <Reveal>
         <h2 className="text-3xl font-semibold tracking-tight text-balance">
-          The screener is free. The edge is $4.99.
+          The screener is free. The edge is {PRO_PRICE}.
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
           Anyone can see the day&apos;s biggest gainers. Pro breaks down each
@@ -90,7 +90,7 @@ export function PricingSection({
             />
             <h3 className="font-semibold tracking-tight text-brand">Pro</h3>
             <p className="mt-1 text-2xl font-semibold tracking-tight">
-              $4.99
+              {PRO_PRICE}
               <span className="text-sm font-normal text-muted-foreground">
                 /mo
               </span>

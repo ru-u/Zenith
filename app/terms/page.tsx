@@ -122,8 +122,14 @@ export default function TermsPage() {
       <LegalSection title="8. Pro subscriptions and billing">
         <ul>
           <li>
-            Zenith Pro costs <strong>$4.99 per month</strong>, billed through
+            Zenith Pro costs <strong>$9.99 per month</strong>, billed through
             Stripe, and renews automatically each month until canceled.
+          </li>
+          <li>
+            If you subscribed before September 1, 2026, you keep the price you
+            signed up at ($4.99 per month) for as long as your subscription
+            stays active. Canceling and resubscribing later starts a new
+            subscription at the current price.
           </li>
           <li>
             You can cancel any time from Settings (via the Stripe billing

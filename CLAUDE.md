@@ -18,7 +18,7 @@ launch: a regulatory/branding compliance pass and engine calibration tweaks.
 - **TanStack Query v5** (10-min stale/refetch) for reads; **Zustand**
   (`stores/filtersStore.ts`) for filter UI state
 - **next-themes** (light / dark / system)
-- **Stripe** subscriptions — Zenith Pro, $4.99/mo
+- **Stripe** subscriptions — Zenith Pro, $9.99/mo
 - **In-house quant engine** (`lib/quant/`) for the AI short theses — SEC EDGAR
   catalyst detection + base-rate/rule scoring + TradingView technicals +
   templated prose, $0/day, zero Anthropic calls. The **Anthropic SDK** remains
@@ -283,7 +283,7 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (`lib/quant/news.ts`; runs only when EDGAR finds no filing). Absent = news
   step silently skipped. Free-tier dependency — revisit at commercial scale.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_ID` — the Stripe **Price** object for Zenith Pro ($4.99/mo).
+- `STRIPE_PRICE_ID` — the Stripe **Price** object for Zenith Pro ($9.99/mo).
   `create-checkout` fails closed without it (500) rather than falling back to an
   inline price. **Mode-specific**: the test and live ids are different objects,
   so `.env.local` holds the test one and Railway the live one; crossing them

@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { AmbientChevrons } from "./AmbientChevrons";
 import { Reveal } from "./Reveal";
 import { ZenithMark } from "@/components/layout/Logo";
-import { TIER_FEATURES } from "@/lib/pricing";
+import { PRO_PRICE_MONTHLY, TIER_FEATURES } from "@/lib/pricing";
 
 /**
  * The Pro pitch, shown around one hardcoded EXAMPLE thesis (fictional ticker).
@@ -42,7 +42,7 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             href={isLoggedIn ? "/upgrade" : "/auth/signup?next=/upgrade"}
             className="mt-7 inline-block rounded-full bg-brand btn-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
           >
-            Get Pro · $4.99/mo
+            Get Pro · {PRO_PRICE_MONTHLY}
           </Link>
         </div>
 

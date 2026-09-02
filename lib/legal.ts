@@ -2,7 +2,7 @@
 // disclaimers that ride along with the product surfaces themselves.
 // Update LEGAL_UPDATED whenever any policy text changes.
 export const LEGAL_CONTACT_EMAIL = "support@zenithscreener.com";
-export const LEGAL_UPDATED = "August 26, 2026";
+export const LEGAL_UPDATED = "September 1, 2026";
 
 // /engine (how the thesis engine works) is disclosure, not policy — it changes
 // when the engine changes, which is a different cadence from the policy pages.

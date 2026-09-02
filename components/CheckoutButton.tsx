@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 
 export function CheckoutButton({ className }: { className?: string }) {
   const [loading, setLoading] = useState(false);
@@ -41,7 +42,7 @@ export function CheckoutButton({ className }: { className?: string }) {
             className="-mt-0.5 mr-2 inline-block h-4 w-4 animate-spin"
           />
         )}
-        {loading ? "Redirecting to checkout…" : "Upgrade to Pro · $4.99/mo"}
+        {loading ? "Redirecting to checkout…" : `Upgrade to Pro · ${PRO_PRICE_MONTHLY}`}
       </button>
       {error && (
         <p aria-live="polite" className="mt-2 text-center text-sm text-down">

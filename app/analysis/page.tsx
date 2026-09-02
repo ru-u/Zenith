@@ -6,6 +6,7 @@ import { getTodayET } from "@/lib/market-calendar";
 import { AnalysisList } from "@/components/ai/AnalysisList";
 import { PageHeader } from "@/components/layout/PageHeader";
 import type { AIAnalysis, SubscriptionTier } from "@/lib/supabase/types";
+import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ function AnalysisTeaser({ signedIn }: { signedIn: boolean }) {
                 href="/upgrade"
                 className="rounded-lg bg-brand btn-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.03]"
               >
-                Upgrade to Pro · $4.99/mo
+                Upgrade to Pro · {PRO_PRICE_MONTHLY}
               </Link>
             ) : (
               <>

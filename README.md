@@ -38,7 +38,7 @@ with or endorsed by DECA Inc. or the SIFMA Foundation.*
 
 ## Freemium
 
-| | Free | Pro ($4.99/mo) |
+| | Free | Pro ($9.99/mo) |
 |---|---|---|
 | Top-50 table + hero cards + streaks | ✅ | ✅ |
 | History | last 5 trading days | unlimited |
@@ -209,7 +209,7 @@ CRON_SECRET=                       # long random string; sent as `Authorization:
 
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
-STRIPE_PRICE_ID=                   # Zenith Pro $4.99/mo Price object; mode-specific
+STRIPE_PRICE_ID=                   # Zenith Pro $9.99/mo Price object; mode-specific
 
 SEC_EDGAR_USER_AGENT=              # SEC requires a contact string, e.g. "Zenith you@example.com"
 

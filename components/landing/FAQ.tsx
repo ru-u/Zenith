@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { Reveal } from "./Reveal";
+import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 
 // Native <details>/<summary> — accessible, zero JS, and the restrained answer
 // for a section whose whole job is plain talk. Written for a skeptical DECA
@@ -28,7 +29,7 @@ const QA = [
   {
     // Free vs Pro split — keep aligned with TIER_FEATURES in lib/pricing.ts.
     q: "What do I get without paying?",
-    a: "The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, favorite tickers pinned to the top of the screener, and the last 5 trading days of history. Pro ($4.99/mo) adds the daily short theses, the 3:30 drop email, and unlimited history.",
+    a: `The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, favorite tickers pinned to the top of the screener, and the last 5 trading days of history. Pro (${PRO_PRICE_MONTHLY}) adds the daily short theses, the 3:30 drop email, and unlimited history.`,
   },
   {
     q: "Is this investment advice?",

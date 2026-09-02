@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CheckoutButton } from "@/components/CheckoutButton";
 import { ZenithMark } from "@/components/layout/Logo";
 import { AmbientChevrons } from "@/components/landing/AmbientChevrons";
-import { TIER_FEATURES } from "@/lib/pricing";
+import { PRO_PRICE, TIER_FEATURES } from "@/lib/pricing";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ export default async function UpgradePage() {
           Zenith Pro
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          $4.99<span className="text-base text-muted-foreground">/mo</span>
+          {PRO_PRICE}<span className="text-base text-muted-foreground">/mo</span>
         </h1>
         <ul className="mt-6 flex flex-col gap-3">
           {TIER_FEATURES.pro.map((f) => (

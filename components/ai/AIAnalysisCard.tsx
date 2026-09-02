@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ChevronUp, Lock, Sparkles } from "lucide-react";
 import { StockChart } from "@/components/gainers/StockChart";
+import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 import {
   Dialog,
   DialogContent,
@@ -186,7 +187,7 @@ export function AIAnalysisCard() {
                 href="/upgrade"
                 className="rounded-lg bg-brand btn-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70 transition-transform hover:scale-[1.03]"
               >
-                Upgrade to Pro · $4.99/mo
+                Upgrade to Pro · {PRO_PRICE_MONTHLY}
               </Link>
             </div>
           </div>

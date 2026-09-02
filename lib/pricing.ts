@@ -5,6 +5,23 @@
 // Plain data, no imports — safe to consume from server and client components.
 // Prose that enumerates tiers (FAQ, signup subcopy, the chart/history gates)
 // can't map an array, so it's hand-maintained; keep it aligned with this list.
+
+/**
+ * What Pro costs *new* subscribers, for display only. The amount actually
+ * charged lives on the Stripe Price object (STRIPE_PRICE_ID) and is set in the
+ * dashboard — these are two separate switches and they can drift, so if you
+ * change this string, change the Price too, and vice versa.
+ *
+ * Raised $4.99 → $9.99 on 2026-09-01. Stripe never migrates a live
+ * subscription to a new Price on its own, so everyone who subscribed before
+ * that date is grandfathered at $4.99: NEVER use this constant to describe an
+ * existing subscriber's own plan (see app/settings/page.tsx). Marketing and
+ * the checkout CTA only, where the reader is by definition a new buyer.
+ */
+export const PRO_PRICE = "$9.99";
+
+/** `PRO_PRICE` with the interval, for CTAs that quote it inline. */
+export const PRO_PRICE_MONTHLY = `${PRO_PRICE}/mo`;
 export const TIER_FEATURES = {
   // The screener needs no account.
   browse: [

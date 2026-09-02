@@ -133,8 +133,16 @@ export default async function SettingsPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Current plan</p>
+                  {/* Deliberately no price here. Pro was raised to $9.99/mo on
+                      2026-09-01 and earlier subscribers are grandfathered on
+                      their original Stripe Price, so any number printed on
+                      *this* line — the user's own plan — is wrong for one
+                      cohort or the other. The billing portal below knows what
+                      they actually pay; let it be the authority. Don't
+                      "restore" the price from lib/pricing.ts: that constant is
+                      the new-buyer marketing price. */}
                   <p className="text-sm text-muted-foreground">
-                    {isPro ? "Zenith Pro — $4.99/mo" : "Free"}
+                    {isPro ? "Zenith Pro" : "Free"}
                   </p>
                 </div>
                 <span

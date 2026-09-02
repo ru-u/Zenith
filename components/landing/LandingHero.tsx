@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AmbientChevrons } from "./AmbientChevrons";
 import { DropCountdown } from "./DropCountdown";
+import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 
 // The hero is a brand statement, Raycast-style: one centered claim over the
 // Ascent field (the logo adrift at architectural scale). No live data here —
@@ -53,7 +54,7 @@ export function LandingHero({
               href={isLoggedIn ? "/upgrade" : "/auth/signup?next=/upgrade"}
               className="rounded-full bg-brand btn-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
             >
-              Get Pro · $4.99/mo
+              Get Pro · {PRO_PRICE_MONTHLY}
             </Link>
           )}
         </div>
