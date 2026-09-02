@@ -41,6 +41,16 @@ function capBand(mc) {
   if (mc < 2e9) return "small";
   return "mid";
 }
+// Tertile cuts of the historical day_range_pct distribution — MIRRORED from
+// lib/baseRates.ts (RANGE_T1 / RANGE_T2). Keep the two in sync.
+const RANGE_T1 = 30.1;
+const RANGE_T2 = 53.9;
+function rangeBand(p) {
+  if (p == null || !Number.isFinite(p)) return null;
+  if (p < RANGE_T1) return "r_lo";
+  if (p < RANGE_T2) return "r_mid";
+  return "r_hi";
+}
 function relvolBand(rv) {
   if (rv == null || !Number.isFinite(rv)) return null;
   if (rv < 5) return "rv_lt5";
@@ -65,7 +75,7 @@ if (fromDb) {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase
       .from("historical_gainers")
-      .select("next_day_return, next_day_down, market_cap, relative_volume")
+      .select("next_day_return, next_day_down, market_cap, relative_volume, day_range_pct")
       .range(from, from + 999);
     if (error) {
       console.error("historical_gainers read error:", error.message);
@@ -165,18 +175,26 @@ async function computeAndWriteBaseRates(rows) {
     if (row.next_day_return < 0) g.down++;
     g.returns.push(row.next_day_return);
   }
+  // Every level lib/baseRates.ts resolveBaseRate() walks must exist here, or a
+  // lookup silently skips a rung:
+  //   cap×rv×range → cap×range → cap×rv → cap → range → global
   for (const r of rows) {
     const cb = capBand(r.market_cap);
     const rb = relvolBand(r.relative_volume);
-    if (cb && rb) add(`${cb}|${rb}`, r);
-    if (cb) add(`${cb}|ALL`, r);
-    add(`ALL|ALL`, r);
+    const gb = rangeBand(r.day_range_pct);
+    if (cb && rb && gb) add(`${cb}|${rb}|${gb}`, r);
+    if (cb && gb) add(`${cb}|ALL|${gb}`, r);
+    if (cb && rb) add(`${cb}|${rb}|ALL`, r);
+    if (cb) add(`${cb}|ALL|ALL`, r);
+    if (gb) add(`ALL|ALL|${gb}`, r);
+    add(`ALL|ALL|ALL`, r);
   }
   const baseRates = [...groups.entries()].map(([k, g]) => {
-    const [cap_band, relvol_band] = k.split("|");
+    const [cap_band, relvol_band, range_band] = k.split("|");
     return {
       cap_band,
       relvol_band,
+      range_band,
       n: g.n,
       down_rate: g.down / g.n,
       median_next_day_return: median(g.returns),
@@ -203,13 +221,30 @@ async function computeAndWriteBaseRates(rows) {
   }
 
   console.log(`\nWrote ${baseRates.length} base-rate buckets:`);
-  const g = groups.get("ALL|ALL");
+  const g = groups.get("ALL|ALL|ALL");
   console.log(`GLOBAL n=${g.n}  down=${(100 * g.down / g.n).toFixed(1)}%`);
-  for (const r of baseRates.filter((b) => b.cap_band !== "ALL" && b.relvol_band !== "ALL")) {
+
+  // The magnitude rung, summarised on its own — it is the reason this table was
+  // recomputed, and it is invisible in a cap×relvol listing.
+  console.log("\nBy intraday-range band (cap/relvol collapsed):");
+  for (const band of ["r_lo", "r_mid", "r_hi"]) {
+    const b = baseRates.find(
+      (r) => r.cap_band === "ALL" && r.relvol_band === "ALL" && r.range_band === band,
+    );
+    if (b) {
+      console.log(`  ${band.padEnd(6)} n=${String(b.n).padStart(4)}  down=${(100 * b.down_rate).toFixed(1)}%`);
+    }
+  }
+
+  console.log("\nFully-specified buckets (cap x relvol x range):");
+  for (const r of baseRates.filter(
+    (b) => b.cap_band !== "ALL" && b.relvol_band !== "ALL" && b.range_band !== "ALL",
+  )) {
     const md = r.median_down_move != null ? (100 * r.median_down_move).toFixed(1) : "?";
     const mu = r.median_up_move != null ? (100 * r.median_up_move).toFixed(1) : "?";
+    const thin = r.n < 30 ? "  <MIN_N, falls back" : "";
     console.log(
-      `  ${r.cap_band.padEnd(6)} ${r.relvol_band.padEnd(11)} n=${String(r.n).padStart(4)}  down=${(100 * r.down_rate).toFixed(0)}%  medDown=${md}%  medUp=+${mu}%`,
+      `  ${r.cap_band.padEnd(6)} ${r.relvol_band.padEnd(11)} ${r.range_band.padEnd(6)} n=${String(r.n).padStart(4)}  down=${(100 * r.down_rate).toFixed(0)}%  medDown=${md}%  medUp=+${mu}%${thin}`,
     );
   }
 }

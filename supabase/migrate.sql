@@ -159,6 +159,41 @@ create table if not exists public.gainer_base_rates (
 alter table public.gainer_base_rates add column if not exists median_down_move numeric;
 alter table public.gainer_base_rates add column if not exists median_up_move numeric;
 
+-- Magnitude dimension: intraday-range band, the third bucketing axis. Existing
+-- rows become the 'ALL' (range-free) fallback level, so a database migrated but
+-- not yet re-precomputed resolves exactly as it did before.
+alter table public.gainer_base_rates add column if not exists range_band text not null default 'ALL';
+
+-- Re-key onto the three-way bucket. Guarded on the arity of the existing primary
+-- key so re-running is a no-op.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace ns on ns.oid = t.relnamespace
+    where ns.nspname = 'public'
+      and t.relname = 'gainer_base_rates'
+      and c.contype = 'p'
+      and array_length(c.conkey, 1) = 2
+  ) then
+    alter table public.gainer_base_rates drop constraint gainer_base_rates_pkey;
+    alter table public.gainer_base_rates
+      add constraint gainer_base_rates_pkey primary key (cap_band, relvol_band, range_band);
+  end if;
+end $$;
+
+-- Catalyst class backfilled over the historical rows by
+-- scripts/backfill-catalysts.mjs — the sample that makes a catalyst Δ re-fit
+-- possible at all (live theses carry only ~12 offerings).
+alter table public.historical_gainers add column if not exists catalyst_type text;
+-- The SEC registrant name each backfilled label was derived from. The BIOT
+-- identity guard can't run on these rows (no company_name to cross-check, and
+-- the SEC ticker map is current while the rows are up to a year old), so the
+-- assumption is recorded rather than hidden.
+alter table public.historical_gainers add column if not exists catalyst_sec_name text;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- fetch_locks + claim_fetch (thundering-herd guard)
 -- ─────────────────────────────────────────────────────────────────────────────

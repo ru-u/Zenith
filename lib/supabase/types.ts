@@ -112,6 +112,7 @@ export type HistoricalGainer = {
 export type GainerBaseRate = {
   cap_band: string;
   relvol_band: string;
+  range_band: string;
   n: number;
   down_rate: number;
   median_next_day_return: number | null;

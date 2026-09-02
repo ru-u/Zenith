@@ -1,11 +1,20 @@
 // Deterministic next-day short scoring — pure functions, no I/O.
 //
 // percent_win_estimate starts from the empirical base rate (realized "closed
-// lower next session" frequency for this cap×relvol bucket) and applies the
-// catalyst/technical adjustments below. The Δ constants are the whole tuning
-// surface: they mirror the heuristics the old LLM prompt encoded in prose
-// (buyouts pin, offerings fade, real news runs, squeezes are wild) and are
-// meant to be re-fit from stored `quant-v1` rows vs realized next-day returns.
+// lower next session" frequency for this cap×relvol×range bucket) and applies
+// the catalyst/technical adjustments below.
+//
+// The catalyst Δs are FROZEN and remain unfitted priors carried over from the
+// old LLM prompt (buyouts pin, offerings fade, real news runs, squeezes are
+// wild). They cannot be re-fit from the live record: across 171 scored theses
+// with outcomes there are 53 earnings, 14 buyouts, 12 offerings, 7 regulatory,
+// and ZERO partnership/meme/macro. D_OFFERING is the largest weight in the
+// model and rests on twelve observations whose 95% CI spans 49 points — a naive
+// re-fit would swing it 21 points on six coin flips. Only D_EARNINGS has the
+// sample to say anything, and it confirms the current value. Waiting does not
+// help either: offerings arrive 0.34 per session, so n=200 is ~2.2 years out.
+// The unlock is scripts/backfill-catalysts.mjs, which labels the 1,919
+// historical rows; re-fit from those, not from these.
 
 import type { GainerRow } from "../marketdata/types";
 import type { BaseRate } from "../baseRates";
@@ -24,8 +33,10 @@ const D_FADING_INTRADAY = 3; // already selling off since the open
 const D_BELOW_VWAP = 2; // buyers underwater on the day
 const D_NEAR_52W_HIGH = -2; // breakout strength — riskier short
 const NEAR_52W_BAND = 0.02;
-const D_PARABOLIC = 2; // +100% day — exhaustion beyond what relvol captures
-const PARABOLIC_CHANGE_PCT = 100;
+// (D_PARABOLIC removed — magnitude now enters through the base-rate range band.
+// It was a binary +2 at a ≥100% day and the only place move size was visible at
+// all; a ≥100% day is almost always in the top range tertile, which on its own
+// carries a 67.5% down-rate, so keeping both would double-count.)
 const D_STREAK_PER_DAY = 0; // deliberately neutral (matches the old prompt); tunable
 const WIN_FLOOR = 5; // never claim certainty in either direction
 const WIN_CEILING = 95;
@@ -95,7 +106,6 @@ export function scoreShort(
     }
   }
 
-  if (g.changePercent != null && g.changePercent >= PARABOLIC_CHANGE_PCT) win += D_PARABOLIC;
   if (streakCount != null && streakCount > 1) win += D_STREAK_PER_DAY * (streakCount - 1);
 
   if (catalystType === "buyout") win = Math.min(win, BUYOUT_WIN_CEILING);

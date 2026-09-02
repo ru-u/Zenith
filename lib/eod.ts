@@ -5,7 +5,7 @@ import { getCleanedGainers } from "./gainers";
 import { updateStreaks } from "./streaks";
 import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
-import { resolveBaseRate, type BaseRate } from "./baseRates";
+import { type BaseRate } from "./baseRates";
 import { recordThesisOutcomes } from "./quant/outcomes";
 
 /** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
@@ -28,21 +28,26 @@ async function fetchStreaks(
  * priors (scoring falls back to a coin-flip anchor), so this is safe to ship
  * before the historical data is ingested.
  */
-async function fetchBaseRates(
-  admin: SupabaseClient<Database>,
-  rows: GainerRow[],
-): Promise<Map<string, BaseRate | null>> {
-  const { data } = await admin
-    .from("gainer_base_rates")
-    .select(
-      "cap_band, relvol_band, n, down_rate, median_next_day_return, median_down_move, median_up_move",
-    );
-  const rates = (data ?? []) as BaseRate[];
-  const priors = new Map<string, BaseRate | null>();
-  for (const g of rows) {
-    priors.set(g.ticker, resolveBaseRate(rates, g.marketCap, g.relativeVolume));
+async function fetchBaseRates(admin: SupabaseClient<Database>): Promise<BaseRate[]> {
+  // `select("*")` deliberately, not a column list: naming `range_band` would make
+  // this query fail outright against a database where migrate.sql hasn't run yet,
+  // and a failed read here is invisible — every prior resolves null and the whole
+  // board silently scores off the coin-flip anchor. With `*`, a pre-migration
+  // database simply returns rows without the column, `resolveBaseRate` reads them
+  // as the 'ALL' fallback level, and scoring is exactly what it was before.
+  const { data, error } = await admin.from("gainer_base_rates").select("*");
+  if (error) {
+    console.error("[eod] base-rate read failed — scoring on the coin-flip anchor:", error.message);
+    return [];
   }
-  return priors;
+  const rates = (data ?? []) as BaseRate[];
+  if (rates.length > 0 && rates.every((r) => r.range_band == null)) {
+    console.warn(
+      "[eod] gainer_base_rates has no range_band — run supabase/migrate.sql and " +
+        "scripts/historical-base-rates.mjs --from-db to enable the magnitude dimension",
+    );
+  }
+  return rates;
 }
 
 /** Cleaned (frozen-repeats removed) gainers → re-ranked GainerRow set. */
@@ -80,7 +85,7 @@ export async function runPreCloseProcessing(
   const rows = toGainerRows(cleaned);
   const top = rows.slice(0, aiCount);
   const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
-  const baseRates = await fetchBaseRates(admin, top);
+  const baseRates = await fetchBaseRates(admin);
   const created = await generateAndStoreTopAnalyses(
     admin,
     rows,
@@ -124,7 +129,7 @@ export async function runEodProcessing(
   // Read streaks BEFORE updateStreaks so the count is on the same prior-day basis
   // as the pre-close drop (not yet including today).
   const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
-  const baseRates = await fetchBaseRates(admin, top);
+  const baseRates = await fetchBaseRates(admin);
 
   await updateStreaks(
     admin,
