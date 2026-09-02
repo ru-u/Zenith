@@ -1,29 +1,16 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { CheckoutButton } from "@/components/CheckoutButton";
 import { ZenithMark } from "@/components/layout/Logo";
 import { AmbientChevrons } from "@/components/landing/AmbientChevrons";
 import { PRO_PRICE, TIER_FEATURES } from "@/lib/pricing";
-import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function UpgradePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let isPro = false;
-  if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .maybeSingle<{ subscription_tier: SubscriptionTier }>();
-    isPro = data?.subscription_tier === "pro";
-  }
+  // Shared with <Header> for this request — see lib/viewer.ts.
+  const { user, isPro } = await getViewer();
 
   return (
     <main className="relative flex w-full flex-1 flex-col items-center justify-center overflow-hidden px-6 py-16">

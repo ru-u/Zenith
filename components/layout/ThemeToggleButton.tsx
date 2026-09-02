@@ -33,7 +33,9 @@ export function ThemeToggleButton({ className }: { className?: string }) {
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+        // Sits beside the drawer's menu button in the phone header, so it gets
+        // the same 40px target; unchanged at 32px on a pointer device.
+        "inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 pointer-fine:h-8 pointer-fine:w-8",
         className,
       )}
     >

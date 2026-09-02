@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { GradientMesh } from "@/components/layout/GradientMesh";
 import { Header } from "@/components/layout/Header";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { HideOnLanding } from "@/components/layout/HideOnLanding";
 import { siteUrl } from "@/lib/site";
 
 // shadcn's @theme maps --font-sans → var(--font-sans); name the variables to match.
@@ -67,7 +68,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#090D11",
+  // One value here painted dark browser chrome above a near-white page for
+  // every light-mode user. The media form is the documented API (see
+  // node_modules/next/dist/docs/.../generate-viewport.md); the two colors are
+  // the `--background` tokens from globals.css (`:root` and `.dark`).
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FCFDFE" },
+    { media: "(prefers-color-scheme: dark)", color: "#090D11" },
+  ],
 };
 
 export default function RootLayout({
@@ -104,7 +112,9 @@ export default function RootLayout({
           <ViewTransition>{children}</ViewTransition>
           {/* Legal footer on every route except "/" (which has LandingFooter).
               Carries the not-advice + DECA non-affiliation lines site-wide. */}
-          <AppFooter />
+          <HideOnLanding>
+            <AppFooter />
+          </HideOnLanding>
         </Providers>
       </body>
     </html>

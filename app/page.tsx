@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { TopFive } from "@/components/landing/TopFive";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -7,7 +7,6 @@ import { ProSection } from "@/components/landing/ProSection";
 import { PricingSection } from "@/components/landing/PricingSection";
 import { FAQ } from "@/components/landing/FAQ";
 import { LandingFooter } from "@/components/landing/LandingFooter";
-import type { SubscriptionTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,20 +21,9 @@ export const metadata: Metadata = {
 // visitors into signup and Pro. Auth is read once here so every CTA renders
 // correctly on first paint (no client-side subscription flash).
 export default async function LandingPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let isPro = false;
-  if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .maybeSingle<{ subscription_tier: SubscriptionTier }>();
-    isPro = data?.subscription_tier === "pro";
-  }
+  // <Header> in the root layout needs the same two facts; getViewer() is
+  // request-memoized so this resolves them once between the two.
+  const { user, isPro } = await getViewer();
   const isLoggedIn = !!user;
 
   return (

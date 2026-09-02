@@ -4,15 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "@/components/gainers/GainerRow";
+import { GainerTableHead } from "@/components/gainers/GainerTableHead";
 import { ChartDialog } from "@/components/gainers/ChartDialog";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { cn } from "@/lib/utils";
@@ -64,13 +59,18 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
     <>
     <ChartDialog gainer={chartGainer} onClose={() => setChartGainer(null)} />
     <div className="grid gap-4 md:grid-cols-[200px_1fr]">
-      <aside className="glass flex max-h-[70vh] flex-col gap-1 overflow-y-auto rounded-2xl p-2">
+      {/* A vertical list beside the table on desktop; a horizontal strip of
+          chips above it on a phone. Stacked vertically it put up to 70vh of
+          date buttons between the top of the page and any actual stock data.
+          `dvh` rather than `vh` so mobile browser chrome counts against it. */}
+      <aside className="glass flex gap-1 overflow-x-auto rounded-2xl p-2 md:max-h-[70dvh] md:flex-col md:overflow-x-visible md:overflow-y-auto">
         {dates.map((d) => (
           <button
             key={d}
             onClick={() => setSelected(d)}
+            aria-current={d === selected ? "true" : undefined}
             className={cn(
-              "rounded-lg px-3 py-2 text-left text-sm transition-colors",
+              "shrink-0 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors md:shrink md:text-left",
               d === selected
                 ? "bg-brand/20 text-foreground"
                 : "text-muted-foreground hover:bg-foreground/5",
@@ -110,18 +110,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
 
         {!isLoading && data?.status === 200 && (
           <Table>
-            <TableHeader>
-              <TableRow className="border-foreground/10 hover:bg-transparent">
-                <TableHead className="w-12">#</TableHead>
-                <TableHead>Ticker</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Change</TableHead>
-                <TableHead className="text-right">Market Cap</TableHead>
-                <TableHead className="text-right">Rel. Vol</TableHead>
-                <TableHead>Sector</TableHead>
-              </TableRow>
-            </TableHeader>
+            <GainerTableHead />
             <TableBody>
               {data.gainers.slice(0, 50).map((g, i) => (
                 <GainerRow

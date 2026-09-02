@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-const LINKS = [
-  { href: "/screener", label: "Screener" },
-  { href: "/analysis", label: "Analysis" },
-  { href: "/history", label: "History" },
-];
+import { LINKS, isActivePath } from "@/lib/nav";
 
 /** The header's text nav. Client-side only for `usePathname` — the active
  *  link takes a brand→foreground gradient (cyan fading into polar white in
@@ -19,7 +14,7 @@ export function NavLinks() {
   return (
     <>
       {LINKS.map(({ href, label }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+        const active = isActivePath(pathname, href);
         return (
           <Link
             key={href}

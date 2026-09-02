@@ -33,16 +33,22 @@ export function ChartDayMeta({
   const up = (changePercent ?? 0) >= 0;
   const Arrow = up ? TrendingUp : TrendingDown;
 
-  // The cluster never wraps and never shrinks (`shrink-0`): the title beside it
-  // truncates instead, so the date/%/rank stay on one line beside the title at
-  // every dialog width. The leading divider is always visible because the two
-  // are guaranteed to share a line — no viewport breakpoint to fall out of sync
-  // with the dialog's own (capped) width.
+  // From `sm:` up the cluster never wraps and never shrinks (`sm:shrink-0`):
+  // the title beside it truncates instead, so the date/%/rank stay on one line
+  // beside the title at every *desktop* dialog width.
+  //
+  // Below `sm:` that guarantee can't hold — the cluster alone is wider than a
+  // 375px dialog's content box — so it wraps onto its own line under the title
+  // instead (the parent row in ChartDialog is `flex-wrap sm:flex-nowrap`).
+  // Holding shrink-0 there pushed the whole cluster out of an `overflow-hidden`
+  // popup, taking the favorite star — the only touch affordance for favoriting
+  // — with it. The leading divider is therefore desktop-only: on its own line
+  // it would dangle at the start of the row.
   return (
-    <div className="flex shrink-0 items-center gap-x-3 text-[13px]">
+    <div className="flex items-center gap-x-3 text-[13px] sm:shrink-0">
       <span
         aria-hidden
-        className="h-4 w-px shrink-0 bg-foreground/15"
+        className="hidden h-4 w-px shrink-0 bg-foreground/15 sm:block"
       />
       <span className="font-medium text-muted-foreground tabular-nums">
         {formatDayLabel(date)}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { TrendingUp } from "lucide-react";
 import { CountUp } from "./CountUp";
 import { StreakBadge } from "./StreakBadge";
@@ -43,11 +42,12 @@ function HeroCard({
   const decimals = Math.abs(change) >= 100 ? 0 : 2;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.06, ease: "easeOut" }}
-      className="group relative h-full cursor-pointer"
+    // Staggered fade-up on mount. CSS (`.animate-card-rise`) rather than
+    // framer-motion: this and <Reveal> were the library's only two uses, both
+    // plain opacity/transform, and it cost ~40KB gzip on every screener load.
+    <div
+      className="group animate-card-rise relative h-full cursor-pointer"
+      style={{ animationDelay: `${index * 60}ms` }}
       onClick={onClick}
     >
       {/* Painted above the card (later positioned sibling) so the cyan ring
@@ -83,7 +83,7 @@ function HeroCard({
           {formatPrice(gainer.price)}
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTodayET } from "@/lib/market-calendar";
 import { AnalysisList } from "@/components/ai/AnalysisList";
 import { PageHeader } from "@/components/layout/PageHeader";
-import type { AIAnalysis, SubscriptionTier } from "@/lib/supabase/types";
+import type { AIAnalysis } from "@/lib/supabase/types";
 import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
@@ -95,18 +95,10 @@ function AnalysisTeaser({ signedIn }: { signedIn: boolean }) {
 }
 
 export default async function AnalysisPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Shared with <Header> for this request — see lib/viewer.ts.
+  const { user, isPro } = await getViewer();
   if (!user) return <AnalysisTeaser signedIn={false} />;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("subscription_tier")
-    .eq("id", user.id)
-    .maybeSingle<{ subscription_tier: SubscriptionTier }>();
-  if (profile?.subscription_tier !== "pro") return <AnalysisTeaser signedIn />;
+  if (!isPro) return <AnalysisTeaser signedIn />;
 
   // Latest date that actually has theses (≤ today) — so pre-drop we still show the
   // most recent set rather than an empty page.
