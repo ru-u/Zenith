@@ -9,7 +9,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GainerRow } from "@/lib/marketdata/types";
 import type { Database } from "@/lib/supabase/types";
-import { expectedMovePercent, type BaseRate } from "@/lib/baseRates";
+import {
+  dayRangePct,
+  expectedMovePercent,
+  resolveBaseRate,
+  type BaseRate,
+} from "@/lib/baseRates";
 import { detectCatalyst } from "./quant/edgar";
 import { detectNewsCatalyst } from "./quant/news";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
@@ -155,7 +160,9 @@ export async function generateAnalysis(
 /**
  * Generate + store theses for the top `count` gainers of a day, skipping any
  * that already exist. `streaks` maps ticker -> prior-day streak count;
- * `baseRates` maps ticker -> resolved empirical prior. Called from the
+ * `baseRateTable` is the raw bucket table — priors are resolved here rather
+ * than by the caller, because the magnitude dimension needs today's intraday
+ * range, which only exists once the technicals fetch below has run. Called from the
  * pre-close drop / EOD. Free to run (no Anthropic spend in the default
  * template mode), so it is NOT behind the AI_THESES_ENABLED switch.
  * Returns the number created.
@@ -165,7 +172,7 @@ export async function generateAndStoreTopAnalyses(
   gainers: GainerRow[],
   dateKey: string,
   streaks: Map<string, number>,
-  baseRates: Map<string, BaseRate | null>,
+  baseRateTable: BaseRate[],
   count = 5,
 ): Promise<number> {
   const top = gainers.slice(0, count);
@@ -197,6 +204,23 @@ export async function generateAndStoreTopAnalyses(
   const techs = await fetchTechnicals(
     top.map((g) => ({ ticker: g.ticker, exchange: g.exchange })),
   );
+
+  // Resolve each prior now that intraday high/low are in hand. A ticker whose
+  // technicals failed has no range band and falls through to the cap×relvol
+  // bucket — identical to the pre-magnitude behaviour, never a guess.
+  const baseRates = new Map<string, BaseRate | null>();
+  for (const g of top) {
+    const t = techs.get(g.ticker) ?? null;
+    baseRates.set(
+      g.ticker,
+      resolveBaseRate(
+        baseRateTable,
+        g.marketCap,
+        g.relativeVolume,
+        dayRangePct(t?.dayHigh, t?.dayLow),
+      ),
+    );
+  }
 
   // Candidate-signal snapshots (levels, serial-runner, FINRA, pinned tape) —
   // stored with each thesis for the September re-fit. Only `pinned` feeds

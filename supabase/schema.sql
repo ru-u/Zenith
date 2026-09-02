@@ -126,17 +126,19 @@ create index if not exists historical_gainers_bucket_idx
   on public.historical_gainers (market_cap, relative_volume);
 
 -- gainer_base_rates — precomputed "closed lower next day" rates by feature bucket.
--- cap_band/relvol_band = 'ALL' for the coarser fallbacks (cap-only, then global).
+-- Any band = 'ALL' marks a coarser fallback level; lib/baseRates.ts resolves
+-- most-specific-first (cap×relvol×range → cap×range → cap×relvol → cap → global).
 create table if not exists public.gainer_base_rates (
   cap_band               text not null,  -- nano | micro | small | mid | ALL
   relvol_band            text not null,  -- rv_lt5 | rv_5_20 | rv_20_100 | rv_100plus | ALL
+  range_band             text not null default 'ALL',  -- r_lo | r_mid | r_hi | ALL
   n                      integer not null,
   down_rate              numeric not null,  -- P(next_day_down), 0..1
   median_next_day_return numeric,
   median_down_move       numeric,  -- typical move when it closed lower (fraction, < 0)
   median_up_move         numeric,  -- typical move when it closed higher (fraction, > 0)
   updated_at             timestamptz not null default now(),
-  primary key (cap_band, relvol_band)
+  primary key (cap_band, relvol_band, range_band)
 );
 
 alter table public.historical_gainers enable row level security;
