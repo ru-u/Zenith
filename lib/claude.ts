@@ -19,6 +19,7 @@ import { detectCatalyst } from "./quant/edgar";
 import { detectNewsCatalyst } from "./quant/news";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
 import { scoreShort } from "./quant/score";
+import { effectiveAgeDays, isRecentListing } from "./quant/listing";
 import {
   buildFeatureSnapshots,
   type FeatureSnapshot,
@@ -125,6 +126,7 @@ export async function generateAnalysis(
       catalyst_type,
       tech,
       snapshot?.pinned_tape.pinned ?? false,
+      isRecentListing(snapshot?.listing ?? null),
     );
     const expected_move_percent = expectedMovePercent(scored.percent_win_estimate, baseRate);
     const short_thesis = await generateThesisText({
@@ -138,6 +140,7 @@ export async function generateAnalysis(
       percentWin: scored.percent_win_estimate,
       expectedMove: expected_move_percent,
       path: snapshot?.path ?? null,
+      listingAgeDays: effectiveAgeDays(snapshot?.listing ?? null),
     });
     return {
       catalyst:
@@ -249,6 +252,7 @@ export async function generateAndStoreTopAnalyses(
       {
         date: dateKey,
         ticker: g.ticker,
+        listing_age_days: effectiveAgeDays(snapshot?.listing ?? null),
         short_thesis: a.short_thesis,
         catalyst: a.catalyst,
         catalyst_url: a.catalyst_url || null,

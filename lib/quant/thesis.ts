@@ -7,6 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { GainerRow } from "../marketdata/types";
 import { formatBaseRatePrior, type BaseRate } from "../baseRates";
+import { RECENT_LISTING_DAYS } from "./listing";
 import type { Technicals } from "./technicals";
 import type { PathFeatures } from "./features";
 
@@ -41,6 +42,8 @@ export interface ThesisFindings {
   expectedMove: number | null;
   /** Price-path/levels context for the chart sentence (lib/quant/features.ts). */
   path: PathFeatures | null;
+  /** Days of trading history, when short enough to matter (lib/quant/listing.ts). */
+  listingAgeDays: number | null;
 }
 
 /**
@@ -49,9 +52,26 @@ export interface ThesisFindings {
  * direction-neutral: it teaches the chart shape, it does not predict from it
  * (whether these shapes fade differently is a September calibration question).
  */
+/**
+ * A new listing gets said out loud, because the alternative is worse than
+ * silence: TradingView computes its performance windows over whatever bars
+ * exist, so a stock with four sessions still reports a three-month range, and
+ * levelContextSentence would confidently describe "a range it already traded
+ * this quarter" that never existed.
+ */
+function listingSentence(f: ThesisFindings): string | null {
+  const days = f.listingAgeDays;
+  if (days == null || days > RECENT_LISTING_DAYS) return null;
+  const when =
+    days <= 7 ? "in the last week" : days <= 14 ? "in the last two weeks" : "within the last month";
+  return `This only started trading ${when}, so there's no real price history behind it — no prior levels, no established range, and a thin float that can move violently in either direction. New listings are dangerous to short whatever the odds say, so the score is capped here.`;
+}
+
 function levelContextSentence(f: ThesisFindings): string | null {
   const p = f.path;
   if (!p) return null;
+  // Levels need history to mean anything; see listingSentence.
+  if (f.listingAgeDays != null && f.listingAgeDays <= RECENT_LISTING_DAYS) return null;
   const headroom = p.headroom_to_prior_peak_pct;
   if (p.is_new_high_3m) {
     return "On the chart this is price discovery — today's spike took it above everything it's traded in the past three months, so there's no prior level overhead.";
@@ -133,7 +153,10 @@ function templateThesis(f: ThesisFindings): string {
     );
   }
 
-  // 3 — where today's move sits on the recent graph (recovery vs discovery).
+  // 3 — where today's move sits on the recent graph (recovery vs discovery),
+  // or, for a new listing, the fact that there is no graph to sit on.
+  const listing = listingSentence(f);
+  if (listing) sentences.push(listing);
   const level = levelContextSentence(f);
   if (level) sentences.push(level);
 
