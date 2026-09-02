@@ -48,6 +48,14 @@ function SummaryRow({
             {a.ticker}
           </button>
           <span className="flex shrink-0 items-center gap-1.5">
+            {a.listing_age_days != null && a.listing_age_days <= 30 && (
+              <span
+                title={`First traded about ${a.listing_age_days} day${a.listing_age_days === 1 ? "" : "s"} ago — too little price history to lean on, and the score is capped because of it`}
+                className="rounded-full border border-amber-600/30 bg-amber-600/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-300"
+              >
+                New listing
+              </span>
+            )}
             {a.catalyst_type === "macro" && (
               <span className="rounded-full border border-amber-600/30 bg-amber-600/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-300">
                 Sector move

@@ -37,6 +37,13 @@ const NEAR_52W_BAND = 0.02;
 // It was a binary +2 at a ≥100% day and the only place move size was visible at
 // all; a ≥100% day is almost always in the top range tertile, which on its own
 // carries a 67.5% down-rate, so keeping both would double-count.)
+// Recent listings win often and lose catastrophically. Across the live record
+// sub-90-day listings closed lower 71% of the time yet averaged -8.8% — the
+// only age bucket with a negative mean — because the losses are unbounded on
+// no float: USDE, 55 days listed, doubled overnight for the worst trade on
+// record (-99.4%). A cap, not a Δ: it can stop a bad recommendation but never
+// manufacture one, so it costs at most some upside on a thin sample.
+const RECENT_LISTING_SCORE_CAP = 6;
 const D_STREAK_PER_DAY = 0; // deliberately neutral (matches the old prompt); tunable
 const WIN_FLOOR = 5; // never claim certainty in either direction
 const WIN_CEILING = 95;
@@ -69,6 +76,8 @@ export function scoreShort(
   tech: Technicals | null,
   /** Deal-price tape signature (lib/quant/features.ts computePinnedTape). */
   pinned = false,
+  /** Listed within RECENT_LISTING_DAYS, or with under a month of tape. */
+  recentListing = false,
 ): ShortScore {
   let win = baseRate ? baseRate.down_rate * 100 : FALLBACK_WIN;
 
@@ -126,6 +135,9 @@ export function scoreShort(
   // move would otherwise score 6-7 as "other". A cap only prevents recommending
   // shorts with no payoff; it can't create a bad recommendation.
   if (pinned && !BULLISH_CATALYSTS.has(catalystType)) score = Math.min(score, 3);
+  // Applied last and unconditionally — a fresh listing is dangerous to short
+  // whatever the catalyst says, and the catalyst caps above are all tighter.
+  if (recentListing) score = Math.min(score, RECENT_LISTING_SCORE_CAP);
 
   return { short_score: score, percent_win_estimate: win };
 }

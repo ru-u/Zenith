@@ -93,6 +93,10 @@ alter table public.ai_analyses add column if not exists exchange text;
 alter table public.ai_analyses add column if not exists next_date date;
 alter table public.ai_analyses add column if not exists next_close double precision;
 alter table public.ai_analyses add column if not exists next_change_percent double precision;
+-- Listing age at scoring time. Only written for recent listings — the score cap
+-- in lib/quant/score.ts keys off it, and it is the sample a later re-fit of the
+-- 30-day cap threshold would use.
+alter table public.ai_analyses add column if not exists listing_age_days integer;
 alter table public.ai_analyses add column if not exists outcome_win boolean;
 -- Candidate-signal snapshot + payoff dimension (lib/quant/features.ts)
 alter table public.ai_analyses add column if not exists features jsonb;

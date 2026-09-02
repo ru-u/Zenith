@@ -76,6 +76,11 @@ export type AIAnalysis = {
   // Denormalized listing venue (like rank/company_name) so the Pro analysis
   // chart embeds can qualify the symbol without joining daily_gainers.
   exchange: string | null;
+  // Calendar days from listing to the scored session. Written only when the
+  // listing is recent enough to matter (see CAPTURE_LISTING_DAYS); null means
+  // "established, or unknown" — a listing date for a four-year-old biotech is
+  // not worth storing. Drives the "New listing" badge and the score cap.
+  listing_age_days: number | null;
   // Realized next-session outcome, filled by the following day's EOD run
   // (lib/quant/outcomes.ts). Null until recorded; stays null for rows whose
   // next session passed before the recorder existed.

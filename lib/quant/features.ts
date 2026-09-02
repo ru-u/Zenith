@@ -5,16 +5,18 @@
 // traded three weeks earlier, and the engine both ignored the streak
 // (D_STREAK_PER_DAY = 0) and couldn't see the levels at all.
 //
-// Two deliberate exceptions leave this file as a live input: `pinned` feeds
-// the pinned-tape safety cap in score.ts, and `sector.is_sector_move` feeds
-// the macro/sector cap (a cap, like the buyout cap, can only prevent bad
-// recommendations). Everything else is storage-only.
+// Three deliberate exceptions leave this file as a live input: `pinned` feeds
+// the pinned-tape safety cap in score.ts, `sector.is_sector_move` feeds the
+// macro/sector cap, and `listing` feeds the recent-listing cap (a cap, like
+// the buyout cap, can only prevent bad recommendations). Everything else is
+// storage-only.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase/types";
 import type { GainerRow } from "../marketdata/types";
 import type { BaseRate } from "../baseRates";
 import type { Technicals } from "./technicals";
+import { detectListingAge, isCaptureWorthy, type ListingAge } from "./listing";
 import { SCAN_URL, USER_AGENT } from "../marketdata/tradingview";
 import { withRetry } from "../retry";
 import { tradingDaysAgoKey } from "../market-calendar";
@@ -64,6 +66,12 @@ export interface SectorContext {
 
 export interface FeatureSnapshot {
   path: PathFeatures;
+  /**
+   * How long the symbol has actually been trading. Null when it is old enough
+   * not to matter — a listing date for a four-year-old biotech is not a fact
+   * worth a row. Feeds the score cap in score.ts, unlike most of this struct.
+   */
+  listing: ListingAge | null;
   pinned_tape: PinnedTape;
   serial: SerialRunnerFeatures | null;
   /** FINRA short volume / total volume for the prior session, 0..1. */
@@ -331,19 +339,28 @@ export async function buildFeatureSnapshots(
   const proxySymbols = [
     ...new Set(sectors.flatMap((s) => SECTOR_PROXIES[s] ?? []).map((p) => p.symbol)),
   ];
-  const [serial, shortRatios, etfChanges, sectorCounts] = await Promise.all([
+  const [serial, shortRatios, etfChanges, sectorCounts, listings] = await Promise.all([
     fetchSerialRunnerFeatures(admin, tickers, dateKey),
     fetchShortVolumeRatios(tickers, dateKey),
     fetchEtfChanges(proxySymbols),
     fetchSectorBreadth(admin, sectors, dateKey),
+    // One Finnhub profile call per scored ticker (five a day) — well inside the
+    // free tier the headline fallback already shares.
+    Promise.all(
+      gainers.map((g) =>
+        detectListingAge(g.ticker, dateKey, g.companyName ?? null, g.exchange, techs.get(g.ticker) ?? null),
+      ),
+    ).then((rows) => new Map(gainers.map((g, i) => [g.ticker, rows[i]]))),
   ]);
 
   const out = new Map<string, FeatureSnapshot>();
   for (const g of gainers) {
     const tech = techs.get(g.ticker) ?? null;
     const br = baseRates.get(g.ticker) ?? null;
+    const age = listings.get(g.ticker) ?? null;
     out.set(g.ticker, {
       path: computePathFeatures(g, tech),
+      listing: isCaptureWorthy(age) ? age : null,
       pinned_tape: computePinnedTape(g, tech),
       serial: serial.get(g.ticker) ?? null,
       finra_short_ratio: shortRatios.get(g.ticker) ?? null,
