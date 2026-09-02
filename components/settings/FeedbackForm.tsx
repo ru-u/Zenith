@@ -96,7 +96,10 @@ export function FeedbackForm() {
         placeholder={PLACEHOLDER[type]}
         maxLength={2000}
         rows={4}
-        className="w-full resize-y rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand/50"
+        // text-base below md: iOS zooms the page in when a focused field is
+        // under 16px, and this raw <textarea> was the only control in the app
+        // not already following <Input>'s treatment.
+        className="w-full resize-y rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand/50 md:text-sm"
       />
 
       {error && <p className="text-sm text-down">{error}</p>}

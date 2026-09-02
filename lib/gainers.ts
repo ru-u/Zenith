@@ -4,6 +4,11 @@ import type { GainerRow } from "./marketdata/types";
 import { isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
 import { isAllowedExchange } from "./marketdata/symbols";
 import { maybeAlert } from "./alerts";
+import {
+  getMarketStatus,
+  isDataStale,
+  type MarketStatus,
+} from "./market-calendar";
 
 /** Map a normalized provider row to a daily_gainers insert. */
 function toDbRow(row: GainerRow, dateKey: string, isFinal: boolean, scrapedAt: string) {
@@ -256,4 +261,72 @@ export function latestScrapedAt(rows: DailyGainer[]): string | null {
     if (!latest || r.scraped_at > latest) latest = r.scraped_at;
   }
   return latest;
+}
+
+/** Minutes before stored data counts as stale. Shared so the API route and any
+ *  server-side prefetch report the same freshness. */
+export const FRESHNESS_MINUTES = 10;
+
+export interface GainersPayload {
+  date: string;
+  asOf: string | null;
+  stale: boolean;
+  status: MarketStatus;
+  gainers: DailyGainer[];
+}
+
+/**
+ * The side-effect-free half of `GET /api/gainers`: given what's already in the
+ * database, pick the day to serve, clean it, and shape the response.
+ *
+ * Split out so a server render can seed the client cache without going near
+ * the rest of that route — which refreshes from the provider, freezes the
+ * official close, and triggers the pre-close drop. Those must stay on the
+ * request path and off the render path (a render firing provider calls is a
+ * bug this codebase has already had once). Everything here is reads.
+ *
+ * `seed` lets the route pass rows it has just refreshed, so the two callers
+ * share this logic instead of keeping parallel copies of it.
+ */
+export async function serveStoredGainers(
+  client: SupabaseClient<Database>,
+  dateKey: string,
+  seed?: { rows: DailyGainer[]; asOf: string | null },
+): Promise<GainersPayload> {
+  let servedDate = dateKey;
+  let rows = seed ? seed.rows : await getCachedGainers(client, dateKey);
+  let asOf = seed ? seed.asOf : latestScrapedAt(rows);
+
+  // Nothing for today (weekend/holiday/before the first scrape of a new day) —
+  // serve the most recent stored day so the page isn't empty, WITHOUT creating
+  // a row for a non-trading day.
+  if (rows.length === 0) {
+    const latest = await getLatestGainersDate(client);
+    if (latest && latest !== dateKey) {
+      rows = await getCachedGainers(client, latest);
+      asOf = latestScrapedAt(rows);
+      servedDate = latest;
+    }
+  }
+
+  // Drop reverse-split artifacts stored before the ingestion guard existed,
+  // then frozen repeats (e.g. a halted stock reporting identical values daily)
+  // vs the prior trading day.
+  rows = dropSplitArtifacts(rows);
+  const prevDate = await getGainersDateBefore(client, servedDate);
+  if (prevDate) {
+    rows = dropFrozenRepeats(rows, await getCachedGainers(client, prevDate));
+  }
+
+  return {
+    date: servedDate,
+    asOf,
+    stale: isDataStale(asOf, FRESHNESS_MINUTES),
+    status: getMarketStatus({
+      isFinal: rows.some((r) => r.is_final),
+      scrapedAt: asOf,
+      isToday: servedDate === dateKey,
+    }),
+    gainers: rows,
+  };
 }

@@ -5,6 +5,7 @@ import { FilterBar } from "@/components/gainers/FilterBar";
 import { GainersTable } from "@/components/gainers/GainersTable";
 import { AIAnalysisCard } from "@/components/ai/AIAnalysisCard";
 import { SignupPromptDialog } from "@/components/gainers/SignupPromptDialog";
+import { GainersHydration } from "@/lib/prefetchGainers";
 
 export const metadata: Metadata = {
   title: "Today's Top Short Candidates",
@@ -15,13 +16,17 @@ export const metadata: Metadata = {
 export default function ScreenerPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10">
-      <GainersHero />
-      <TradeWindowBanner />
-      <AIAnalysisCard />
-      <section className="flex flex-col gap-3">
-        <FilterBar />
-        <GainersTable limit={50} />
-      </section>
+      {/* Hero and table both read the ["gainers"] query, so one boundary seeds
+          the whole page from the database. See lib/prefetchGainers.tsx. */}
+      <GainersHydration>
+        <GainersHero />
+        <TradeWindowBanner />
+        <AIAnalysisCard />
+        <section className="flex flex-col gap-3">
+          <FilterBar />
+          <GainersTable limit={50} />
+        </section>
+      </GainersHydration>
       {/* No repeat below the table: <AppFooter> lands immediately after it and
           carries the same two lines. */}
       {/* One shared, dismissible prompt for guests who click a favorite star. */}

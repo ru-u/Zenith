@@ -59,13 +59,18 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
     <>
     <ChartDialog gainer={chartGainer} onClose={() => setChartGainer(null)} />
     <div className="grid gap-4 md:grid-cols-[200px_1fr]">
-      <aside className="glass flex max-h-[70vh] flex-col gap-1 overflow-y-auto rounded-2xl p-2">
+      {/* A vertical list beside the table on desktop; a horizontal strip of
+          chips above it on a phone. Stacked vertically it put up to 70vh of
+          date buttons between the top of the page and any actual stock data.
+          `dvh` rather than `vh` so mobile browser chrome counts against it. */}
+      <aside className="glass flex gap-1 overflow-x-auto rounded-2xl p-2 md:max-h-[70dvh] md:flex-col md:overflow-x-visible md:overflow-y-auto">
         {dates.map((d) => (
           <button
             key={d}
             onClick={() => setSelected(d)}
+            aria-current={d === selected ? "true" : undefined}
             className={cn(
-              "rounded-lg px-3 py-2 text-left text-sm transition-colors",
+              "shrink-0 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors md:shrink md:text-left",
               d === selected
                 ? "bg-brand/20 text-foreground"
                 : "text-muted-foreground hover:bg-foreground/5",

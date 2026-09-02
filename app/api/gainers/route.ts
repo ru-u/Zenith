@@ -4,17 +4,14 @@ import { getProvider, ProviderError } from "@/lib/marketdata";
 import { runEodProcessing, runPreCloseProcessing } from "@/lib/eod";
 import { maybeAlert } from "@/lib/alerts";
 import {
-  dropFrozenRepeats,
-  dropSplitArtifacts,
+  FRESHNESS_MINUTES,
   getCachedGainers,
-  getGainersDateBefore,
-  getLatestGainersDate,
   latestScrapedAt,
   persistGainers,
+  serveStoredGainers,
 } from "@/lib/gainers";
 import {
   getTodayET,
-  getMarketStatus,
   getMarketSession,
   isDataStale,
   minutesSinceCloseET,
@@ -30,7 +27,6 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const FETCH_LIMIT = 100;
-const FRESHNESS_MINUTES = 10;
 // Wait this long after the 4:00 PM ET close before freezing the official close.
 // Covers the NYSE/Nasdaq closing auction AND the provider's 15-minute feed
 // delay (`update_mode: "delayed_streaming_900"`) — at 4:05 the scanner is still
@@ -68,7 +64,6 @@ export async function GET(req: Request) {
   const admin = createAdminClient();
   const dateKey = getTodayET();
 
-  let servedDate = dateKey;
   let rows = await getCachedGainers(admin, dateKey);
   let asOf = latestScrapedAt(rows);
 
@@ -154,42 +149,11 @@ export async function GET(req: Request) {
     }
   }
 
-  // Nothing for today (weekend/holiday/before the first scrape of a new day) —
-  // serve the most recent stored day so the page isn't empty, WITHOUT creating
-  // a row for a non-trading day.
-  if (rows.length === 0) {
-    const latest = await getLatestGainersDate(admin);
-    if (latest && latest !== dateKey) {
-      rows = await getCachedGainers(admin, latest);
-      asOf = latestScrapedAt(rows);
-      servedDate = latest;
-    }
-  }
-
-  // Drop reverse-split artifacts stored before the ingestion guard existed,
-  // then frozen repeats (e.g. a halted stock reporting identical values daily)
-  // vs the prior trading day.
-  rows = dropSplitArtifacts(rows);
-  const prevDate = await getGainersDateBefore(admin, servedDate);
-  if (prevDate) {
-    rows = dropFrozenRepeats(rows, await getCachedGainers(admin, prevDate));
-  }
-
-  const isFinal = rows.some((r) => r.is_final);
-  const status = getMarketStatus({
-    isFinal,
-    scrapedAt: asOf,
-    isToday: servedDate === dateKey,
+  // Day selection, cleaning and response shape are shared with the server-side
+  // prefetch on "/" and /screener — see serveStoredGainers. Everything above
+  // this point (provider refresh, close capture, the pre-close drop) is the
+  // half that must only ever run on a request, never from a render.
+  return NextResponse.json(await serveStoredGainers(admin, dateKey, { rows, asOf }), {
+    headers: { "cache-control": "no-store" },
   });
-
-  return NextResponse.json(
-    {
-      date: servedDate,
-      asOf,
-      stale: isDataStale(asOf, FRESHNESS_MINUTES),
-      status,
-      gainers: rows,
-    },
-    { headers: { "cache-control": "no-store" } },
-  );
 }

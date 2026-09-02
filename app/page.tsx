@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getViewer } from "@/lib/viewer";
+import { GainersHydration } from "@/lib/prefetchGainers";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { TopFive } from "@/components/landing/TopFive";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -30,7 +31,11 @@ export default async function LandingPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1">
         <LandingHero isLoggedIn={isLoggedIn} isPro={isPro} />
-        <TopFive isPro={isPro} />
+        {/* The funnel panel showed skeletons until hydration finished; this
+            paints it with the HTML. See lib/prefetchGainers.tsx. */}
+        <GainersHydration>
+          <TopFive isPro={isPro} />
+        </GainersHydration>
         <HowItWorks />
         <ProSection isLoggedIn={isLoggedIn} />
         <PricingSection isLoggedIn={isLoggedIn} isPro={isPro} />

@@ -70,7 +70,9 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                /* 28px is fine for a mouse; on touch this is the dialog's
+                   only exit besides the backdrop. */
+                className="absolute top-2 right-2 size-10 pointer-fine:size-7"
                 size="icon-sm"
               />
             }
