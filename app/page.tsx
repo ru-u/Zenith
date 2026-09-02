@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { getViewer } from "@/lib/viewer";
-import { GainersHydration } from "@/lib/prefetchGainers";
-import { Suspense } from "react";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { TopFive } from "@/components/landing/TopFive";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -32,19 +30,7 @@ export default async function LandingPage() {
     <div className="flex flex-1 flex-col">
       <main className="flex-1">
         <LandingHero isLoggedIn={isLoggedIn} isPro={isPro} />
-        {/* The funnel panel showed skeletons until hydration finished; this
-            paints it with the HTML. Suspended so the DB read never delays the
-            hero above it — see the note in app/screener/page.tsx. TopFive
-            renders its own skeletons with no data, so it doubles as the
-            fallback shape; the fallback here is a plain reserved box to avoid
-            mounting the client component twice. */}
-        <Suspense
-          fallback={<div className="min-h-140" aria-busy />}
-        >
-          <GainersHydration>
-            <TopFive isPro={isPro} />
-          </GainersHydration>
-        </Suspense>
+        <TopFive isPro={isPro} />
         <HowItWorks />
         <ProSection isLoggedIn={isLoggedIn} />
         <PricingSection isLoggedIn={isLoggedIn} isPro={isPro} />
