@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { UserMenu } from "./UserMenu";
 import { Logo } from "./Logo";
 import { NavLinks } from "./NavLinks";
+import { MobileNav } from "./MobileNav";
 import { ThemeToggleButton } from "./ThemeToggleButton";
 import type { SubscriptionTier } from "@/lib/supabase/types";
 import { displayName } from "@/lib/displayName";
@@ -33,7 +34,9 @@ export async function Header() {
 
         <nav className="flex items-center gap-1 text-sm sm:gap-2">
           {/* Text nav collapses on phones — the header otherwise overflows
-              narrow viewports and drags the whole page wider. */}
+              narrow viewports and drags the whole page wider. <MobileNav>
+              below carries the same routes in a drawer, so the phone header is
+              Logo · Upgrade · theme · menu. */}
           <NavLinks />
 
           {isPro ? (
@@ -56,16 +59,30 @@ export async function Header() {
           {/* Theme toggle — available to everyone, signed in or not. */}
           <ThemeToggleButton />
 
+          {/* Both of these are desktop-only: on phones the same actions live
+              in <MobileNav>'s drawer, and rendering an avatar menu beside a
+              hamburger gives a phone user two menus to choose between. */}
           {user ? (
-            <UserMenu name={displayName(user)} email={user.email ?? undefined} />
+            <span className="hidden sm:contents">
+              <UserMenu
+                name={displayName(user)}
+                email={user.email ?? undefined}
+              />
+            </span>
           ) : (
             <Link
               href="/auth/login"
-              className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+              className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
             >
               Sign in
             </Link>
           )}
+
+          <MobileNav
+            isSignedIn={!!user}
+            name={user ? displayName(user) : undefined}
+            email={user?.email ?? undefined}
+          />
         </nav>
       </div>
     </header>

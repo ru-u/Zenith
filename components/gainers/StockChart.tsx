@@ -3,6 +3,14 @@
 import { useEffect, useId, useRef } from "react";
 import { useTheme } from "next-themes";
 import { qualifiedSymbol } from "@/lib/marketdata/symbols";
+import { cn } from "@/lib/utils";
+
+// The chart's footprint, shared so the sign-up gate and the loading state in
+// ChartDialog keep matching it exactly (a mismatch makes the dialog resize
+// under the user when auth resolves). 680px is the desktop size this has
+// always been; on a phone that alone overflowed the viewport, so it becomes a
+// fraction of the small viewport height with a floor for landscape.
+export const CHART_FOOTPRINT = "h-[60svh] min-h-72 sm:h-170";
 
 declare global {
   interface Window {
@@ -144,7 +152,7 @@ export function StockChart({
   }, [ticker, exchange, chartTheme, containerId]);
 
   return (
-    <div className="w-full" style={{ height: 680 }}>
+    <div className={cn("w-full", CHART_FOOTPRINT)}>
       <div
         id={containerId}
         ref={containerRef}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LEGAL_CONTACT_EMAIL, NOT_ADVICE, NOT_AFFILIATED } from "@/lib/legal";
+import { LINKS } from "./NavLinks";
 
 // The app-side legal footer. Until this existed, <LandingFooter> was the only
 // footer in the product and it renders on "/" alone — so /screener, /analysis,
@@ -25,34 +26,54 @@ export function AppFooter() {
           respective owners. Zenith does not execute trades. Market data may be
           delayed or incomplete.
         </p>
-        <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        {/* The app's own routes, repeated here because the header's text nav
+            is hidden on phones. The drawer is the primary path; this is a
+            second one that costs nothing. */}
+        <nav
+          aria-label="Site"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs"
+        >
+          {LINKS.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className="py-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs"
+        >
           <Link
             href="/privacy"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="py-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             Privacy Policy
           </Link>
           <Link
             href="/terms"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="py-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             Terms &amp; Conditions
           </Link>
           <Link
             href="/engine"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="py-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             The Engine
           </Link>
           <Link
             href="/cookies"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="py-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             Cookie Policy
           </Link>
           <a
             href={`mailto:${LEGAL_CONTACT_EMAIL}`}
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="py-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             {LEGAL_CONTACT_EMAIL}
           </a>

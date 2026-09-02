@@ -5,12 +5,11 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "./GainerRow";
+import { GainerTableHead } from "./GainerTableHead";
 import { ChartDialog } from "./ChartDialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
@@ -71,18 +70,7 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
     />
     <div className="glass overflow-hidden rounded-2xl">
       <Table>
-        <TableHeader>
-          <TableRow className="border-foreground/10 hover:bg-transparent">
-            <TableHead className="w-16">#</TableHead>
-            <TableHead>Ticker</TableHead>
-            <TableHead>Company</TableHead>
-            <TableHead className="text-right">Price</TableHead>
-            <TableHead className="text-right">Change</TableHead>
-            <TableHead className="text-right">Market Cap</TableHead>
-            <TableHead className="text-right">Rel. Vol</TableHead>
-            <TableHead>Sector</TableHead>
-          </TableRow>
-        </TableHeader>
+        <GainerTableHead />
         <TableBody>
           {isLoading &&
             Array.from({ length: 8 }).map((_, i) => (

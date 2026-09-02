@@ -12,6 +12,7 @@ import {
   formatRelVolume,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { SECONDARY_COL } from "./GainerTableHead";
 
 export function GainerRow({
   gainer,
@@ -67,7 +68,7 @@ export function GainerRow({
           <StreakBadge count={streak} />
         </div>
       </TableCell>
-      <TableCell className="max-w-55 truncate text-muted-foreground">
+      <TableCell className={cn(SECONDARY_COL, "max-w-55 truncate text-muted-foreground")}>
         {gainer.company_name ?? "—"}
       </TableCell>
       <TableCell className="text-right tabular-nums">
@@ -81,13 +82,13 @@ export function GainerRow({
       >
         {formatPercent(gainer.change_percent)}
       </TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">
+      <TableCell className={cn(SECONDARY_COL, "text-right tabular-nums text-muted-foreground")}>
         {formatMarketCap(gainer.market_cap)}
       </TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">
+      <TableCell className={cn(SECONDARY_COL, "text-right tabular-nums text-muted-foreground")}>
         {formatRelVolume(gainer.relative_volume)}
       </TableCell>
-      <TableCell className="text-muted-foreground">
+      <TableCell className={cn(SECONDARY_COL, "max-w-40 truncate text-muted-foreground")}>
         {gainer.sector ?? "—"}
       </TableCell>
     </TableRow>

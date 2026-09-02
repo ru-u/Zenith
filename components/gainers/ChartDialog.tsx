@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { usePathname } from "next/navigation";
 import { LineChart } from "lucide-react";
-import { StockChart } from "./StockChart";
+import { StockChart, CHART_FOOTPRINT } from "./StockChart";
 import { ChartDayMeta } from "./ChartDayMeta";
 import { ChartHeaderClose } from "./ChartHeaderClose";
 import { AuthGatePrompt } from "./AuthGatePrompt";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSubscription } from "@/hooks/useSubscription";
 import type { DailyGainer } from "@/lib/supabase/types";
+import { cn } from "@/lib/utils";
 
 // Fake intraday walk for the blurred teaser behind the sign-up gate. Seeded by
 // ticker so every stock gets its own stable shape (no flicker across opens),
@@ -44,8 +45,9 @@ function teaserPath(ticker: string): { line: string; area: string } {
 }
 
 // Charts are account-gated: signed-out visitors get a sign-up prompt over a
-// blurred teaser chart, in the exact footprint the real chart occupies (h-170
-// = StockChart's 680px), so the dialog is indistinguishable size-wise. The
+// blurred teaser chart, in the exact footprint the real chart occupies
+// (CHART_FOOTPRINT, exported by StockChart), so the dialog is
+// indistinguishable size-wise. The
 // header (ticker + day meta) stays visible as part of the tease. `next`
 // returns the user to the page they were browsing after auth.
 function ChartSignupGate({ ticker }: { ticker: string }) {
@@ -54,7 +56,7 @@ function ChartSignupGate({ ticker }: { ticker: string }) {
   const next = encodeURIComponent(pathname || "/screener");
   const { line, area } = teaserPath(ticker);
   return (
-    <div className="relative h-170 w-full overflow-hidden">
+    <div className={cn("relative w-full overflow-hidden", CHART_FOOTPRINT)}>
       {/* Blurred fake area chart — same brand-cyan styling as the real
           TradingView overrides. scale-105 hides the blur's edge fringing. */}
       <div aria-hidden className="absolute inset-0 scale-105 blur-sm">
@@ -144,13 +146,15 @@ export function ChartDialog({
         // star) when the chart is opened by mouse/touch — that lit its
         // focus-visible ring on open. Keyboard opens still move focus in.
         initialFocus={(openType) => openType === "keyboard"}
-        className="sm:max-w-5xl p-0 overflow-hidden gap-0 bg-background"
+        className="gap-0 overflow-x-hidden overflow-y-auto bg-background p-0 sm:max-w-5xl"
       >
         <DialogHeader className="relative px-6 py-5.25 border-b border-foreground/10">
-          {/* One line at every width: the meta cluster holds its size and the
-              long company name truncates beside it, so the divider + gap between
-              the title and the date stay consistent on wide and narrow dialogs. */}
-          <div className="flex items-center gap-x-4 pr-10">
+          {/* One line at the dialog's desktop width: the meta cluster holds its
+              size and the long company name truncates beside it, so the divider
+              + gap between the title and the date stay consistent. On a phone
+              there isn't room for both — the row wraps instead, which is why
+              ChartDayMeta drops its `shrink-0` below `sm:`. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pr-10 sm:flex-nowrap">
             <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base font-semibold tracking-tight">
               <span className="shrink-0">{gainer?.ticker}</span>
               {gainer?.company_name && (
@@ -180,7 +184,7 @@ export function ChartDialog({
               exchange={gainer.exchange}
             />
           ) : loading ? (
-            <div className="h-170" aria-busy />
+            <div className={CHART_FOOTPRINT} aria-busy />
           ) : (
             <ChartSignupGate ticker={gainer.ticker} />
           ))}

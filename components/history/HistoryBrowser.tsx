@@ -4,15 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "@/components/gainers/GainerRow";
+import { GainerTableHead } from "@/components/gainers/GainerTableHead";
 import { ChartDialog } from "@/components/gainers/ChartDialog";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { cn } from "@/lib/utils";
@@ -110,18 +105,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
 
         {!isLoading && data?.status === 200 && (
           <Table>
-            <TableHeader>
-              <TableRow className="border-foreground/10 hover:bg-transparent">
-                <TableHead className="w-12">#</TableHead>
-                <TableHead>Ticker</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Change</TableHead>
-                <TableHead className="text-right">Market Cap</TableHead>
-                <TableHead className="text-right">Rel. Vol</TableHead>
-                <TableHead>Sector</TableHead>
-              </TableRow>
-            </TableHeader>
+            <GainerTableHead />
             <TableBody>
               {data.gainers.slice(0, 50).map((g, i) => (
                 <GainerRow

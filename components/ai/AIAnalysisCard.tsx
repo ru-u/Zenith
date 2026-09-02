@@ -224,7 +224,7 @@ export function AIAnalysisCard() {
         open={!!chartTicker}
         onOpenChange={(open) => !open && setChartTicker(null)}
       >
-        <DialogContent className="sm:max-w-5xl p-0 overflow-hidden gap-0">
+        <DialogContent className="gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-5xl">
           <DialogHeader className="px-6 pt-5 pb-4 border-b border-foreground/10">
             <DialogTitle className="text-base font-semibold tracking-tight">
               {chartTicker}
