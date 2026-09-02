@@ -101,6 +101,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Testing the dev server from a phone on the LAN. Next blocks cross-origin
+  // requests for /_next dev resources by default, and the failure is silent
+  // and misleading: HTML and CSS render fine, the client chunks never load, so
+  // the page looks correct but nothing interactive works. Opt in per-host via
+  // `DEV_ALLOWED_ORIGIN=192.168.x.x npm run dev` — unset (including every
+  // production build) it stays off.
+  ...(process.env.DEV_ALLOWED_ORIGIN
+    ? { allowedDevOrigins: [process.env.DEV_ALLOWED_ORIGIN] }
+    : {}),
   experimental: {
     // React <ViewTransition> on route navigations (see app/layout.tsx).
     viewTransition: true,
