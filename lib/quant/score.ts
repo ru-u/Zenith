@@ -25,7 +25,18 @@ const D_OFFERING = 8; // dilution → fade-prone
 const D_EARNINGS = -5; // genuine results can keep running
 const D_REGULATORY = -5; // genuine FDA/clinical wins can keep running
 const D_PARTNERSHIP = -3;
-const BUYOUT_WIN_CEILING = 20; // pinned near deal price — shorts rarely win
+// Pinned near a deal price, so there is no directional edge either way — a coin
+// flip on a stock that barely moves. Was 20, which scripts/calibration.mjs
+// showed to be the single worst constant in this file: predicted 20.0% against
+// a realized 50.0% (n=14, 95% CI [26.8, 73.2] — the old value sat outside the
+// interval). That one number was enough to drive the engine's whole Brier skill
+// score negative, i.e. its stated probabilities were worse than always guessing
+// the base rate; correcting it flips skill positive.
+//
+// This does NOT make buyouts shortable: `score = min(score, 2)` below is a
+// separate cap and still applies. What it fixes is the honesty of the stated
+// probability, which also feeds expectedMovePercent.
+const BUYOUT_WIN_CEILING = 50;
 const MEME_PULL_TO_50 = 0.5; // squeeze variance: pull this fraction toward a coin flip
 const D_RSI_OVERBOUGHT = 4; // daily RSI above RSI_OVERBOUGHT
 const RSI_OVERBOUGHT = 80;
