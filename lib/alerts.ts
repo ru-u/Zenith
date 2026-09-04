@@ -17,7 +17,7 @@ export type AlertType =
   // The two email ceilings, kept apart on purpose: one is a free dashboard
   // toggle, the other a billing decision, and "email failed" would leave you
   // guessing which at the moment guessing is most expensive.
-  | "auth_email_rate_limited" // Supabase's hourly auth-email cap (50/hr) refused a send
+  | "auth_email_rate_limited" // Supabase's daily auth-email cap (50/day) refused a send
   | "resend_quota_exhausted"; // Resend's daily account quota (100/day free) refused a send
 
 /**
