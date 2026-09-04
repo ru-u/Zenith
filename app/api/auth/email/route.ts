@@ -19,11 +19,13 @@ export const runtime = "nodejs";
 // costs money and reputation. Routing them through the server is the whole
 // point: every attempt now passes checkLimit and lands in the security log.
 //
-// Budget context (see CLAUDE.md): Supabase caps auth email at 50/hour, and
-// Resend's account quota caps EVERYTHING — auth email plus the pre-close drop —
-// at 100/day on the free tier. Signups bypass this route entirely
-// (SignupForm calls supabase.auth.signUp from the browser), so the limits below
-// deliberately claim only part of the hourly budget and leave the rest for them.
+// Budget context (see CLAUDE.md): Supabase caps auth email at 50/DAY (lowered
+// from 50/hour 2026-09-04), and Resend's account quota caps EVERYTHING — auth
+// email plus the pre-close drop — at 100/day on the free tier. Auth email now
+// hits the Supabase ceiling first: 50 < 100.
+//
+// The limits below are HOURLY and the cap above is DAILY, so they no longer
+// reserve anything for signups the way they were designed to — see GLOBAL_LIMIT.
 
 const MAX_EMAIL_LENGTH = 254; // RFC 5321
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,8 +34,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PER_ADDRESS_LIMIT = 3;
 // Per IP: stops one client cycling addresses to get around the above.
 const PER_IP_LIMIT = 5;
-// Across the whole route: the one that actually protects signups. Half of
-// Supabase's 50/hr, so resends can never crowd out people creating accounts.
+// Across the whole route: the one that actually protects signups. It was sized
+// as half of Supabase's then-50/hr cap, so resends could never crowd out people
+// creating accounts (who bypass this route entirely — SignupForm calls
+// supabase.auth.signUp from the browser).
+//
+// THAT RESERVATION IS GONE. Against a 50/DAY cap, 15/hr means ~3.3 hours of
+// sustained resend traffic spends the entire day's auth budget, after which
+// signups get no confirmation email and cannot sign in. The number below is
+// deliberately left alone pending a decision on how many resets/hr to allow;
+// sizing it against the daily cap means something nearer 6/hr, or moving this
+// budget to a 24h window.
 const GLOBAL_LIMIT = 15;
 const WINDOW_SECONDS = 3600;
 
@@ -139,18 +150,21 @@ export async function POST(req: Request) {
       await maybeAlert(createAdminClient(), {
         date: getTodayET(),
         type: "auth_email_rate_limited",
-        subject: "Zenith: Supabase auth-email hourly cap reached",
+        subject: "Zenith: Supabase auth-email daily cap reached",
         body: [
-          "Supabase refused an auth email because the hourly send limit is",
-          "exhausted. Anyone signing up right now is NOT receiving their",
-          "confirmation email, and will not be able to sign in.",
+          "Supabase refused an auth email because the daily send limit (50/day)",
+          "is exhausted. Anyone signing up for the REST OF TODAY is NOT receiving",
+          "their confirmation email, and will not be able to sign in. This does",
+          "not clear at the top of the hour — it clears tomorrow.",
           "",
           "Raise it: Supabase -> Authentication -> Rate Limits ->",
           "'Rate limit for sending emails'.",
           "",
-          "If it was raised recently, the ceiling underneath is Resend's daily",
-          "account quota (100/day on the free tier), shared with the pre-close",
-          "drop. Check the Resend dashboard before raising this further.",
+          "The ceiling underneath is Resend's daily account quota (100/day on",
+          "the free tier), shared with the pre-close drop — which spends one",
+          "email per Pro subscriber per trading day. Check Resend's remaining",
+          "quota before raising this: past it, Supabase believes it sent and the",
+          "mail silently never arrives, which is strictly worse than a refusal.",
           "",
           "One alert per day; further refusals today will not re-send this.",
         ].join("\n"),
