@@ -249,16 +249,29 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   security log. Three budgets: 3/hr per address, 5/hr per IP, **15/hr globally**.
   The global one matters — **signups bypass this route entirely**
   (`SignupForm` calls `supabase.auth.signUp` client-side), so the route
-  deliberately claims under half of Supabase's 50/hr and leaves the rest for
-  people creating accounts.
-- **Two email ceilings, and the smaller one isn't the obvious one.** Supabase
-  caps auth email at 50/hour (dashboard, free to raise). **Resend's free tier
-  caps *everything* at 100/day** — auth email *plus* the pre-close drop *plus*
-  ops alerts. The drop sends one email per Pro subscriber per trading day, so
-  subscriber growth eats the auth budget: near ~80 Pro, signups start failing
-  for reasons unrelated to signups. They're alerted separately
-  (`auth_email_rate_limited` vs `resend_quota_exhausted`) because one is a
-  toggle and the other is a billing decision.
+  claims part of the budget and leaves the rest for people creating accounts.
+  **These three are hourly and the cap they protect is now daily — see the next
+  bullet; the reservation they were sized for no longer exists.**
+- **Two email ceilings, and BOTH are daily.** Supabase caps auth email at
+  **50/day** (dashboard, free to raise — lowered from 50/hour by the user,
+  2026-09-04). **Resend's free tier caps *everything* at 100/day** — auth email
+  *plus* the pre-close drop *plus* ops alerts. So the real budget is: at most
+  **50 auth emails/day**, and at most **100 emails/day in total**. The
+  consequences are not symmetric:
+  - **Auth email now hits Supabase first, not Resend.** The old note here said
+    Resend was the binding constraint; for signups, confirmations and resets
+    that is no longer true — 50 < 100, and auth can never exhaust Resend on its
+    own any more.
+  - **50/day is ~2/hour sustained**, but nothing enforces it hourly. A DECA
+    classroom signing up in one period can spend the whole day's auth budget in
+    minutes, and every later signup that day gets no confirmation email and
+    therefore cannot sign in. This is the most likely way launch day breaks.
+  - **The drop still eats the Resend pool.** One email per Pro subscriber per
+    trading day, so past ~50 Pro the drop plus a full auth day exceeds 100 and
+    Resend starts refusing regardless of what Supabase allows.
+  They're alerted separately (`auth_email_rate_limited` vs
+  `resend_quota_exhausted`) because one is a toggle and the other is a billing
+  decision.
 - **Recovery + backups: `docs/RECOVERY.md`**, `scripts/backup-db.sh`,
   `scripts/restore-rehearsal.sh`. The backups are **unproven until the
   rehearsal table in that doc has a row.**

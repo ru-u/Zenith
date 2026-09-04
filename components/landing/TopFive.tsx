@@ -9,7 +9,7 @@ import { useAiAnalyses } from "@/hooks/useAiAnalyses";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { formatDayLabel, formatPrice } from "@/lib/format";
-import { digitsFor, scoreDigits } from "./mystery";
+import { digitsFor } from "./mystery";
 import type { DailyGainer } from "@/lib/supabase/types";
 
 // The hero's old live-data funnel, relocated: the session's real top five as
@@ -32,7 +32,7 @@ function ScoreTease({
     <span className="flex items-baseline justify-end gap-1">
       {isPro ? (
         <span className="font-mono text-sm font-bold leading-none tabular-nums">
-          {proScore != null ? scoreDigits(proScore) : "—"}
+          {proScore != null ? proScore : "—"}
         </span>
       ) : (
         <span
