@@ -141,6 +141,7 @@ export async function generateAnalysis(
       expectedMove: expected_move_percent,
       path: snapshot?.path ?? null,
       listingAgeDays: effectiveAgeDays(snapshot?.listing ?? null),
+      priorCall: snapshot?.prior_call ?? null,
     });
     return {
       catalyst:
