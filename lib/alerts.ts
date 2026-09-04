@@ -13,6 +13,7 @@ export type AlertType =
   | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
   | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP
   | "prune_anomaly" // unconfirmed-account prune found an implausible number of rows
+  | "calibration_drift" // a scoring constant now sits outside its realized confidence interval
   // The two email ceilings, kept apart on purpose: one is a free dashboard
   // toggle, the other a billing decision, and "email failed" would leave you
   // guessing which at the moment guessing is most expensive.

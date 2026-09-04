@@ -81,7 +81,21 @@ export async function register() {
     { timezone: "America/New_York" },
   );
 
+  // Calibration drift. Monthly, 09:00 ET on the 1st — it reads accumulated
+  // history, so the day is arbitrary; what matters is that it runs at all. The
+  // endpoint is silent unless a scoring constant now sits outside its realized
+  // confidence interval, which is the whole point: measure monthly, act only on
+  // a flag, keep a human in the loop.
+  cron.schedule(
+    "0 9 1 * *",
+    async () => {
+      await ping("/api/cron/calibration");
+    },
+    { timezone: "America/New_York" },
+  );
+
   console.log(
-    "[scheduler] in-process pre-close + EOD (ET) + hourly unconfirmed-account prune armed",
+    "[scheduler] in-process pre-close + EOD (ET) + hourly unconfirmed-account prune " +
+      "+ monthly calibration check armed",
   );
 }
