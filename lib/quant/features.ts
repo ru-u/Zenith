@@ -53,6 +53,21 @@ export interface SerialRunnerFeatures {
   last_appearance: string | null;
 }
 
+export interface PriorCall {
+  /** The session Zenith last scored this ticker. */
+  date: string;
+  score: number;
+  /**
+   * What the stock did after that call, in percent, stated from the SHORT's
+   * side: negative means the call went against the short. Null only when the
+   * outcome recorder has not run and the prior call was not the immediately
+   * preceding session.
+   */
+  realized_percent: number | null;
+  /** Sessions between that call and this one. */
+  sessions_ago: number;
+}
+
 export interface SectorContext {
   sector: string;
   /** Day change % of each mapped proxy ETF that the scanner returned. */
@@ -77,6 +92,15 @@ export interface FeatureSnapshot {
   /** FINRA short volume / total volume for the prior session, 0..1. */
   finra_short_ratio: number | null;
   streak_count: number | null;
+  /**
+   * Zenith's own most recent call on this ticker, and how it turned out. The
+   * engine had no memory of its own record: SWVL was scored 9/10, closed 32.6%
+   * HIGHER, and was scored again the next session with no reference to that.
+   * Display-only — a prior miss does not predict a worse outcome (repeat calls
+   * after a loss still won 70% of the time, mean +4.4%), so it informs the
+   * reader rather than the score.
+   */
+  prior_call: PriorCall | null;
   base_rate_bucket: { cap_band: string; relvol_band: string; n: number } | null;
   sector: SectorContext | null;
 }
@@ -324,6 +348,62 @@ function computeSectorContext(
  * Assemble the per-ticker snapshots for a scored set. Every input degrades
  * independently (nulls, empty maps) — feature capture must never block a thesis.
  */
+/**
+ * Zenith's own last call on each ticker, with its realized outcome.
+ *
+ * Timing subtlety: at the ~3:30 drop, yesterday's thesis has NOT been stamped
+ * with an outcome yet — recordThesisOutcomes runs at today's 4:20 EOD. But
+ * today's change_percent IS that outcome, measured intraday: it is exactly the
+ * close-to-now move since the session we scored. So the stored value is used
+ * when it exists, and today's own move stands in when the prior call was the
+ * immediately preceding session. Both are the same quantity.
+ */
+export async function fetchPriorCalls(
+  admin: SupabaseClient<Database>,
+  gainers: GainerRow[],
+  dateKey: string,
+): Promise<Map<string, PriorCall>> {
+  const out = new Map<string, PriorCall>();
+  const tickers = gainers.map((g) => g.ticker);
+  if (tickers.length === 0) return out;
+
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  const sinceKey = tradingDaysAgoKey(11, probe);
+  const prevSession = tradingDaysAgoKey(2, probe);
+
+  const { data, error } = await admin
+    .from("ai_analyses")
+    .select("ticker, date, short_score, next_change_percent")
+    .in("ticker", tickers)
+    .gte("date", sinceKey)
+    .lt("date", dateKey)
+    .order("date", { ascending: false });
+  if (error) {
+    console.warn("[features] prior-call query failed:", error.message);
+    return out;
+  }
+
+  const changeByTicker = new Map(gainers.map((g) => [g.ticker, g.changePercent ?? null]));
+  for (const row of data ?? []) {
+    if (out.has(row.ticker) || row.short_score == null) continue; // ordered desc: first is newest
+    const todayMove = changeByTicker.get(row.ticker) ?? null;
+    const realized =
+      row.next_change_percent != null
+        ? -row.next_change_percent
+        : row.date === prevSession && todayMove != null
+          ? -todayMove
+          : null;
+    out.set(row.ticker, {
+      date: row.date,
+      score: row.short_score,
+      realized_percent: realized,
+      sessions_ago: row.date === prevSession ? 1 : 0,
+    });
+  }
+  return out;
+}
+
 export async function buildFeatureSnapshots(
   admin: SupabaseClient<Database>,
   gainers: GainerRow[],
@@ -339,11 +419,12 @@ export async function buildFeatureSnapshots(
   const proxySymbols = [
     ...new Set(sectors.flatMap((s) => SECTOR_PROXIES[s] ?? []).map((p) => p.symbol)),
   ];
-  const [serial, shortRatios, etfChanges, sectorCounts, listings] = await Promise.all([
+  const [serial, shortRatios, etfChanges, sectorCounts, priorCalls, listings] = await Promise.all([
     fetchSerialRunnerFeatures(admin, tickers, dateKey),
     fetchShortVolumeRatios(tickers, dateKey),
     fetchEtfChanges(proxySymbols),
     fetchSectorBreadth(admin, sectors, dateKey),
+    fetchPriorCalls(admin, gainers, dateKey),
     // One Finnhub profile call per scored ticker (five a day) — well inside the
     // free tier the headline fallback already shares.
     Promise.all(
@@ -365,6 +446,7 @@ export async function buildFeatureSnapshots(
       serial: serial.get(g.ticker) ?? null,
       finra_short_ratio: shortRatios.get(g.ticker) ?? null,
       streak_count: streaks.get(g.ticker) ?? null,
+      prior_call: priorCalls.get(g.ticker) ?? null,
       base_rate_bucket: br
         ? { cap_band: br.cap_band, relvol_band: br.relvol_band, n: br.n }
         : null,

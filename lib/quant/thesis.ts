@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { GainerRow } from "../marketdata/types";
 import { formatBaseRatePrior, type BaseRate } from "../baseRates";
 import { RECENT_LISTING_DAYS } from "./listing";
+import type { PriorCall } from "./features";
 import type { Technicals } from "./technicals";
 import type { PathFeatures } from "./features";
 
@@ -44,6 +45,8 @@ export interface ThesisFindings {
   path: PathFeatures | null;
   /** Days of trading history, when short enough to matter (lib/quant/listing.ts). */
   listingAgeDays: number | null;
+  /** Zenith's own last call on this ticker (lib/quant/features.ts). */
+  priorCall: PriorCall | null;
 }
 
 /**
@@ -65,6 +68,26 @@ function listingSentence(f: ThesisFindings): string | null {
   const when =
     days <= 7 ? "in the last week" : days <= 14 ? "in the last two weeks" : "within the last month";
   return `This only started trading ${when}, so there's no real price history behind it — no prior levels, no established range, and a thin float that can move violently in either direction. New listings are dangerous to short whatever the odds say, so the score is capped here.`;
+}
+
+/**
+ * Zenith's own last call on this name, said plainly.
+ *
+ * Deliberately not a scoring input: repeat calls after a losing one still won
+ * 70% of the time (mean +4.4%), so a prior miss is not evidence the next call
+ * is worse. What it IS is information the reader needs — re-entering after a
+ * call went against you means adding to a losing position, and that is a
+ * sizing decision only the reader can make.
+ */
+function priorCallSentence(f: ThesisFindings): string | null {
+  const p = f.priorCall;
+  if (!p || p.realized_percent == null) return null;
+  const when = p.sessions_ago === 1 ? "yesterday" : `on ${p.date}`;
+  const moved = Math.abs(p.realized_percent).toFixed(1);
+  if (p.realized_percent < 0) {
+    return `Worth knowing: Zenith called this a ${p.score}/10 short ${when} and it closed ${moved}% HIGHER — that call went against the short. Shorting it again means adding to a position that has already moved against you, so size it accordingly.`;
+  }
+  return `Zenith also called this a ${p.score}/10 short ${when}, and it closed ${moved}% lower — that call worked.`;
 }
 
 function levelContextSentence(f: ThesisFindings): string | null {
@@ -160,9 +183,13 @@ function templateThesis(f: ThesisFindings): string {
   const level = levelContextSentence(f);
   if (level) sentences.push(level);
 
-  // 4 — the empirical odds (+ streak context when notable).
-  const prior = formatBaseRatePrior(f.baseRate);
+  // 3b — our own record on this exact name, win or lose.
+  const prior = priorCallSentence(f);
   if (prior) sentences.push(prior);
+
+  // 4 — the empirical odds (+ streak context when notable).
+  const baseRateLine = formatBaseRatePrior(f.baseRate);
+  if (baseRateLine) sentences.push(baseRateLine);
 
   // 5 — the payoff, which is what the game actually grades.
   const payoff = expectedMoveSentence(f);
