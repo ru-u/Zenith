@@ -21,9 +21,31 @@ import type { BaseRate } from "../baseRates";
 import type { Technicals } from "./technicals";
 
 // ── tuning surface (Δs are percentage points on percent_win_estimate) ──
-const D_OFFERING = 8; // dilution → fade-prone
-const D_EARNINGS = -5; // genuine results can keep running
-const D_REGULATORY = -5; // genuine FDA/clinical wins can keep running
+// Re-fit 2026-09-04 against 1,919 catalyst-labelled historical sessions
+// (scripts/backfill-catalysts.mjs), the first sample large enough to ESTIMATE
+// these rather than merely fail to reject them. Baseline is the 'none' class,
+// 62.1% down (n=1,384). Label quality audited at ~0.3% identity error.
+//
+//   offering  63.8% down (n=199)  -> +1.8pp vs none, t=0.48
+//   earnings  52.9% down (n=261)  -> -9.2pp vs none
+//
+// D_OFFERING was +8, which the live record had already contradicted twice
+// (realized 53.8% against a predicted 70.3%). Offerings fade barely more than
+// an unexplained spike — the dilution story is real but it was worth about a
+// quarter of what this model claimed, and +8 amounted to using the top of the
+// confidence interval as a point estimate.
+//
+// Caveat carried deliberately: the historical 'none' baseline is 62.1% while
+// the live 'other' class runs 69.7%, so these are different universes. Relative
+// Δs transfer better than levels, but scripts/calibration.mjs is what will say
+// whether they transferred at all.
+//
+// D_REGULATORY is knowingly NOT re-fit. Its point estimate came back +8.6pp —
+// the opposite sign to the -5 below — but on n=41 with a CI still containing
+// the baseline, flipping a sign is a bigger claim than the data supports.
+const D_OFFERING = 2; // dilution → mildly fade-prone (was 8; see above)
+const D_EARNINGS = -9; // genuine results keep running (was -5; understated)
+const D_REGULATORY = -5; // genuine FDA/clinical wins can keep running — see the re-fit note above
 const D_PARTNERSHIP = -3;
 // Pinned near a deal price, so there is no directional edge either way — a coin
 // flip on a stock that barely moves. Was 20, which scripts/calibration.mjs
