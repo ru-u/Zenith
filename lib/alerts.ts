@@ -9,6 +9,13 @@ import { LEGAL_CONTACT_EMAIL } from "./legal";
 export type AlertType =
   | "provider_failed" // both retries exhausted on a trading day — no fresh data
   | "eod_not_finalized" // no is_final row locked for a trading day
+  // The partial-finalize case, which eod_not_finalized cannot see: its check is
+  // `rows.some(r => r.is_final)`, so a day where MOST rows finalized and a few
+  // kept stale intraday values passes clean. That is how AIFU sat in the
+  // 2026-09-04 board at +5.603% on a day it closed -18.58%. Removing the thesis
+  // pin (lib/gainers.ts) should make this unreachable — which is the point of
+  // alerting on it.
+  | "partial_finalize" // a finalized day still has non-final rows
   | "ai_all_failed" // 0 theses generated for a finalized day with gainers
   | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
   | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP

@@ -94,6 +94,33 @@ export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
               </span>
             </div>
 
+            {/* How the scored session actually finished. The thesis is written
+                at ~3:30 off a live spike; this is where that spike closed, which
+                is the price a DECA order placed that day actually fills at. Only
+                rendered once the finalize pass has stamped the row — older
+                theses predate the column and simply omit the line.
+
+                Sign-aware on purpose: a top-5 gainer at 3:30 can close deeply
+                red (AIFU, 2026-09-04: -18.58%), which is exactly the case worth
+                showing. `change_percent_at_score` is always a gain, so its "+"
+                is hardcoded; `scored_day_change_percent` is NOT. */}
+            {a.scored_day_change_percent != null && (
+              <p className="font-mono text-xs text-muted-foreground">
+                {a.change_percent_at_score != null && (
+                  <>Scored at +{a.change_percent_at_score.toFixed(1)}% · </>
+                )}
+                closed{" "}
+                <span
+                  className={
+                    a.scored_day_change_percent < 0 ? "text-down" : "text-up"
+                  }
+                >
+                  {a.scored_day_change_percent > 0 ? "+" : ""}
+                  {a.scored_day_change_percent.toFixed(1)}%
+                </span>
+              </p>
+            )}
+
             {/* Why it spiked */}
             {a.catalyst && (
               <p className="text-sm text-muted-foreground">

@@ -108,8 +108,11 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 - `ticker_streaks` — `ticker`, `streak_count`, `last_seen_date`. RLS: public
   read (the app-level gate lives in `/api/streaks`, which requires a session).
 - `ai_analyses` — `(date, ticker)`: short_thesis, risk_level, key_catalysts,
-  recommendation, model, denormalized rank/company_name/exchange. **RLS: Pro
-  only.**
+  recommendation, model, denormalized rank/company_name/exchange, the board
+  figures at scoring time (`price_at_score`, `change_percent_at_score` — always
+  a gain), and the scored session's official close (`scored_day_close`,
+  `scored_day_change_percent` — the outcome baseline, and **can be negative**).
+  **RLS: Pro only.**
 
 ## Conventions & gotchas
 
@@ -144,6 +147,28 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (`storedName` for the edit form, `displayName` for UI chrome) — don't inline
   it, it has two readers and two writers.
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
+- **The drop's thesis set and the finalized board are different sets — never
+  join them.** `ai_analyses` is written at the ~3:30 drop; `daily_gainers` is
+  finalized ~20 min after the close. The day cap in
+  `generateAndStoreTopAnalyses` makes the drop's five authoritative for the day,
+  so a ticker that climbs into the finalized top five afterwards never gets a
+  thesis (2026-09-04: NX, PDEX, HVII) — and a ticker can go the other way and
+  leave the board entirely (AIFU, same day: top-5 at 3:30, closed −18.58%).
+  `TopFive.tsx` used to render the board and look scores up by ticker, which
+  rendered a bare `—` for the first case; it now renders one set or the other
+  (Pro post-drop → the scored set, everyone else → the board). Thesis rows carry
+  their own figures precisely so no surface has to join.
+- **The prune does NOT pin thesis tickers, and must not start again.** It did,
+  to stop a thesis pointing at a row the screener didn't list (AEHL,
+  2026-08-31) — but nothing ever refreshed a pinned row. Its single firing left
+  AIFU at rank 98, +5.603%, `is_final = false` on a day it closed −18.58%: a
+  fabricated gainer in the product's core table, which `recordThesisOutcomes`
+  then skipped (it requires `is_final`), silently dropping exactly the intraday
+  reversals calibration most needs. The fix is `scored_day_close` on the thesis
+  row — written by `recordScoredDayCloses` at finalize, and the outcome baseline
+  in place of the old `daily_gainers` join. `partial_finalize` alerts if a
+  non-final row ever survives a finalized day again (`eod_not_finalized` cannot:
+  its check is `.some(r => r.is_final)`, which one good row satisfies).
 - **Charts and streak badges require an account** — `ChartDialog` renders a
   sign-up gate for signed-out visitors (the TradingView widget is client-side;
   there's no chart API to gate server-side), and `GET /api/streaks` returns an

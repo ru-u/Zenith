@@ -266,9 +266,17 @@ export async function generateAndStoreTopAnalyses(
         // Denormalized so the AI card renders exactly this drop's set, in order,
         // independent of how the live gainer list shifts before the close
         // (exchange: so its chart embed opens the right venue's symbol).
+        //
+        // price/change% ride along for the same reason: the landing panel needs
+        // the drop's own figures. Reading them back off daily_gainers can't
+        // work — the day cap above means the finalized board's new entrants
+        // never get a thesis, so the join has holes, and a ticker that leaves
+        // the board keeps whatever intraday snapshot it last had.
         rank: g.rank,
         company_name: g.companyName,
         exchange: g.exchange,
+        price_at_score: g.price,
+        change_percent_at_score: g.changePercent,
       },
       { onConflict: "date,ticker" },
     );

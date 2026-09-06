@@ -76,11 +76,24 @@ export type AIAnalysis = {
   // Denormalized listing venue (like rank/company_name) so the Pro analysis
   // chart embeds can qualify the symbol without joining daily_gainers.
   exchange: string | null;
+  // The board figures this thesis was scored against, denormalized for the same
+  // reason as rank/company_name — the landing panel and the AI card render the
+  // scored set without joining daily_gainers. Always a gain (the ticker was a
+  // top-5 gainer at the drop), so it is safe to render with a hardcoded "+".
+  price_at_score: number | null;
+  change_percent_at_score: number | null;
   // Calendar days from listing to the scored session. Written only when the
   // listing is recent enough to matter (see CAPTURE_LISTING_DAYS); null means
   // "established, or unknown" — a listing date for a four-year-old biotech is
   // not worth storing. Drives the "New listing" badge and the score cap.
   listing_age_days: number | null;
+  // The scored session's OFFICIAL close, written by the finalize pass. The
+  // baseline `next_change_percent` is measured from, and the "scored at 3:30 →
+  // closed X%" line on /analysis. UNLIKE change_percent_at_score this can be
+  // NEGATIVE — a ticker that was a top-5 gainer at 3:30 can close deeply red
+  // (AIFU, 2026-09-04: -18.58%) — so never render it with a hardcoded "+".
+  scored_day_close: number | null;
+  scored_day_change_percent: number | null;
   // Realized next-session outcome, filled by the following day's EOD run
   // (lib/quant/outcomes.ts). Null until recorded; stays null for rows whose
   // next session passed before the recorder existed.

@@ -6,7 +6,7 @@ import { updateStreaks } from "./streaks";
 import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
 import { type BaseRate } from "./baseRates";
-import { recordThesisOutcomes } from "./quant/outcomes";
+import { recordScoredDayCloses, recordThesisOutcomes } from "./quant/outcomes";
 
 /** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
 async function fetchStreaks(
@@ -147,5 +147,26 @@ export async function runEodProcessing(
     console.error("[eod] outcome recording:", (e as Error)?.message);
   }
 
-  return generateAndStoreTopAnalyses(admin, rows, dateKey, streaks, baseRates, aiCount);
+  const created = await generateAndStoreTopAnalyses(
+    admin,
+    rows,
+    dateKey,
+    streaks,
+    baseRates,
+    aiCount,
+  );
+
+  // Stamp TODAY's theses with today's official close — the baseline tomorrow's
+  // outcome pass measures against, and the "closed X%" line on /analysis.
+  // Deliberately AFTER generation so a fallback set created by this very pass
+  // gets its baseline in the same run. Best-effort and null-guarded, like the
+  // outcome recorder above: whatever this run misses, a later same-day trigger
+  // (cron backstop, read-path finalize) fills.
+  try {
+    await recordScoredDayCloses(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] scored-day close:", (e as Error)?.message);
+  }
+
+  return created;
 }

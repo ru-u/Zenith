@@ -34,13 +34,44 @@ export async function GET(req: Request) {
 
     // Watchdog: confirm the official close actually locked. An empty provider
     // response (no error, no rows) would leave the day un-finalized otherwise.
-    const finalized = (await getCachedGainers(admin, dateKey)).some((r) => r.is_final);
+    const stored = await getCachedGainers(admin, dateKey);
+    const finalized = stored.some((r) => r.is_final);
     if (!finalized) {
       await maybeAlert(admin, {
         date: dateKey,
         type: "eod_not_finalized",
         subject: `Zenith: EOD did not finalize for ${dateKey}`,
         body: `The ${dateKey} EOD cron ran but no is_final row exists — the provider returned ${gainers.length} rows. The screener has no official close for today.`,
+      });
+    }
+
+    // The partial case the check above is blind to: `some()` is satisfied by a
+    // single final row, so a day that finalized MOST rows and left a few
+    // holding stale intraday values reads as healthy. That is how AIFU stayed
+    // in the 2026-09-04 board at +5.603% on a day it closed -18.58%, and how it
+    // then dropped out of calibration unnoticed. Any row here is a fabricated
+    // gainer in the product's core table.
+    const notFinal = stored.filter((r) => !r.is_final);
+    if (finalized && notFinal.length > 0) {
+      await maybeAlert(admin, {
+        date: dateKey,
+        type: "partial_finalize",
+        subject: `Zenith: ${notFinal.length} row(s) did not finalize for ${dateKey}`,
+        body:
+          `${dateKey} finalized, but ${notFinal.length} of ${stored.length} rows still have ` +
+          `is_final = false and are serving whatever intraday snapshot they last got:\n\n` +
+          notFinal
+            .map(
+              (r) =>
+                `  #${r.rank ?? "?"} ${r.exchange ?? "?"}:${r.ticker} ` +
+                `${r.change_percent ?? "?"}% @ ${r.price ?? "?"} (scraped ${r.scraped_at})`,
+            )
+            .join("\n") +
+          `\n\nThese read as real gainers everywhere the board is consumed by rank, and ` +
+          `recordThesisOutcomes skips them (it requires is_final), so any thesis on one ` +
+          `silently never gets an outcome. Removing the thesis pin in lib/gainers.ts was ` +
+          `meant to make this unreachable — if it fired, something re-introduced a row the ` +
+          `prune won't touch.`,
       });
     }
 
