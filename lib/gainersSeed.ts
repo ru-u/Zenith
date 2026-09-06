@@ -30,15 +30,48 @@ import { getTodayET } from "@/lib/market-calendar";
 // path exactly as they are today — the seed buys crawlable HTML and a
 // skeleton-free first paint, and buys nothing else on purpose.
 //
-// Memoized per request: the landing renders <TopFive> and this seed in the same
-// pass, same reasoning as getViewer().
+// CACHED FOR 60s ACROSS REQUESTS, because the read is not cheap and it now sits
+// in front of the HTML. Measured on production the day this shipped:
+//
+//   /engine, /privacy, /learn   (no board read)   ~0.10s TTFB
+//   /, /screener                (board read)      0.58-1.06s TTFB
+//   /api/gainers                (same read alone) 0.65-1.14s
+//
+// The third line is the point: that cost was always there, it just used to land
+// after page load instead of in front of it. serveStoredGainers makes 4-5
+// SEQUENTIAL Supabase round trips and Railway->Supabase is ~150-250ms each.
+// Time-to-content was still no worse than before, but TTFB is an LCP input and
+// ~0.8s on the marketing front door is in Google's "needs improvement" band,
+// which works against the reason this seed exists at all.
+//
+// 60s is safe precisely BECAUSE the seed is stale on arrival: the client refetches
+// on mount regardless, so this window can never be what a user ends up looking at
+// — it only decides how fresh the first paint is, and the board itself only moves
+// every FRESHNESS_MINUTES (10). During the morning warm-up useGainers polls at 1
+// min, so a warming seed self-corrects inside a second either way.
+//
+// PER-PROCESS, the same single-replica assumption as lib/ratelimit.ts, the
+// warm-up probe in /api/gainers, and qualifyingTickers in lib/tickerPages.ts.
+//
+// Failures are deliberately NOT cached — caching a null would stretch a
+// momentary DB blip into a full minute of degraded pages.
+const SEED_TTL_MS = 60_000;
+let seedCache: { at: number; state: DehydratedState } | null = null;
+
+// cache() keeps this to a single resolution within one request too — the landing
+// renders <TopFive> and this seed in the same pass, same reasoning as getViewer().
 export const dehydratedGainers = cache(
   async (): Promise<DehydratedState | null> => {
+    if (seedCache && Date.now() - seedCache.at < SEED_TTL_MS) {
+      return seedCache.state;
+    }
     try {
       const payload = await serveStoredGainers(createAdminClient(), getTodayET());
       const queryClient = new QueryClient();
       queryClient.setQueryData(["gainers"], payload, { updatedAt: 0 });
-      return dehydrate(queryClient);
+      const state = dehydrate(queryClient);
+      seedCache = { at: Date.now(), state };
+      return state;
     } catch (e) {
       // Fail open: a DB blip degrades the page to today's behaviour (skeleton
       // then client fetch), it never blanks it.
