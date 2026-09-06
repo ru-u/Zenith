@@ -32,10 +32,13 @@ export type AlertType =
   | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP
   | "prune_anomaly" // unconfirmed-account prune found an implausible number of rows
   | "calibration_drift" // a scoring constant now sits outside its realized confidence interval
-  // The two email ceilings, kept apart on purpose: one is a free dashboard
-  // toggle, the other a billing decision, and "email failed" would leave you
-  // guessing which at the moment guessing is most expensive.
-  | "auth_email_rate_limited" // Supabase's daily auth-email cap (50/day) refused a send
+  // The email ceilings, kept apart on purpose: one is a free dashboard toggle,
+  // one is a billing decision, and one is neither — and "email failed" would
+  // leave you guessing which at the moment guessing is most expensive. The
+  // numbers themselves live in lib/emailBudget.ts (Supabase 50/HOUR, Resend
+  // 100/DAY — different units, do not conflate).
+  | "auth_email_rate_limited" // Supabase's hourly auth-email cap (50/hr) refused a send
+  | "auth_email_send_failed" // the send failed BENEATH Supabase (SMTP/provider 5xx)
   | "resend_quota_exhausted"; // Resend's daily account quota (100/day free) refused a send
 
 /**

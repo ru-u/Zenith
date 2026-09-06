@@ -2,6 +2,15 @@
 // disclaimers that ride along with the product surfaces themselves.
 // Update LEGAL_UPDATED whenever any policy text changes.
 export const LEGAL_CONTACT_EMAIL = "support@zenithscreener.com";
+
+// The From address on Supabase's auth email (confirmations, password resets).
+// Shown to users so they can search their mail for it and whitelist it — every
+// resend that prevents is one back in Resend's 100/day account quota, which is
+// shared with the pre-close drop (see CLAUDE.md).
+// NOT read by any send path: the value lives in Supabase's custom SMTP config
+// (Authentication -> Emails -> SMTP, sender address). If it is changed there,
+// change it here — nothing will fail loudly if they drift.
+export const AUTH_EMAIL_SENDER = "auth@zenithscreener.com";
 export const LEGAL_UPDATED = "September 6, 2026";
 
 // /engine (how the thesis engine works) is disclosure, not policy — it changes

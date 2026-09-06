@@ -96,7 +96,8 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   deterministic scoring, `technicals.ts` TradingView indicators, `thesis.ts`
   prose seam + spend switch), `gainers.ts`, `streaks.ts`, `eod.ts`,
   `claude.ts` (thesis orchestrator), `notify.ts` (pre-close email),
-  `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`
+  `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`,
+  `emailBudget.ts` (the two email ceilings, mirrored from provider config)
 - `hooks/` — `useGainers`, `useStreaks`, `useSubscription`, `useMounted`
 - `supabase/` — `schema.sql` (fresh install), `migrate.sql` (idempotent, for an
   existing DB)
@@ -352,32 +353,44 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   the only irreversible operation here and it runs unattended.
 - **All user-triggered auth email goes through `/api/auth/email`**, never
   browser→Supabase directly, so it passes `lib/ratelimit.ts` and lands in the
-  security log. Three budgets: 3/hr per address, 5/hr per IP, **15/hr globally**.
-  The global one matters — **signups bypass this route entirely**
+  security log. Three budgets: 3/hr per address, 5/hr per IP, **15/hr
+  globally**. The global one matters — **signups bypass this route entirely**
   (`SignupForm` calls `supabase.auth.signUp` client-side), so the route
-  claims part of the budget and leaves the rest for people creating accounts.
-  **These three are hourly and the cap they protect is now daily — see the next
-  bullet; the reservation they were sized for no longer exists.**
-- **Two email ceilings, and BOTH are daily.** Supabase caps auth email at
-  **50/day** (dashboard, free to raise — lowered from 50/hour by the user,
-  2026-09-04). **Resend's free tier caps *everything* at 100/day** — auth email
-  *plus* the pre-close drop *plus* ops alerts. So the real budget is: at most
-  **50 auth emails/day**, and at most **100 emails/day in total**. The
-  consequences are not symmetric:
-  - **Auth email now hits Supabase first, not Resend.** The old note here said
-    Resend was the binding constraint; for signups, confirmations and resets
-    that is no longer true — 50 < 100, and auth can never exhaust Resend on its
-    own any more.
-  - **50/day is ~2/hour sustained**, but nothing enforces it hourly. A DECA
-    classroom signing up in one period can spend the whole day's auth budget in
-    minutes, and every later signup that day gets no confirmation email and
-    therefore cannot sign in. This is the most likely way launch day breaks.
-  - **The drop still eats the Resend pool.** One email per Pro subscriber per
-    trading day, so past ~50 Pro the drop plus a full auth day exceeds 100 and
-    Resend starts refusing regardless of what Supabase allows.
-  They're alerted separately (`auth_email_rate_limited` vs
-  `resend_quota_exhausted`) because one is a toggle and the other is a billing
-  decision.
+  deliberately claims under half of Supabase's 50/hr and leaves the rest for
+  people creating accounts. **Size it against the hourly Supabase cap, not
+  against Resend's daily quota** — they are different budgets in different
+  units. (It was briefly cut to 3/hr on 2026-09-04 by reading the Supabase cap
+  as 50/day; restored.)
+- **Two email ceilings, in different units — `lib/emailBudget.ts` is the single
+  source of truth for both, and anything quoting a number to a human should
+  quote it from there.** Supabase caps auth email at **50/HOUR** (dashboard,
+  free to raise). **Resend's free tier caps *everything* at 100/DAY** — auth email *plus* the pre-close drop
+  *plus* ops alerts (confirmed in the Resend dashboard 2026-09-04: 100/day,
+  3,000/month, which is just 100 × 30 and so never binds separately). Resend is
+  therefore the real constraint: an hour's worth of Supabase's allowance would
+  spend half of Resend's day. The drop sends one email per Pro subscriber per
+  trading day, so subscriber growth eats the auth budget — near ~80 Pro, signups
+  start failing for reasons unrelated to signups. Raising Supabase's hourly cap
+  past what Resend delivers daily just moves the failure from "Supabase refuses"
+  to "Resend refuses", which is worse because it surfaces as a 5xx mid-send
+  rather than a clean refusal.
+  Three separate alerts, because the fixes differ: `auth_email_rate_limited`
+  (Supabase refused — a dashboard toggle), `resend_quota_exhausted` (the
+  pre-close batch was refused — a billing decision), and
+  `auth_email_send_failed` (the send died *beneath* Supabase, i.e. SMTP/Resend
+  returned 5xx). That third one exists because `/api/auth/email` only
+  classified 429s: a provider-level refusal fell through to the generic-OK
+  swallow, so the user was told "check your inbox" for mail that never sent and
+  nothing alerted. 5xx is address-independent, so it now returns 503 — which
+  leaks nothing, unlike the 4xx account-state errors that must stay swallowed.
+- **Every "we sent you an email" surface names the junk folder**
+  (`components/auth/CheckSpamHint.tsx`, rendered **above** the resend control in
+  `SignupForm`/`LoginForm`, plus the copy in `lib/authEmail.ts`). Resend's
+  100/day is shared with the pre-close drop, and this audience is behind school
+  mail filters, so a reflex resend is a real cost rather than a UX wrinkle. The
+  sender shown to users is `AUTH_EMAIL_SENDER` in `lib/legal.ts` — display
+  only; the real value lives in Supabase's SMTP config and nothing fails loudly
+  if the two drift.
 - **Recovery + backups: `docs/RECOVERY.md`**, `scripts/backup-db.sh`,
   `scripts/restore-rehearsal.sh`. The backups are **unproven until the
   rehearsal table in that doc has a row.**

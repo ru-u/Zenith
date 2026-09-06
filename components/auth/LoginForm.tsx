@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { AuthDivider } from "./GoogleButton";
 import { GoogleIdentityButton } from "./GoogleIdentityButton";
 import { ResendConfirmation } from "./ResendConfirmation";
+import { CheckSpamHint } from "./CheckSpamHint";
 
 export function LoginForm() {
   const router = useRouter();
@@ -118,7 +119,9 @@ export function LoginForm() {
             We sent a link to {email}. Click it to activate your account — then
             sign in here.
           </p>
-          <ResendConfirmation email={email} className="mt-2" />
+          {/* Above the resend control on purpose — see CheckSpamHint. */}
+          <CheckSpamHint className="mt-2.5" />
+          <ResendConfirmation email={email} className="mt-2.5" />
         </div>
       )}
       {notice && !error && !unconfirmed && (

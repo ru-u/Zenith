@@ -47,9 +47,12 @@ export function authEmailMessage(
 ): string {
   switch (result) {
     case "ok":
+      // Both name the junk folder: this string is read at the exact moment
+      // someone is deciding whether to press the button again, and a second
+      // send costs another of Resend's 100/day.
       return type === "confirmation"
-        ? "Sent. Check your inbox — the link is good for 24 hours."
-        : "If an account exists for that email, we've sent a reset link.";
+        ? "Sent. Check your inbox — and your spam folder. The link is good for 24 hours."
+        : "If an account exists for that email, we've sent a reset link. Check your spam folder if it doesn't appear.";
     case "rate_limited":
       return "Too many requests. Wait a few minutes and try again.";
     case "unavailable":

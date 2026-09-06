@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { AuthDivider } from "./GoogleButton";
 import { GoogleIdentityButton } from "./GoogleIdentityButton";
 import { ResendConfirmation } from "./ResendConfirmation";
+import { CheckSpamHint } from "./CheckSpamHint";
 
 export function SignupForm() {
   const router = useRouter();
@@ -116,9 +117,14 @@ export function SignupForm() {
           className="rounded-lg border border-up/20 bg-up/5 p-3"
         >
           <p className="text-sm text-up">{notice}</p>
-          {/* The mail can land in spam or never arrive at all; without this the
-              only recovery is signing up again after the account is pruned. */}
-          <ResendConfirmation email={email} className="mt-2" />
+          {/* Ordering is deliberate: the junk-folder prompt sits ABOVE the
+              resend control, because the reflex we're competing with is hitting
+              Resend before looking. Each avoided resend is one back in
+              Resend's 100/day quota. */}
+          <CheckSpamHint className="mt-2.5" />
+          {/* The mail can also never arrive at all; without this the only
+              recovery is signing up again after the account is pruned. */}
+          <ResendConfirmation email={email} className="mt-2.5" />
         </div>
       )}
       <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
