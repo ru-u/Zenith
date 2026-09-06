@@ -94,8 +94,18 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
 
           `md:contents` dissolves this wrapper on desktop so the <aside> is the
           200px grid cell again; the chevrons are display:none there, so they
-          never claim a cell of their own. */}
-      <div className="flex items-center gap-1 md:contents">
+          never claim a cell of their own.
+
+          `min-w-0` is REQUIRED and is not a style choice. The grid item used to
+          be the <aside> itself, and a scroll container's automatic minimum size
+          is 0, so the strip clamped to the column and scrolled inside it. This
+          wrapper has `overflow: visible`, so as the new grid item its
+          `min-width: auto` resolves to a content-based minimum instead — the
+          column sized to the full width of all 60 chips and the page blew out
+          to ~4200px, clipping the header and table on both sides (shipped
+          2026-09-06, reverted same day). Measured: without it
+          documentElement.scrollWidth is 4245 on a 500px viewport; with it, 500. */}
+      <div className="flex min-w-0 items-center gap-1 md:contents">
         <button
           type="button"
           onClick={() => step(-1)}
