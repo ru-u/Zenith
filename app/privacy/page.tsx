@@ -82,14 +82,20 @@ export default function PrivacyPage() {
         <p>
           The daily short theses are computed by our own analysis engine from
           that public market data — SEC filings, historical base rates, and
-          technical indicators. Every number in a thesis is calculated, not
-          written by a chatbot.
+          technical indicators. Every number in a thesis — the score, the base
+          rate, the expected move — is calculated by that engine.
         </p>
         <p>
-          Where a language model is used at all, its only job is wording, and it
-          receives nothing but those public market facts.{" "}
+          A language model (Claude, from Anthropic) is used for one thing:
+          putting those finished findings into readable sentences. It does not
+          choose which stocks appear, does not produce or alter any figure, and
+          cannot look anything up or browse the web. The sentences that carry
+          the odds and the risk warnings are written by the engine and passed
+          through untouched, and every figure the model does write is checked
+          against the engine&apos;s own numbers before publication.{" "}
           <strong>
-            No personal data about you is ever sent to an AI provider.
+            No personal data about you is ever sent to an AI provider — it
+            receives nothing but public market facts.
           </strong>
         </p>
       </LegalSection>
@@ -113,9 +119,12 @@ export default function PrivacyPage() {
         <p>
           Only the service providers that run Zenith, and only what each one
           needs: Supabase (database and authentication), Stripe (payments),
-          Resend (email delivery), and our hosting provider. None of them may
-          use your data for their own purposes. We share data with no one else
-          unless the law requires it.
+          Resend (email delivery), Anthropic (the language model that phrases
+          the theses), and our hosting provider. Anthropic receives only the
+          public market facts that make up a thesis — no personal data, and
+          nothing that identifies you. None of them may use your data for their
+          own purposes. We share data with no one else unless the law requires
+          it.
         </p>
       </LegalSection>
 

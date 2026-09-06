@@ -85,10 +85,14 @@ export async function GET(req: Request) {
       console.error("[cron/run-eod] eod step:", (eodErr as Error)?.message);
     }
 
-    // Alert if a finalized day with gainers produced ZERO theses (every Claude
-    // call failed) — Pro users would see no analysis. `analyses` only counts ones
-    // created this run, so re-check the table to avoid false alarms when theses
-    // already existed from the on-read close-capture.
+    // Alert if a finalized day with gainers produced ZERO theses — Pro users
+    // would see no analysis. `analyses` only counts ones created this run, so
+    // re-check the table to avoid false alarms when theses already existed from
+    // the on-read close-capture.
+    //
+    // Zero rows means the QUANT pipeline failed, not Anthropic: model prose
+    // degrades to the template per ticker, so a total model outage still writes
+    // five rows. That case is model_prose_degraded instead.
     if (finalized) {
       const { count } = await admin
         .from("ai_analyses")
@@ -99,7 +103,7 @@ export async function GET(req: Request) {
           date: dateKey,
           type: "ai_all_failed",
           subject: `Zenith: all AI theses failed for ${dateKey}`,
-          body: `EOD finalized ${gainers.length} gainers for ${dateKey} but 0 AI theses exist. Every Claude call likely failed (overload / API key / quota).`,
+          body: `EOD finalized ${gainers.length} gainers for ${dateKey} but 0 AI theses exist. The quant pipeline failed for every ticker — check the scanner, EDGAR, scoring, and the ai_analyses write. This is NOT an Anthropic failure: prose falls back to the template, so a model outage would still produce rows (see model_prose_degraded).`,
         });
       }
     }

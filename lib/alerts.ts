@@ -17,6 +17,11 @@ export type AlertType =
   // alerting on it.
   | "partial_finalize" // a finalized day still has non-final rows
   | "ai_all_failed" // 0 theses generated for a finalized day with gainers
+  // Distinct from ai_all_failed, which only fires at ZERO rows. This one is the
+  // opposite shape of problem: the run succeeded, every row was written, and the
+  // prose quietly came from the template while AI_PROSE_MODE=model had /engine
+  // telling users a model wrote it. Nothing else can detect that.
+  | "model_prose_degraded" // most/all model prose calls fell back to the template
   | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
   | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP
   | "prune_anomaly" // unconfirmed-account prune found an implausible number of rows

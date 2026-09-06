@@ -32,10 +32,10 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic"; // renders the live AI_PROSE_MODE state
 
 export default function EnginePage() {
-  // Read the real mode rather than describing an intended one. When Haiku is
-  // switched on in September this page starts telling the truth by itself,
-  // instead of quietly becoming the overclaim we removed from the pricing copy.
-  const haikuLive = activeProseMode() === "haiku";
+  // Read the real mode rather than describing an intended one. When model prose
+  // is switched on this page starts telling the truth by itself, instead of
+  // quietly becoming the overclaim we removed from the pricing copy.
+  const modelProseLive = activeProseMode() === "model";
 
   return (
     <LegalShell
@@ -51,8 +51,11 @@ export default function EnginePage() {
           publishes a short thesis on the top five, about 30 minutes before the
           4:00 PM ET close. The ranking and the scores are{" "}
           <strong>computed from market data</strong> — filings, historical
-          outcomes, statistical models, price and volume — not written by a chatbot. Zenith places
-          no trades and holds no positions.
+          outcomes, statistical models, price and volume.{" "}
+          {modelProseLive
+            ? "A language model is used only to phrase the write-up; it never produces a number."
+            : "Both the numbers and the wording come from that engine."}{" "}
+          Zenith places no trades and holds no positions.
         </p>
         <p>
           Zenith can also be wrong. Its limitations
@@ -128,12 +131,16 @@ export default function EnginePage() {
 
       <LegalSection title="What AI does, and does not, do">
         <p>
-          {haikuLive ? (
+          {modelProseLive ? (
             <>
               A language model is currently used for <strong>one thing</strong>:
-              rewriting the finished findings into readable sentences. It
-              receives the numbers the engine already computed and is instructed
-              not to change or add to them.
+              rewriting the finished findings into readable sentences. The
+              sentences carrying the odds, the expected move and the risk
+              warnings are written by the engine and passed through untouched.
+              Every figure the model does write is checked against the
+              engine&apos;s own numbers before publication — if one doesn&apos;t
+              match, the model&apos;s version is thrown away and the
+              engine&apos;s wording is used instead.
             </>
           ) : (
             <>
@@ -147,14 +154,15 @@ export default function EnginePage() {
             </>
           )}
         </p>
-        <p>In neither case does a model:</p>
+        <p>What a model never does, in any mode:</p>
         <ul>
           <li>choose which stocks appear on the screener or in the top five</li>
           <li>produce or adjust the short score, the base rate, or any figure</li>
           <li>look anything up, browse the web, or add facts of its own</li>
         </ul>
         <p>
-          Nothing about you is ever sent to an AI provider. See the{" "}
+          Nothing about you is ever sent to an AI provider — it receives only
+          public market facts. See the{" "}
           <Link className="text-brand" href="/privacy">
             Privacy Policy
           </Link>

@@ -39,9 +39,11 @@ export const TIER_FEATURES = {
   ],
   // Pro adds the thesis, the 3:30 email, and full history depth.
   pro: [
-    // "Quant-AI" until 2026-08-26: Haiku prose mode is not enabled, so no model
-    // touches a thesis today. Don't put AI back in the paid-feature bullet
-    // unless AI_PROSE_MODE=haiku is actually live.
+    // Says "Quant" and not "Quant-AI" on purpose, and it stays that way in
+    // BOTH prose modes: the engine computes every figure either way, and Haiku
+    // (when enabled) only rewrites the wording. Copy across the site is written
+    // to be true regardless of AI_PROSE_MODE so the flip stays config-only —
+    // don't couple this bullet to the flag.
     "Everything in Free account",
     "Quant short thesis on the top 5, every trading day",
     "The 3:30 drop email: top movers + thesis in your inbox before the close",
