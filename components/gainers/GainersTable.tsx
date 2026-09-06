@@ -7,8 +7,8 @@ import {
   TableCell,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "./GainerRow";
+import { GainerRowSkeleton } from "./GainerRowSkeleton";
 import { GainerTableHead } from "./GainerTableHead";
 import { ChartDialog } from "./ChartDialog";
 import { useGainers } from "@/hooks/useGainers";
@@ -74,11 +74,7 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
         <TableBody>
           {isLoading &&
             Array.from({ length: 8 }).map((_, i) => (
-              <TableRow key={i} className="border-foreground/5">
-                <TableCell colSpan={8}>
-                  <Skeleton className="h-6 w-full bg-foreground/5" />
-                </TableCell>
-              </TableRow>
+              <GainerRowSkeleton key={i} />
             ))}
 
           {!isLoading &&

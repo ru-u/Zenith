@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LEGAL_CONTACT_EMAIL, NOT_ADVICE, NOT_AFFILIATED } from "@/lib/legal";
 import { LINKS } from "@/lib/nav";
+import { NavPending } from "./NavPending";
 
 // The app-side legal footer. Until this existed, <LandingFooter> was the only
 // footer in the product and it renders on "/" alone — so /screener, /analysis,
@@ -32,9 +33,10 @@ export function AppFooter() {
             <Link
               key={href}
               href={href}
-              className="py-1 text-muted-foreground transition-colors hover:text-foreground"
+              className="relative py-1 text-muted-foreground transition-colors hover:text-foreground"
             >
               {label}
+              <NavPending />
             </Link>
           ))}
         </nav>

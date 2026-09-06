@@ -2,11 +2,11 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import { Table, TableBody } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { GainerRow } from "@/components/gainers/GainerRow";
+import { GainerRowSkeleton } from "@/components/gainers/GainerRowSkeleton";
 import { GainerTableHead } from "@/components/gainers/GainerTableHead";
 import { ChartDialog } from "@/components/gainers/ChartDialog";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
@@ -42,10 +42,15 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
   const openTicker = useTickerOpen(setChartGainer);
   const strip = useRef<HTMLElement>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ["gainers", selected],
     queryFn: () => fetchDate(selected as string),
     enabled: !!selected,
+    // Hold the previous day's rows while the next date loads instead of
+    // blanking to skeletons on every chip tap. On a phone the strip is a
+    // horizontal scroller right above the table, so stepping through dates was
+    // a strobe of table → skeleton → table.
+    placeholderData: keepPreviousData,
   });
 
   if (dates.length === 0) {
@@ -148,13 +153,29 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
         </button>
       </div>
 
-      <div className="glass overflow-hidden rounded-2xl">
+      {/* While placeholder data is showing, the rows belong to the PREVIOUS
+          date but the selected chip already reads as the new one. Dim and mark
+          the panel busy so it never presents one day's numbers under another
+          day's label. */}
+      <div
+        aria-busy={isPlaceholderData || undefined}
+        className={cn(
+          "glass overflow-hidden rounded-2xl transition-opacity",
+          isPlaceholderData && "opacity-50",
+        )}
+      >
+        {/* The same table shell the loaded state renders, so switching dates
+            keeps the header and column widths put instead of collapsing to a
+            stack of full-width bars and springing back. */}
         {isLoading && (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-7 w-full bg-foreground/5" />
-            ))}
-          </div>
+          <Table>
+            <GainerTableHead />
+            <TableBody>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <GainerRowSkeleton key={i} />
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         {!isLoading && data?.status === 403 && (

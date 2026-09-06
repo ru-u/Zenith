@@ -12,11 +12,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { LINKS, isActivePath } from "@/lib/nav";
+import { NavPending } from "./NavPending";
 import { useSignOut } from "@/hooks/useSignOut";
 import { cn } from "@/lib/utils";
 
 const itemClass =
-  "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[0.9375rem] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/50";
+  "relative flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[0.9375rem] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/50";
 
 /** The phone nav. <NavLinks> hides itself under `sm:` (the header would
  *  otherwise overflow and drag the page wider), which left /screener,
@@ -97,6 +98,7 @@ export function MobileNav({
                 )}
               >
                 {label}
+                <NavPending />
               </Link>
             );
           })}
@@ -114,6 +116,7 @@ export function MobileNav({
               >
                 <Settings className="h-4 w-4 text-muted-foreground" />
                 Settings
+                <NavPending />
               </Link>
               <button
                 type="button"
@@ -135,6 +138,7 @@ export function MobileNav({
             >
               <LogIn className="h-4 w-4 text-muted-foreground" />
               Sign in
+              <NavPending />
             </Link>
           )}
         </nav>

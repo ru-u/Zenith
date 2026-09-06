@@ -88,7 +88,7 @@ function HeroCard({
 }
 
 export function GainersHero() {
-  const { data } = useGainers();
+  const { data, isError } = useGainers();
   const { data: streaks } = useStreaks();
   const top = (data?.gainers ?? []).slice(0, 5);
   // The market is open but the provider is still 15 minutes behind, so these
@@ -132,22 +132,41 @@ export function GainersHero() {
         )}
       </div>
 
-      {/* Single ranked row, #1 → #5 left to right. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {top.length === 0
-          ? Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="glass h-37.5 animate-pulse rounded-2xl" />
-            ))
-          : top.map((g, i) => (
-              <HeroCard
-                key={g.ticker}
-                gainer={g}
-                streak={streaks?.get(g.ticker)}
-                index={i}
-                onClick={() => openTicker(g)}
-              />
-            ))}
-      </div>
+      {/* A failed fetch used to fall through to the skeleton below, because the
+          branch tested `top.length === 0` rather than the query state — so a
+          dropped request left five cards pulsing forever, which on a phone is
+          indistinguishable from a load that never finishes. <GainersTable>
+          already surfaces this; say it here too. */}
+      {isError && top.length === 0 ? (
+        <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
+          Couldn&apos;t load today&apos;s gainers. Try again shortly.
+        </div>
+      ) : (
+        /* Single ranked row, #1 → #5 left to right. */
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {top.length === 0
+            ? Array.from({ length: 5 }).map((_, i) => (
+                /* `skeleton-sweep` rather than `glass … animate-pulse`: phones
+                   drop backdrop-filter on .glass below 40rem, which left this
+                   fading one flat fill against another. h-37.5 matches a real
+                   card's natural height (~148px), so nothing reflows on
+                   arrival. */
+                <div
+                  key={i}
+                  className="skeleton-sweep h-37.5 rounded-2xl ring-1 ring-foreground/10"
+                />
+              ))
+            : top.map((g, i) => (
+                <HeroCard
+                  key={g.ticker}
+                  gainer={g}
+                  streak={streaks?.get(g.ticker)}
+                  index={i}
+                  onClick={() => openTicker(g)}
+                />
+              ))}
+        </div>
+      )}
     </section>
     </>
   );

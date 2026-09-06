@@ -13,7 +13,7 @@ export function ProGate({ children }: { children: React.ReactNode }) {
   const { isPro, loading } = useSubscription();
 
   if (loading) {
-    return <div className="glass h-40 animate-pulse rounded-xl" />;
+    return <div className="skeleton-sweep h-40 rounded-xl ring-1 ring-foreground/10" />;
   }
 
   if (isPro) return <>{children}</>;

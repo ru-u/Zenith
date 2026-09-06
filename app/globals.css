@@ -377,6 +377,73 @@
   }
 }
 
+/* --- Skeleton surfaces --------------------------------------------------
+   A directional sweep rather than `animate-pulse` alone. Phones drop
+   `backdrop-filter` on .glass below 40rem (see the block above), which left
+   the pulsing placeholders as a flat opacity fade on a flat fill — it reads as
+   a parked screen, not a loading one, which is exactly the failure this app hit
+   once before (commit 5246206: "left the skeleton on screen as the visible
+   state, which reads as broken").
+
+   `.skeleton-sweep` is a complete surface: it OWNS background-color, so don't
+   pair it with .glass (whose `background` shorthand would wipe the gradient) —
+   the two are alternatives, not layers.
+
+   IN `@layer components` on purpose, like .glass. Unlayered CSS beats every
+   layered rule, so at the top level this fill would silently defeat the
+   `bg-foreground/5` overrides that GainersTable and HistoryBrowser pass in.
+
+   Neutral --foreground, never --brand: this has to read in both themes, and
+   cyan is reserved for accents/CTAs. */
+@layer components {
+  .skeleton-sweep {
+    background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+  }
+
+  /* Defined only inside no-preference, matching the Ascent field below:
+     reduced motion gets the static fill above with no JS branch and no
+     `animation: none` override to fight. */
+  @media (prefers-reduced-motion: no-preference) {
+    .skeleton-sweep {
+      background-image: linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in oklab, var(--foreground) 9%, transparent) 50%,
+        transparent 100%
+      );
+      background-size: 200% 100%;
+      background-repeat: no-repeat;
+      animation: skeleton-sweep 1.6s ease-in-out infinite;
+    }
+  }
+}
+
+/* The nav tap-acknowledgement dot (components/layout/NavPending). Runs with a
+   120ms animation-delay and NO fill-mode, so the dot holds its base opacity:0
+   through the delay — a navigation that resolves faster than that shows
+   nothing at all, which is what a prefetched route should feel like. */
+@keyframes nav-pending {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Keyframes are layer-agnostic, so this stays at the top level with the rest. */
+@keyframes skeleton-sweep {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
 /* --- Landing "Ascent" field (components/landing/AmbientChevrons) --------
    The logo's double chevron at architectural scale, drifting slowly upward.
    Animations are DEFINED only inside the no-preference media query, so

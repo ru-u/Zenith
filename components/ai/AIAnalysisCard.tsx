@@ -161,7 +161,9 @@ export function AIAnalysisCard() {
     return (
       <section className="flex flex-col gap-3">
         {renderHeader(false)}
-        {!collapsed && <div className="glass h-40 animate-pulse rounded-2xl" />}
+        {!collapsed && (
+          <div className="skeleton-sweep h-40 rounded-2xl ring-1 ring-foreground/10" />
+        )}
       </section>
     );
   }

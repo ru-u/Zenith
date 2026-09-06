@@ -20,6 +20,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             // Data is delayed/near-real-time; matches the server-side cache window.
             staleTime: TEN_MINUTES,
+            // Must be >= staleTime. The default gcTime is FIVE minutes, so a
+            // query with no observers was evicted while still fresh: navigate
+            // off /screener, come back six minutes later, and a cache that
+            // considered itself valid had already been collected — you paid a
+            // cold fetch and a full skeleton. That mismatch is why loads felt
+            // fast or slow depending on which page you came from.
+            gcTime: TEN_MINUTES,
             refetchInterval: TEN_MINUTES,
             refetchOnWindowFocus: false,
             retry: 1,
