@@ -7,11 +7,20 @@ import {
 } from "./types";
 import { rankAndFilter, MIN_PRICE } from "./normalize";
 import { exchangeFromScannerSymbol } from "./symbols";
-import { getMarketSession } from "../market-calendar";
+import { formatDateKey, getMarketSession } from "../market-calendar";
 import { withRetry } from "../retry";
 
 // Exported for lib/quant/technicals.ts, which hits the same scanner endpoint.
 export const SCAN_URL = "https://scanner.tradingview.com/america/scan";
+
+// The scanner reports `update_mode: "delayed_streaming_900"` on every row — a
+// 15-MINUTE delayed feed. Today's daily bar therefore cannot appear here before
+// 9:45 ET; until it does, every row still describes the PREVIOUS session. Two
+// separate guards are derived from this number: the read path's warm-up floor
+// (don't even probe before 9:30 + this + a buffer) and, more importantly, the
+// per-batch session check that actually decides when the feed has rolled.
+// Same delay is why CLOSE_SETTLE_MINUTES waits 20 minutes after the close.
+export const FEED_DELAY_SECONDS = 900;
 
 // `s` looks like "NASDAQ:INHD" / "NYSE:XYZ" / "OTC:AONC". Allow only the two
 // major exchanges (client-side guard backing the payload filter).
@@ -37,6 +46,7 @@ const COLUMNS = [
   "sector", // 7
   "type", // 8  security type: stock | fund | dr | structured | ...
   "typespecs", // 9  e.g. ["common"], ["preferred"]
+  "time", // 10 daily bar open, epoch SECONDS — which session this row describes
 ] as const;
 
 // Realistic UA — TradingView blocks obvious bots. (Undocumented endpoint with
@@ -99,6 +109,18 @@ function toNum(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * The scanner's `time` is the open of the daily bar the row's figures belong
+ * to, in epoch SECONDS (e.g. 1788528600 = 2026-09-04 09:30 ET). Rendered as an
+ * ET date key it answers the only question we need: which session is this?
+ * Null for a row the scanner didn't timestamp — the batch gate handles that.
+ */
+function sessionDateFromBar(seconds: number | null): string | null {
+  if (seconds == null || seconds <= 0) return null;
+  const d = new Date(seconds * 1000);
+  return Number.isNaN(d.getTime()) ? null : formatDateKey(d);
+}
+
 function mapRow(entry: { s: string; d: unknown[] }): RawGainer {
   const d = entry.d;
   return {
@@ -113,11 +135,13 @@ function mapRow(entry: { s: string; d: unknown[] }): RawGainer {
     relativeVolume: toNum(d[5]),
     marketCap: toNum(d[6]),
     sector: (d[7] as string) ?? null,
+    sessionDate: sessionDateFromBar(toNum(d[10])),
   };
 }
 
 export const tradingViewProvider: MarketDataProvider = {
   name: "tradingview",
+  feedDelaySeconds: FEED_DELAY_SECONDS,
 
   async getTopGainers(limit: number): Promise<GainerRow[]> {
     try {

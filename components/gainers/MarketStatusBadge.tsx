@@ -41,10 +41,18 @@ export function MarketStatusBadge({
   asOf,
   date,
   isFinal = false,
+  warmingUp = false,
 }: {
   asOf: string | null;
   date: string | null;
   isFinal?: boolean;
+  /**
+   * Market open, but the provider hasn't published today's session yet, so
+   * `date` is an EARLIER day (see GainersPayload.warmingUp). Beats the "open"
+   * branch below — that one prints "Live as of <our scrape time>", which for a
+   * previous session's numbers is the exact claim we must not make.
+   */
+  warmingUp?: boolean;
 }) {
   // Time-dependent state is client-only to avoid SSR hydration mismatch.
   const [now, setNow] = useState<Date | null>(null);
@@ -109,7 +117,14 @@ export function MarketStatusBadge({
   let rightDotColor = C.muted;
   let rightPulse = false;
   let freshness = "—";
-  if (phase === "open") {
+  if (warmingUp) {
+    // Amber, not green: the market is live but this data is not today's.
+    rightDotColor = C.amber;
+    rightPulse = true;
+    freshness = date
+      ? `Scanning — showing ${fmtDate(date)}`
+      : "Scanning for today's gainers";
+  } else if (phase === "open") {
     rightDotColor = C.green;
     rightPulse = true;
     freshness = `Live as of ${clock(asOf)}`;

@@ -30,7 +30,31 @@ export async function GET(req: Request) {
 
   try {
     const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
-    await persistGainers(admin, gainers, dateKey, true); // raw, is_final = true
+    const result = await persistGainers(admin, gainers, dateKey, true); // raw, is_final = true
+
+    // The one place a stale feed would do lasting damage: is_final is the
+    // number DECA orders actually execute at, and nothing overwrites it later.
+    // Refuse the whole run rather than freeze another session's close as ours —
+    // streaks and the theses fallback would then be computed off it too. Self-
+    // healing: the read path's close-capture still finalizes on the next page
+    // load once the provider catches up (`!alreadyFinal` is still true).
+    if (result.reason === "stale-session") {
+      await maybeAlert(admin, {
+        date: dateKey,
+        type: "feed_not_rolled",
+        subject: `Zenith: feed still on ${result.sessionDate} at EOD (${dateKey})`,
+        body:
+          `${getProvider().name} returned session ${result.sessionDate} instead of ${dateKey} ` +
+          `at the EOD run, so the session gate refused to freeze it as today's official close. ` +
+          `${dateKey} is NOT finalized and streaks/theses did not run. A later page load will ` +
+          `finalize automatically once the provider rolls over; if this alert repeats, the feed ` +
+          `is stuck and the day needs a manual re-run.`,
+      });
+      return NextResponse.json(
+        { ok: false, date: dateKey, error: "provider session mismatch", sessionDate: result.sessionDate },
+        { status: 502 },
+      );
+    }
 
     // Watchdog: confirm the official close actually locked. An empty provider
     // response (no error, no rows) would leave the day un-finalized otherwise.

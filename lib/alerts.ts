@@ -23,6 +23,12 @@ export type AlertType =
   // telling users a model wrote it. Nothing else can detect that.
   | "model_prose_degraded" // most/all model prose calls fell back to the template
   | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
+  // The two halves of the session gate in persistGainers, split because the
+  // fixes have nothing in common. Neither fires during the normal 9:30-9:47
+  // warm-up — that mismatch is expected and the read path stays silent through
+  // it; these mean the gate is in a state a human has to look at.
+  | "feed_not_rolled" // provider still serving a previous session long past the open (or at a cron hour)
+  | "feed_session_unknown" // the scanner's `time` column vanished — the gate is fail-open and blind
   | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP
   | "prune_anomaly" // unconfirmed-account prune found an implausible number of rows
   | "calibration_drift" // a scoring constant now sits outside its realized confidence interval

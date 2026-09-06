@@ -44,7 +44,9 @@ triggering per-render provider calls).
 **Read** — `GET /api/gainers` (DB-first):
 1. Serve cached `daily_gainers` for today.
 2. During the regular session (9:30–16:00 ET), if data is stale (>10 min),
-   self-fetch the provider and cache it.
+   self-fetch the provider and cache it — **except during the morning warm-up**
+   (see "The 9:30–9:47 warm-up" below), where nothing is fetched or stored and
+   the payload comes back `warmingUp: true` on the previous session.
 3. ~30 min before the close (the **pre-close "drop"**), generate AI short theses
    for the top-5 off the intraday data and email opted-in **Pro** users (free
    tiers get no email for now — `lib/notify.ts` filters recipients) — via Next's
@@ -178,6 +180,36 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   ToS risk. There's no provider fallback; revisit the licensing/source question
   before any commercial scale. The `MarketDataProvider` interface stays as the
   seam if another source is added.
+- **The 9:30–9:47 warm-up: the provider does not have today's session yet.**
+  The scanner reports `update_mode: "delayed_streaming_900"` — a 15-minute
+  delayed feed — so from the open until ~9:47 ET it still returns the
+  **previous** session's rows, change% and all. There is no morning cron; the
+  first fetch of a day is whoever loads the page first after 9:30, so this used
+  to file yesterday's board under today's date and render it as
+  "Market open · Live as of 9:32 AM" (observed 2026-08-21 09:32 — all five
+  quotes back-solved to the 8/19 close, i.e. they measured 8/19→8/20).
+  `dropFrozenRepeats` cannot catch it: it needs price **and** change% **and**
+  volume to match the stored prior day, and overnight the feed settles onto the
+  true 4:00 close while our stored row was the 3:55 snapshot.
+  Two guards, and only the second is authoritative:
+  - the read path won't probe before `open + feedDelaySeconds + 2 min`, and
+    while today has no rows the 10-min freshness gate can't throttle anything
+    (`isDataStale(null)` is always true), so probes are capped at one per 2 min
+    by an in-memory timestamp — **per-process, same single-replica assumption as
+    `lib/ratelimit.ts`**;
+  - `persistGainers` **refuses any batch whose session isn't the day it's being
+    filed under**, from the scanner's `time` column (the daily bar's open)
+    plumbed as `GainerRow.sessionDate` and reduced by `batchSessionDate` (the
+    **mode** — halted names keep a stale bar, so unanimity would reject good
+    batches). This is the one gate; the clock only avoids wasted calls.
+  It **fails open** when `time` is missing — a contract change must not blank
+  the product for a day — and alerts (`feed_session_unknown`). A mismatch is
+  silent through the normal window and alerts past 45 min (`feed_not_rolled`);
+  at the crons it alerts immediately, and run-eod refuses the whole run rather
+  than freeze another session as `is_final` (a later page load finalizes once
+  the feed catches up). While warming, `serveStoredGainers` serves the last
+  finalized day with `warmingUp: true`; the badge reads "Scanning — showing
+  Sep 4" instead of "Live as of", and `useGainers` polls at 1 min instead of 10.
 - **A bare ticker is NOT an identifier** — symbols collide across venues and
   get reused across companies (the BIOT incident, 2026-07-24: a day-one Nasdaq
   listing whose bare symbol the chart widget resolved to a BitMEX crypto

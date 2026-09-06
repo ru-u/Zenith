@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
-import { isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
+import { batchSessionDate, isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
 import { isAllowedExchange } from "./marketdata/symbols";
 import { maybeAlert } from "./alerts";
 import {
+  getMarketSession,
   getMarketStatus,
   isDataStale,
   type MarketStatus,
@@ -61,14 +62,39 @@ function checkSymbolIntegrity(rows: GainerRow[]): {
   return { kept, dropped, unqualified: kept.filter((r) => r.exchange == null) };
 }
 
-/** Upsert a ranked set of gainers for a date. Uses the service-role client. */
+export interface PersistResult {
+  /** Whether rows were written. False means the batch was refused, not that it failed. */
+  persisted: boolean;
+  /**
+   * The session the batch described (modal `sessionDate`). Null means the
+   * provider didn't timestamp it — the gate fails OPEN in that case, so
+   * `persisted: true` with a null sessionDate is the "we wrote it blind"
+   * signal callers alert on (feed_session_unknown).
+   */
+  sessionDate: string | null;
+  /** Why nothing was written. "stale-session" is the morning warm-up case. */
+  reason?: "empty" | "stale-session";
+}
+
+/**
+ * Upsert a ranked set of gainers for a date. Uses the service-role client.
+ *
+ * Two gates run before anything is written, both at this single ingest
+ * boundary so the read path and both crons inherit them: symbol integrity
+ * (below) and the SESSION check — the batch must describe the day we're about
+ * to file it under. TradingView's feed is 15-min delayed, so from 9:30 to
+ * ~9:47 ET it still serves the previous session; without this gate the first
+ * page load of the day writes yesterday's change% under today's date and the
+ * screener renders it as live (observed 2026-08-21 09:32: five rows whose
+ * percentages all measured 8/19→8/20).
+ */
 export async function persistGainers(
   admin: SupabaseClient<Database>,
   allRows: GainerRow[],
   dateKey: string,
   isFinal: boolean,
-): Promise<void> {
-  if (allRows.length === 0) return;
+): Promise<PersistResult> {
+  if (allRows.length === 0) return { persisted: false, sessionDate: null, reason: "empty" };
 
   const { kept: rows, dropped, unqualified } = checkSymbolIntegrity(allRows);
   if (dropped.length > 0 || unqualified.length > 0) {
@@ -88,7 +114,18 @@ export async function persistGainers(
         `the TradingView scanner contract changed (lib/marketdata/tradingview.ts).`,
     });
   }
-  if (rows.length === 0) return;
+  if (rows.length === 0) return { persisted: false, sessionDate: null, reason: "empty" };
+
+  // Session gate. Null = the provider gave us no bar timestamp at all; fail
+  // OPEN there (a contract change must not blank the product for a whole day)
+  // and let the caller alert on the blind write.
+  const sessionDate = batchSessionDate(rows);
+  if (sessionDate != null && sessionDate !== dateKey) {
+    console.warn(
+      `[gainers] session gate: provider is serving ${sessionDate}, refusing to file it as ${dateKey}`,
+    );
+    return { persisted: false, sessionDate, reason: "stale-session" };
+  }
 
   const scrapedAt = new Date().toISOString();
   const dbRows = rows.map((r) => toDbRow(r, dateKey, isFinal, scrapedAt));
@@ -122,6 +159,8 @@ export async function persistGainers(
       console.error("[gainers] prune failed:", pruneError.message);
     }
   }
+
+  return { persisted: true, sessionDate };
 }
 
 /** Read cached gainers for a date, ranked. */
@@ -250,6 +289,13 @@ export interface GainersPayload {
   asOf: string | null;
   stale: boolean;
   status: MarketStatus;
+  /**
+   * The market is open but we're serving an earlier session, because the
+   * provider hasn't published today's yet (its feed is 15-min delayed, so this
+   * is every day from 9:30 until ~9:47 ET). The UI must say so rather than
+   * stamping the previous close with a live timestamp.
+   */
+  warmingUp: boolean;
   gainers: DailyGainer[];
 }
 
@@ -296,15 +342,23 @@ export async function serveStoredGainers(
     rows = dropFrozenRepeats(rows, await getCachedGainers(client, prevDate));
   }
 
+  // Serving an earlier day while the market is open means exactly one thing:
+  // today's session hasn't reached us yet. Derived here rather than passed in,
+  // because this is the only place that knows the fallback above fired.
+  const warmingUp = servedDate !== dateKey && getMarketSession() === "open";
+
   return {
     date: servedDate,
     asOf,
     stale: isDataStale(asOf, FRESHNESS_MINUTES),
-    status: getMarketStatus({
-      isFinal: rows.some((r) => r.is_final),
-      scrapedAt: asOf,
-      isToday: servedDate === dateKey,
-    }),
+    status: warmingUp
+      ? "WARMING"
+      : getMarketStatus({
+          isFinal: rows.some((r) => r.is_final),
+          scrapedAt: asOf,
+          isToday: servedDate === dateKey,
+        }),
+    warmingUp,
     gainers: rows,
   };
 }

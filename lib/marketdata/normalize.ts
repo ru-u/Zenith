@@ -34,6 +34,34 @@ export function isLikelySplitArtifact(
 }
 
 /**
+ * The session a whole batch describes: the MODAL `sessionDate` across its rows,
+ * or null when no row carries one.
+ *
+ * Mode rather than "every row must agree": a halted or thinly-traded name keeps
+ * reporting a stale daily bar (the same behaviour dropFrozenRepeats cleans up
+ * after), so demanding unanimity would reject perfectly good batches every day.
+ * The distribution this reads is bimodal in practice — either ~all rows are
+ * today's or ~all are the previous session's — so the mode is unambiguous.
+ */
+export function batchSessionDate(rows: Array<{ sessionDate: string | null }>): string | null {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (r.sessionDate == null) continue;
+    counts.set(r.sessionDate, (counts.get(r.sessionDate) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [date, count] of counts) {
+    // Ties break toward the later date — the newer bar is the live session.
+    if (count > bestCount || (count === bestCount && best != null && date > best)) {
+      best = date;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+/**
  * Filter → sort (change% desc) → rank → slice.
  * A filter is skipped when its value is null/undefined, so we never drop a
  * row just because a field is unknown.

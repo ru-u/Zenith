@@ -68,6 +68,19 @@ export function minutesSinceCloseET(date: Date = new Date()): number | null {
   return mins >= close ? mins - close : null;
 }
 
+/**
+ * Minutes since the 9:30 AM ET open on a trading day, or null on
+ * weekends/holidays or before the open. Mirrors minutesSinceCloseET; the open
+ * is 9:30 on half-days too (only the close moves), so no calendar lookup here.
+ */
+export function minutesSinceOpenET(date: Date = new Date()): number | null {
+  if (!isTradingDay(date)) return null;
+  const { hour, minute } = etParts(date);
+  const mins = hour * 60 + minute;
+  const open = 9 * 60 + 30;
+  return mins >= open ? mins - open : null;
+}
+
 /** Today's date in ET as a YYYY-MM-DD key. */
 export function getTodayET(date: Date = new Date()): string {
   // en-CA renders as YYYY-MM-DD.
@@ -165,7 +178,16 @@ export function getMarketSession(date: Date = new Date()): MarketSession {
   return "closed";
 }
 
-export type MarketStatus = "LIVE" | "DELAYED" | "CLOSED" | "HISTORICAL";
+export type MarketStatus =
+  | "LIVE"
+  | "DELAYED"
+  | "CLOSED"
+  | "HISTORICAL"
+  // The market is open but the provider hasn't published today's session yet
+  // (its feed is 15-min delayed), so we're serving the last finalized day.
+  // Set by serveStoredGainers, which is the only caller that knows the served
+  // date differs from today — getMarketStatus below never returns it.
+  | "WARMING";
 
 /**
  * Display status for the MarketStatusBadge, derived from stored row state

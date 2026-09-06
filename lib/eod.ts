@@ -50,8 +50,15 @@ async function fetchBaseRates(admin: SupabaseClient<Database>): Promise<BaseRate
   return rates;
 }
 
-/** Cleaned (frozen-repeats removed) gainers → re-ranked GainerRow set. */
-function toGainerRows(cleaned: DailyGainer[]): GainerRow[] {
+/**
+ * Cleaned (frozen-repeats removed) gainers → re-ranked GainerRow set.
+ *
+ * `sessionDate` is the row's own `date`: a row only reaches daily_gainers after
+ * persistGainers' session gate has confirmed the batch described that day, so
+ * the stored date IS the session. Nothing downstream of here re-persists, but
+ * leaving it null would misreport these as un-timestamped.
+ */
+function toGainerRows(cleaned: DailyGainer[], dateKey: string): GainerRow[] {
   return cleaned.map((g, i) => ({
     ticker: g.ticker,
     exchange: g.exchange,
@@ -62,6 +69,7 @@ function toGainerRows(cleaned: DailyGainer[]): GainerRow[] {
     relativeVolume: g.relative_volume,
     marketCap: g.market_cap,
     sector: g.sector,
+    sessionDate: dateKey,
     rank: i + 1,
   }));
 }
@@ -82,7 +90,7 @@ export async function runPreCloseProcessing(
   const cleaned = await getCleanedGainers(admin, dateKey);
   if (cleaned.length === 0) return 0;
 
-  const rows = toGainerRows(cleaned);
+  const rows = toGainerRows(cleaned, dateKey);
   const top = rows.slice(0, aiCount);
   const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
   const baseRates = await fetchBaseRates(admin);
@@ -124,7 +132,7 @@ export async function runEodProcessing(
   const cleaned = await getCleanedGainers(admin, dateKey);
   if (cleaned.length === 0) return 0;
 
-  const rows = toGainerRows(cleaned);
+  const rows = toGainerRows(cleaned, dateKey);
   const top = rows.slice(0, aiCount);
   // Read streaks BEFORE updateStreaks so the count is on the same prior-day basis
   // as the pre-close drop (not yet including today).

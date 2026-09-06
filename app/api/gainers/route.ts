@@ -15,6 +15,7 @@ import {
   getMarketSession,
   isDataStale,
   minutesSinceCloseET,
+  minutesSinceOpenET,
   secondsUntilCloseET,
 } from "@/lib/market-calendar";
 import { checkLimit } from "@/lib/ratelimit";
@@ -37,6 +38,31 @@ const CLOSE_SETTLE_MINUTES = 20;
 // orders placed before the close fill at today's close, so this leaves a window
 // to read the theses and place orders.
 const PRECLOSE_WINDOW_MINUTES = 30;
+
+// Extra slack on top of the provider's feed delay before the first probe of a
+// new day. The delay says today's bar can't exist upstream before 9:45; two
+// minutes covers the first prints actually landing. Nothing correctness-
+// critical rides on this number — persistGainers' session gate is what decides
+// whether a batch is today's. This only stops us spending calls on the
+// (undocumented, ToS-risky) scanner on a question we already know the answer to.
+const WARMUP_BUFFER_MINUTES = 2;
+
+// While no rows exist for today, `isDataStale(null)` is trivially true, so the
+// normal 10-minute freshness gate can't throttle anything — every page load in
+// the warm-up window would hit the provider, and a DECA classroom arriving at
+// the open is exactly when that happens. Probe at most this often instead.
+const WARMUP_PROBE_INTERVAL_MS = 2 * 60_000;
+
+// Past this much of the session with the provider still serving an earlier day,
+// the warm-up explanation no longer holds and someone should look. Deduped to
+// one email per day by maybeAlert's (date, type) key.
+const FEED_STALE_ALERT_MINUTES = 45;
+
+// In-memory and therefore PER-PROCESS — correct only because Railway runs a
+// single replica, the same constraint lib/ratelimit.ts and the node-cron
+// scheduler in instrumentation.ts already depend on. Worst case if that ever
+// changes: N replicas probe N times, which is a cost, not a correctness bug.
+let lastWarmupProbe = 0;
 
 // Deliberately loose. This is the only unauthenticated endpoint and it backs
 // the home page, whose audience is high-school DECA teams — a whole classroom
@@ -72,10 +98,26 @@ export async function GET(req: Request) {
   // Intraday refresh — during the REGULAR session (9:30 AM–4:00 PM ET) we
   // refresh stale data on read.
   const isOpen = getMarketSession() === "open";
+
+  // Warm-up: the market is open but nothing is stored for today yet. The
+  // provider's feed is delayed, so for the first ~17 minutes it is still
+  // serving YESTERDAY's bar and there is no point asking. After the floor we
+  // probe on a slow timer until persistGainers' session gate accepts a batch —
+  // that gate, not this clock, is what ends the window.
+  const sinceOpen = minutesSinceOpenET();
+  const warmupFloorMinutes =
+    getProvider().feedDelaySeconds / 60 + WARMUP_BUFFER_MINUTES;
+  const warming = isOpen && !alreadyFinal && rows.length === 0;
+  const beforeWarmupFloor =
+    warming && (sinceOpen == null || sinceOpen < warmupFloorMinutes);
+
   const shouldFetch =
     isOpen &&
     !alreadyFinal &&
-    (rows.length === 0 || isDataStale(asOf, FRESHNESS_MINUTES));
+    !beforeWarmupFloor &&
+    (warming
+      ? Date.now() - lastWarmupProbe > WARMUP_PROBE_INTERVAL_MS
+      : isDataStale(asOf, FRESHNESS_MINUTES));
 
   // Capture the official close on read — once the auction has settled AND the
   // provider's delayed feed has caught up (see CLOSE_SETTLE_MINUTES), the first
@@ -90,16 +132,55 @@ export async function GET(req: Request) {
     sinceClose >= CLOSE_SETTLE_MINUTES;
 
   if (shouldFetch || shouldFinalize) {
+    if (warming) lastWarmupProbe = Date.now();
     try {
       const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
-      await persistGainers(admin, gainers, dateKey, shouldFinalize);
-      rows = await getCachedGainers(admin, dateKey);
-      asOf = latestScrapedAt(rows);
+      const result = await persistGainers(admin, gainers, dateKey, shouldFinalize);
+
+      if (result.reason === "stale-session") {
+        // The provider is still on an earlier session. Nothing was written, so
+        // today stays empty and serveStoredGainers falls back to the last
+        // finalized day with warmingUp set. Silent through the normal window —
+        // this is the expected state at 9:35 every single morning.
+        if (sinceOpen != null && sinceOpen > FEED_STALE_ALERT_MINUTES) {
+          await maybeAlert(admin, {
+            date: dateKey,
+            type: "feed_not_rolled",
+            subject: `Zenith: market-data feed still on ${result.sessionDate} at ${sinceOpen} min into the session`,
+            body:
+              `${getProvider().name} is serving session ${result.sessionDate}, not ${dateKey}, ` +
+              `${sinceOpen} minutes after the open. The session gate in persistGainers is ` +
+              `refusing to file those figures under today, so the screener is showing the last ` +
+              `finalized day and labelling it "Scanning". Nothing is being corrupted — but no ` +
+              `fresh data will land until the provider rolls over.`,
+          });
+        }
+      } else if (result.persisted) {
+        rows = await getCachedGainers(admin, dateKey);
+        asOf = latestScrapedAt(rows);
+
+        if (result.sessionDate == null) {
+          // Fail-open path: we wrote the batch without being able to check
+          // which session it describes. Working as designed, but the guard is
+          // blind until the column comes back.
+          await maybeAlert(admin, {
+            date: dateKey,
+            type: "feed_session_unknown",
+            subject: `Zenith: scanner returned no session timestamp (${dateKey})`,
+            body:
+              `No row in the ${getProvider().name} batch carried a usable \`time\` value, so the ` +
+              `session gate in persistGainers could not verify the data is today's and wrote it ` +
+              `anyway (fail-open by design). Check whether the scanner's column contract changed ` +
+              `— lib/marketdata/tradingview.ts. Until it's fixed, the 9:30–9:47 warm-up hole is ` +
+              `open again and yesterday's board can be filed as today's.`,
+          });
+        }
+      }
 
       // The moment we freeze the close, kick off streaks + AI theses in the
       // background (after the response flushes — never blocks the page). The
       // ~4:20 PM EOD cron is a backstop; both steps are idempotent.
-      if (shouldFinalize && rows.length > 0) {
+      if (shouldFinalize && result.persisted && rows.length > 0) {
         after(async () => {
           try {
             await runEodProcessing(admin, dateKey);
