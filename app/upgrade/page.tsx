@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { getViewer } from "@/lib/viewer";
@@ -5,8 +6,19 @@ import { CheckoutButton } from "@/components/CheckoutButton";
 import { ZenithMark } from "@/components/layout/Logo";
 import { AmbientChevrons } from "@/components/landing/AmbientChevrons";
 import { PRO_PRICE, TIER_FEATURES } from "@/lib/pricing";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { proOfferNode } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
+
+// This page had no metadata of its own, so it inherited the layout's default
+// title and description while sitting in the sitemap at priority 0.7 — a
+// pricing page indexed under the homepage's snippet.
+export const metadata: Metadata = {
+  title: "Zenith Pro",
+  description: `Zenith Pro (${PRO_PRICE}/mo): a daily quant short thesis on the top five gainers, the 3:30 PM ET pre-close drop email, and unlimited history.`,
+  alternates: { canonical: "/upgrade" },
+};
 
 export default async function UpgradePage() {
   // Shared with <Header> for this request — see lib/viewer.ts.
@@ -14,6 +26,7 @@ export default async function UpgradePage() {
 
   return (
     <main className="relative flex w-full flex-1 flex-col items-center justify-center overflow-hidden px-6 py-16">
+      <JsonLd data={proOfferNode()} />
       {/* The landing's ascent motif, full-bleed behind the offer (like the
           hero) rather than boxed to the card — otherwise the chevron arms hit
           the container's side wall and stop mid-page instead of sweeping to

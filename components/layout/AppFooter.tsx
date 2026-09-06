@@ -39,6 +39,22 @@ export function AppFooter() {
               <NavPending />
             </Link>
           ))}
+          {/* Not in LINKS on purpose: that array also drives the header nav and
+              the phone drawer, and the ticker index is a crawl entry point
+              rather than a fourth primary route. Same treatment /engine gets —
+              findable, not promoted. */}
+          <Link
+            href="/stock"
+            className="relative py-1 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Tickers
+          </Link>
+          <Link
+            href="/learn"
+            className="relative py-1 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Learn
+          </Link>
         </nav>
         <nav
           aria-label="Legal"

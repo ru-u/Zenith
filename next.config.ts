@@ -24,16 +24,18 @@ const supabaseOrigin = (() => {
 // nonce in proxy.ts, which forces EVERY page to render dynamically — the
 // landing page and the legal pages lose static generation, and PPR is ruled
 // out entirely. That is a real cost on a marketing-first site, and the payoff
-// here is small: Zenith renders no user-generated HTML. There is no
-// dangerouslySetInnerHTML in the codebase, the only user-supplied strings are
+// here is small: Zenith renders no user-generated HTML. The ONLY
+// dangerouslySetInnerHTML in the codebase is components/seo/JsonLd.tsx, which
+// serializes our own schema.org object literals (never user input) and escapes
+// `<` so a string can't close the tag; the only user-supplied strings are
 // feedback text (emailed as plain text, never rendered back) and tickers
 // (regex-constrained to /^[A-Z][A-Z0-9.\-]{0,9}$/), and React escapes
 // everything else by default. So `'unsafe-inline'` in script-src is an
 // acknowledged tradeoff, not an oversight: it is there because Next inlines its
 // own bootstrap and flight payload, and it means this CSP is defence in depth
 // against injected *external* scripts, not a backstop for an inline XSS we
-// don't have. If user-authored content ever gets rendered as HTML, this must
-// become nonce-based first.
+// don't have. If user-authored content ever gets rendered as HTML — including
+// anything reaching JsonLd — this must become nonce-based first.
 //
 // style-src needs 'unsafe-inline' regardless — framer-motion writes inline
 // styles on every animated element.

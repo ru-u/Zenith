@@ -19,6 +19,18 @@ export function LandingFooter() {
               Screener
             </Link>
             <Link
+              href="/stock"
+              className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Tickers
+            </Link>
+            <Link
+              href="/learn"
+              className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Learn
+            </Link>
+            <Link
               href="#pricing"
               className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
             >

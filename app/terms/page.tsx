@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Terms & Conditions",
   description:
     "The rules for using Zenith: eligibility, subscriptions, disclaimers, and how Zenith relates to the DECA Stock Market Game.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

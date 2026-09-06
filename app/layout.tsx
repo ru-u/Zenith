@@ -8,6 +8,8 @@ import { Header } from "@/components/layout/Header";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { HideOnLanding } from "@/components/layout/HideOnLanding";
 import { siteUrl } from "@/lib/site";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { organizationNode, webSiteNode } from "@/lib/schema";
 
 // shadcn's @theme maps --font-sans → var(--font-sans); name the variables to match.
 // Next 16 + Turbopack does not emit a render-blocking `<link rel="preload"
@@ -35,11 +37,14 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
     default: "Zenith — Today's Top Short Candidates",
-    template: "%s — Zenith",
+    template: "%s — Zenith Screener",
   },
   description:
     "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
-  applicationName: "Zenith",
+  // "Zenith Screener", not "Zenith": the bare word is contested by several far
+  // larger brands, so the entity we want resolved — by Google and by answer
+  // engines — has to be the two-word one. Matches lib/schema.ts ENTITY_NAME.
+  applicationName: "Zenith Screener",
   openGraph: {
     title: "Zenith — Today's Top Short Candidates",
     description:
@@ -94,6 +99,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
+        {/* Site-wide entity graph. Page-specific types (FAQPage, the Pro offer)
+            are emitted by the pages that own that content. */}
+        <JsonLd data={[organizationNode(), webSiteNode()]} />
         {/* Brand gradient (cyan → polar-white) shared by SVG icons like the
             streak flame. CSS-var stops make it follow the active theme. */}
         <svg width="0" height="0" className="absolute" aria-hidden="true">
