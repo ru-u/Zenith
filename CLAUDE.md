@@ -21,9 +21,10 @@ launch: a regulatory/branding compliance pass and engine calibration tweaks.
 - **Stripe** subscriptions — Zenith Pro, $9.99/mo
 - **In-house quant engine** (`lib/quant/`) for the AI short theses — SEC EDGAR
   catalyst detection + base-rate/rule scoring + TradingView technicals +
-  templated prose, $0/day, zero Anthropic calls. The **Anthropic SDK** remains
-  only for the optional Haiku prose mode (`AI_PROSE_MODE=haiku`, still behind
-  the `AI_THESES_ENABLED` spend switch).
+  templated prose. $0/day and zero Anthropic calls by default. The **Anthropic
+  SDK** is used only by the optional model prose mode (`AI_PROSE_MODE=model`,
+  still behind the `AI_THESES_ENABLED` spend switch), which rewrites the
+  narrative wording only — never a figure. See "Prose modes" below.
 - Market data behind a provider interface (`lib/marketdata/`): **TradingView**
   scanner (sole provider; interface kept as a seam for future sources)
 
@@ -171,6 +172,54 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   in place of the old `daily_gainers` join. `partial_finalize` alerts if a
   non-final row ever survives a finalized day again (`eod_not_finalized` cannot:
   its check is `.some(r => r.is_final)`, which one good row satisfies).
+- **Earnings surprise closes the one hole the number-validator can't.** EDGAR
+  says a company *reported*, not whether the news was good — so both renderers
+  were pushed into inferring a beat from the size of the spike, and on
+  2026-09-04 the model duly wrote "earnings results that beat expectations"
+  from a catalyst that never said so. `lib/quant/earnings.ts` supplies actual
+  vs consensus EPS so the claim is grounded and checkable. **EDGAR-confirmed
+  earnings only** — Finnhub is keyed by bare ticker and its earnings endpoint
+  returns no company name to identity-check, unlike its headlines
+  (`mentionsCompany`); restricting to EDGAR inherits `lib/quant/identity.ts`'s
+  registrant cross-check. Two Finnhub quirks are handled and will bite anyone
+  who touches it: `period` is a **calendarized** quarter label that can be in
+  the *future* (AOUT's FY27 Q1, reported Sep 3, comes back as `2026-09-30`),
+  and the response includes **upcoming** quarters with `actual: null`.
+- **Prose modes: the model writes the narrative, never the numbers.** The seam
+  is `lib/quant/thesis.ts`, the only file in the repo that imports the Anthropic
+  SDK. In `model` mode it writes *only* the "why it spiked / how this
+  catalyst behaves" sentences. The new-listing warning, our prior call on the
+  ticker, the base rate and the expected-move line are appended verbatim by
+  `pinnedSentences()` — they are reader-safety obligations and the
+  expected-move sentence ends in either "in the short's favor" or "does NOT
+  favor a short", which a paraphrase can silently invert. Whatever the model
+  does write is checked by `ungroundedNumbers()`; an untraceable figure discards
+  the attempt and the row renders from the template. **If you add a findings
+  field, decide which half it belongs in** — an earlier version passed the model a
+  subset that omitted `listingAgeDays` and `priorCall`, so flipping the mode
+  silently dropped both warnings.
+- **The stored `model` column is computed per row, not per batch** — from what
+  actually produced that row's prose (`ProseResult.source`), so a model call
+  that failed and fell back is never recorded as model-written. It was previously
+  computed once per batch from `activeProseMode()`, which meant a total
+  Anthropic outage stamped all five rows as model-written while `/engine` told
+  users a model wrote them. `model_prose_degraded` alerts on that case; `ai_all_failed`
+  cannot, because it only fires at zero rows.
+- **Copy is written for model prose being ON (2026-09-06) and is therefore
+  coupled to the flag.** It was briefly mode-agnostic; once the mode went live
+  the hedged phrasing ("where model-assisted wording is enabled") read as
+  evasive on a public policy page, so it is now definite present tense: every
+  figure is computed by the engine, and a language model phrases the findings
+  and nothing else. **Turning `AI_PROSE_MODE` back to `template` makes these
+  false and they must be reverted in the same change:**
+  `app/privacy/page.tsx` (the model-role paragraph AND Anthropic in the
+  subprocessor list), `components/landing/FAQ.tsx` ("Where do the theses come
+  from?"), `components/landing/ProSection.tsx`. `app/engine/page.tsx` is the
+  exception — both its intro clause and its "What AI does" section are gated on
+  `modelProseLive`, so that page alone self-heals (hence `force-dynamic`).
+  `lib/pricing.ts` says "Quant short thesis" in both modes and needs no change;
+  do not put "AI" in the paid-feature bullet, since AI writes none of the
+  analysis.
 - **Charts and streak badges require an account** — `ChartDialog` renders a
   sign-up gate for signed-out visitors (the TradingView widget is client-side;
   there's no chart API to gate server-side), and `GET /api/streaks` returns an
@@ -336,22 +385,25 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 ## Environment (`.env.local`)
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- `ANTHROPIC_API_KEY` (read automatically by the SDK; only used in Haiku prose mode)
+- `ANTHROPIC_API_KEY` (read automatically by the SDK; only used in model prose mode)
 - `AI_THESES_ENABLED` — **kill switch for all Anthropic calls / spend**
   (`lib/quant/thesis.ts aiThesesEnabled()`, re-exported from `lib/claude.ts`).
   Since the quant engine took over generation this gates ONLY the optional
-  Haiku prose mode; absent/anything else = OFF (fail-safe: a fresh env can
+  model prose mode; absent/anything else = OFF (fail-safe: a fresh env can
   never spend). The quant pipeline itself is free and runs regardless — theses
   generate and the pre-close email sends with the switch off.
 - `AI_PROSE_MODE` — thesis prose source: unset/`template` (default, $0,
-  deterministic) or `haiku` (one plain Anthropic call per ticker, no web
+  deterministic) or `model` (one plain Anthropic call per ticker, no web
   search; also requires `AI_THESES_ENABLED=true`). Falls back to the template
-  on any failure.
+  on any failure. The value is `model`, not a model name — `ANALYSIS_MODEL` in
+  `lib/quant/thesis.ts` picks which (Sonnet 5 since 2026-09-05).
 - `SEC_EDGAR_USER_AGENT` — contact string SEC requires on EDGAR requests
   (`lib/quant/edgar.ts`), e.g. `"Zenith Screener you@example.com"`.
-- `FINNHUB_API_KEY` — free-tier Finnhub key for the headline catalyst fallback
-  (`lib/quant/news.ts`; runs only when EDGAR finds no filing). Absent = news
-  step silently skipped. Free-tier dependency — revisit at commercial scale.
+- `FINNHUB_API_KEY` — free-tier Finnhub key, used for two things: the headline
+  catalyst fallback (`lib/quant/news.ts`; runs only when EDGAR finds no filing)
+  and the earnings surprise lookup (`lib/quant/earnings.ts`; EDGAR-confirmed
+  earnings only). Absent = both silently skipped. Free-tier dependency —
+  revisit at commercial scale.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRICE_ID` — the Stripe **Price** object for Zenith Pro ($9.99/mo).
   `create-checkout` fails closed without it (500) rather than falling back to an
