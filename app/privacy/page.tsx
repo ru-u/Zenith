@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "What data Zenith collects, how it is used, and the choices you have.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

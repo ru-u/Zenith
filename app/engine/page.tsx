@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "The Engine",
   description:
     "What Zenith's engine does and doesn't claim: the one-day basis, what the score means, what AI touches, and where it gets things wrong.",
+  alternates: { canonical: "/engine" },
 };
 
 // Disclosure, not a marketing page. Two jobs: give a curious student an honest

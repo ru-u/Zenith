@@ -5,7 +5,11 @@ import { PRO_PRICE_MONTHLY } from "@/lib/pricing";
 // Native <details>/<summary> — accessible, zero JS, and the restrained answer
 // for a section whose whole job is plain talk. Written for a skeptical DECA
 // competitor; honesty is the trust signal a pre-launch product actually has.
-const QA = [
+//
+// EXPORTED because app/page.tsx feeds it to faqPageNode() for the FAQPage
+// markup. Google requires the marked-up Q&A to match what the page visibly
+// renders, so these must stay one array with two readers — never a copy.
+export const QA = [
   {
     q: "How does shorting actually work?",
     a: "Shorting is a bet that a price will fall. You sell borrowed shares today and buy them back later. If the price has dropped, the difference is your profit; if it rises instead, that difference is your loss. In the game it's one step: place a short order, and you gain when the stock closes lower than where you shorted it.",

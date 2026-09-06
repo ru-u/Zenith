@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Cookie Policy",
   description:
     "Zenith uses only the cookies required to sign you in. No analytics, no ads, no third-party trackers.",
+  alternates: { canonical: "/cookies" },
 };
 
 export default function CookiesPage() {

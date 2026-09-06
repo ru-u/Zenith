@@ -6,10 +6,14 @@ import { GainersTable } from "@/components/gainers/GainersTable";
 import { AIAnalysisCard } from "@/components/ai/AIAnalysisCard";
 import { SignupPromptDialog } from "@/components/gainers/SignupPromptDialog";
 
+// Deliberately SYNCHRONOUS: the ["gainers"] cache is seeded one level up in
+// layout.tsx, whose comment explains why. No force-dynamic either — the
+// layout's uncached read already makes this route dynamic.
 export const metadata: Metadata = {
   title: "Today's Top Short Candidates",
   description:
     "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
+  alternates: { canonical: "/screener" },
 };
 
 export default function ScreenerPage() {
