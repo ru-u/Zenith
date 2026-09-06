@@ -20,6 +20,22 @@ export function formatDayLabel(date: string | null | undefined): string {
   });
 }
 
+// "YYYY-MM-DD" → "Fri, Sep 4". The weekday earns its place in prose: the only
+// caller is the warm-up subhead, where the reader's question is "how old is
+// this?" and a weekday answers it faster than a date. No year — the gap is
+// never more than a few days. Parsed as UTC, same as formatDayLabel.
+export function formatSessionDay(date: string | null | undefined): string {
+  if (!date) return "—";
+  const [y, m, d] = date.split("-").map(Number);
+  if (!y || !m || !d) return "—";
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function formatPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `$${n.toLocaleString("en-US", {

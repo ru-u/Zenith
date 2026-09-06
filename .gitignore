@@ -43,3 +43,6 @@ next-env.d.ts
 
 # graphify generated knowledge-graph artifacts (local tooling cache)
 graphify-out/
+
+# scratch build dir for scripts/thesis-preview.mjs (removed on exit; here in case of a crash)
+.thesis-preview-*/

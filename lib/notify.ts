@@ -4,6 +4,7 @@ import type { GainerRow } from "./marketdata/types";
 import { secondsUntilCloseET } from "./market-calendar";
 import { maybeAlert } from "./alerts";
 import { siteUrl } from "./site";
+import { RESEND_EMAILS_PER_DAY } from "./emailBudget";
 import { DISCLAIMER_LINE, LEGAL_CONTACT_EMAIL } from "./legal";
 
 // User-facing pre-close email — the daily "drop" nudge. Distinct from
@@ -188,7 +189,7 @@ export async function sendPreCloseEmails(
               `Resend returned ${res.status} sending the ${dateKey} pre-close drop.`,
               "Pro subscribers did not receive today's email.",
               "",
-              "The free tier allows 100 emails/day across EVERYTHING — this drop,",
+              `The free tier allows ${RESEND_EMAILS_PER_DAY} emails/DAY across EVERYTHING — this drop,`,
               "auth email (signups, confirmations, password resets), ops alerts,",
               "and feedback notifications. One email per Pro subscriber per",
               "trading day means the drop alone consumes the quota as Pro grows.",

@@ -16,7 +16,7 @@ const QA = [
   },
   {
     q: "Where do the theses come from?",
-    a: "A quantitative engine we built, not a chatbot. For each of the top five it works from public market data — filings, how similar past spikes played out, price and volume — and scores the setup out of 10. Every number in a thesis is computed from that data, and the write-up follows from the numbers — nothing is generated. What it does and doesn't claim, and where it gets things wrong, is written up at /engine.",
+    a: "A quantitative engine we built. For each of the top five it works from public market data — filings, how similar past spikes played out, price and volume — and scores the setup out of 10. Every number in a thesis is computed by that engine. A language model is used only to phrase the finished findings in plain English: it never picks the stocks, never produces or changes a figure, and the sentences carrying the odds and the risk warnings come straight from the engine. What the engine does and doesn't claim, and where it gets things wrong, is written up at /engine.",
   },
   {
     q: "How do trades work in the DECA Stock Market Game?",

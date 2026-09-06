@@ -21,9 +21,10 @@ launch: a regulatory/branding compliance pass and engine calibration tweaks.
 - **Stripe** subscriptions — Zenith Pro, $9.99/mo
 - **In-house quant engine** (`lib/quant/`) for the AI short theses — SEC EDGAR
   catalyst detection + base-rate/rule scoring + TradingView technicals +
-  templated prose, $0/day, zero Anthropic calls. The **Anthropic SDK** remains
-  only for the optional Haiku prose mode (`AI_PROSE_MODE=haiku`, still behind
-  the `AI_THESES_ENABLED` spend switch).
+  templated prose. $0/day and zero Anthropic calls by default. The **Anthropic
+  SDK** is used only by the optional model prose mode (`AI_PROSE_MODE=model`,
+  still behind the `AI_THESES_ENABLED` spend switch), which rewrites the
+  narrative wording only — never a figure. See "Prose modes" below.
 - Market data behind a provider interface (`lib/marketdata/`): **TradingView**
   scanner (sole provider; interface kept as a seam for future sources)
 
@@ -44,7 +45,9 @@ triggering per-render provider calls).
 **Read** — `GET /api/gainers` (DB-first):
 1. Serve cached `daily_gainers` for today.
 2. During the regular session (9:30–16:00 ET), if data is stale (>10 min),
-   self-fetch the provider and cache it.
+   self-fetch the provider and cache it — **except during the morning warm-up**
+   (see "The 9:30–9:47 warm-up" below), where nothing is fetched or stored and
+   the payload comes back `warmingUp: true` on the previous session.
 3. ~30 min before the close (the **pre-close "drop"**), generate AI short theses
    for the top-5 off the intraday data and email opted-in **Pro** users (free
    tiers get no email for now — `lib/notify.ts` filters recipients) — via Next's
@@ -93,7 +96,8 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   deterministic scoring, `technicals.ts` TradingView indicators, `thesis.ts`
   prose seam + spend switch), `gainers.ts`, `streaks.ts`, `eod.ts`,
   `claude.ts` (thesis orchestrator), `notify.ts` (pre-close email),
-  `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`
+  `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`,
+  `emailBudget.ts` (the two email ceilings, mirrored from provider config)
 - `hooks/` — `useGainers`, `useStreaks`, `useSubscription`, `useMounted`
 - `supabase/` — `schema.sql` (fresh install), `migrate.sql` (idempotent, for an
   existing DB)
@@ -108,8 +112,11 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 - `ticker_streaks` — `ticker`, `streak_count`, `last_seen_date`. RLS: public
   read (the app-level gate lives in `/api/streaks`, which requires a session).
 - `ai_analyses` — `(date, ticker)`: short_thesis, risk_level, key_catalysts,
-  recommendation, model, denormalized rank/company_name/exchange. **RLS: Pro
-  only.**
+  recommendation, model, denormalized rank/company_name/exchange, the board
+  figures at scoring time (`price_at_score`, `change_percent_at_score` — always
+  a gain), and the scored session's official close (`scored_day_close`,
+  `scored_day_change_percent` — the outcome baseline, and **can be negative**).
+  **RLS: Pro only.**
 
 ## Conventions & gotchas
 
@@ -144,6 +151,76 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (`storedName` for the edit form, `displayName` for UI chrome) — don't inline
   it, it has two readers and two writers.
 - AI theses and `GET /api/ai-analysis` are **Pro-gated** (tier check + RLS).
+- **The drop's thesis set and the finalized board are different sets — never
+  join them.** `ai_analyses` is written at the ~3:30 drop; `daily_gainers` is
+  finalized ~20 min after the close. The day cap in
+  `generateAndStoreTopAnalyses` makes the drop's five authoritative for the day,
+  so a ticker that climbs into the finalized top five afterwards never gets a
+  thesis (2026-09-04: NX, PDEX, HVII) — and a ticker can go the other way and
+  leave the board entirely (AIFU, same day: top-5 at 3:30, closed −18.58%).
+  `TopFive.tsx` used to render the board and look scores up by ticker, which
+  rendered a bare `—` for the first case; it now renders one set or the other
+  (Pro post-drop → the scored set, everyone else → the board). Thesis rows carry
+  their own figures precisely so no surface has to join.
+- **The prune does NOT pin thesis tickers, and must not start again.** It did,
+  to stop a thesis pointing at a row the screener didn't list (AEHL,
+  2026-08-31) — but nothing ever refreshed a pinned row. Its single firing left
+  AIFU at rank 98, +5.603%, `is_final = false` on a day it closed −18.58%: a
+  fabricated gainer in the product's core table, which `recordThesisOutcomes`
+  then skipped (it requires `is_final`), silently dropping exactly the intraday
+  reversals calibration most needs. The fix is `scored_day_close` on the thesis
+  row — written by `recordScoredDayCloses` at finalize, and the outcome baseline
+  in place of the old `daily_gainers` join. `partial_finalize` alerts if a
+  non-final row ever survives a finalized day again (`eod_not_finalized` cannot:
+  its check is `.some(r => r.is_final)`, which one good row satisfies).
+- **Earnings surprise closes the one hole the number-validator can't.** EDGAR
+  says a company *reported*, not whether the news was good — so both renderers
+  were pushed into inferring a beat from the size of the spike, and on
+  2026-09-04 the model duly wrote "earnings results that beat expectations"
+  from a catalyst that never said so. `lib/quant/earnings.ts` supplies actual
+  vs consensus EPS so the claim is grounded and checkable. **EDGAR-confirmed
+  earnings only** — Finnhub is keyed by bare ticker and its earnings endpoint
+  returns no company name to identity-check, unlike its headlines
+  (`mentionsCompany`); restricting to EDGAR inherits `lib/quant/identity.ts`'s
+  registrant cross-check. Two Finnhub quirks are handled and will bite anyone
+  who touches it: `period` is a **calendarized** quarter label that can be in
+  the *future* (AOUT's FY27 Q1, reported Sep 3, comes back as `2026-09-30`),
+  and the response includes **upcoming** quarters with `actual: null`.
+- **Prose modes: the model writes the narrative, never the numbers.** The seam
+  is `lib/quant/thesis.ts`, the only file in the repo that imports the Anthropic
+  SDK. In `model` mode it writes *only* the "why it spiked / how this
+  catalyst behaves" sentences. The new-listing warning, our prior call on the
+  ticker, the base rate and the expected-move line are appended verbatim by
+  `pinnedSentences()` — they are reader-safety obligations and the
+  expected-move sentence ends in either "in the short's favor" or "does NOT
+  favor a short", which a paraphrase can silently invert. Whatever the model
+  does write is checked by `ungroundedNumbers()`; an untraceable figure discards
+  the attempt and the row renders from the template. **If you add a findings
+  field, decide which half it belongs in** — an earlier version passed the model a
+  subset that omitted `listingAgeDays` and `priorCall`, so flipping the mode
+  silently dropped both warnings.
+- **The stored `model` column is computed per row, not per batch** — from what
+  actually produced that row's prose (`ProseResult.source`), so a model call
+  that failed and fell back is never recorded as model-written. It was previously
+  computed once per batch from `activeProseMode()`, which meant a total
+  Anthropic outage stamped all five rows as model-written while `/engine` told
+  users a model wrote them. `model_prose_degraded` alerts on that case; `ai_all_failed`
+  cannot, because it only fires at zero rows.
+- **Copy is written for model prose being ON (2026-09-06) and is therefore
+  coupled to the flag.** It was briefly mode-agnostic; once the mode went live
+  the hedged phrasing ("where model-assisted wording is enabled") read as
+  evasive on a public policy page, so it is now definite present tense: every
+  figure is computed by the engine, and a language model phrases the findings
+  and nothing else. **Turning `AI_PROSE_MODE` back to `template` makes these
+  false and they must be reverted in the same change:**
+  `app/privacy/page.tsx` (the model-role paragraph AND Anthropic in the
+  subprocessor list), `components/landing/FAQ.tsx` ("Where do the theses come
+  from?"), `components/landing/ProSection.tsx`. `app/engine/page.tsx` is the
+  exception — both its intro clause and its "What AI does" section are gated on
+  `modelProseLive`, so that page alone self-heals (hence `force-dynamic`).
+  `lib/pricing.ts` says "Quant short thesis" in both modes and needs no change;
+  do not put "AI" in the paid-feature bullet, since AI writes none of the
+  analysis.
 - **Charts and streak badges require an account** — `ChartDialog` renders a
   sign-up gate for signed-out visitors (the TradingView widget is client-side;
   there's no chart API to gate server-side), and `GET /api/streaks` returns an
@@ -153,6 +230,36 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   ToS risk. There's no provider fallback; revisit the licensing/source question
   before any commercial scale. The `MarketDataProvider` interface stays as the
   seam if another source is added.
+- **The 9:30–9:47 warm-up: the provider does not have today's session yet.**
+  The scanner reports `update_mode: "delayed_streaming_900"` — a 15-minute
+  delayed feed — so from the open until ~9:47 ET it still returns the
+  **previous** session's rows, change% and all. There is no morning cron; the
+  first fetch of a day is whoever loads the page first after 9:30, so this used
+  to file yesterday's board under today's date and render it as
+  "Market open · Live as of 9:32 AM" (observed 2026-08-21 09:32 — all five
+  quotes back-solved to the 8/19 close, i.e. they measured 8/19→8/20).
+  `dropFrozenRepeats` cannot catch it: it needs price **and** change% **and**
+  volume to match the stored prior day, and overnight the feed settles onto the
+  true 4:00 close while our stored row was the 3:55 snapshot.
+  Two guards, and only the second is authoritative:
+  - the read path won't probe before `open + feedDelaySeconds + 2 min`, and
+    while today has no rows the 10-min freshness gate can't throttle anything
+    (`isDataStale(null)` is always true), so probes are capped at one per 2 min
+    by an in-memory timestamp — **per-process, same single-replica assumption as
+    `lib/ratelimit.ts`**;
+  - `persistGainers` **refuses any batch whose session isn't the day it's being
+    filed under**, from the scanner's `time` column (the daily bar's open)
+    plumbed as `GainerRow.sessionDate` and reduced by `batchSessionDate` (the
+    **mode** — halted names keep a stale bar, so unanimity would reject good
+    batches). This is the one gate; the clock only avoids wasted calls.
+  It **fails open** when `time` is missing — a contract change must not blank
+  the product for a day — and alerts (`feed_session_unknown`). A mismatch is
+  silent through the normal window and alerts past 45 min (`feed_not_rolled`);
+  at the crons it alerts immediately, and run-eod refuses the whole run rather
+  than freeze another session as `is_final` (a later page load finalizes once
+  the feed catches up). While warming, `serveStoredGainers` serves the last
+  finalized day with `warmingUp: true`; the badge reads "Scanning — showing
+  Sep 4" instead of "Live as of", and `useGainers` polls at 1 min instead of 10.
 - **A bare ticker is NOT an identifier** — symbols collide across venues and
   get reused across companies (the BIOT incident, 2026-07-24: a day-one Nasdaq
   listing whose bare symbol the chart widget resolved to a BitMEX crypto
@@ -246,32 +353,44 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   the only irreversible operation here and it runs unattended.
 - **All user-triggered auth email goes through `/api/auth/email`**, never
   browser→Supabase directly, so it passes `lib/ratelimit.ts` and lands in the
-  security log. Three budgets: 3/hr per address, 5/hr per IP, **15/hr globally**.
-  The global one matters — **signups bypass this route entirely**
+  security log. Three budgets: 3/hr per address, 5/hr per IP, **15/hr
+  globally**. The global one matters — **signups bypass this route entirely**
   (`SignupForm` calls `supabase.auth.signUp` client-side), so the route
-  claims part of the budget and leaves the rest for people creating accounts.
-  **These three are hourly and the cap they protect is now daily — see the next
-  bullet; the reservation they were sized for no longer exists.**
-- **Two email ceilings, and BOTH are daily.** Supabase caps auth email at
-  **50/day** (dashboard, free to raise — lowered from 50/hour by the user,
-  2026-09-04). **Resend's free tier caps *everything* at 100/day** — auth email
-  *plus* the pre-close drop *plus* ops alerts. So the real budget is: at most
-  **50 auth emails/day**, and at most **100 emails/day in total**. The
-  consequences are not symmetric:
-  - **Auth email now hits Supabase first, not Resend.** The old note here said
-    Resend was the binding constraint; for signups, confirmations and resets
-    that is no longer true — 50 < 100, and auth can never exhaust Resend on its
-    own any more.
-  - **50/day is ~2/hour sustained**, but nothing enforces it hourly. A DECA
-    classroom signing up in one period can spend the whole day's auth budget in
-    minutes, and every later signup that day gets no confirmation email and
-    therefore cannot sign in. This is the most likely way launch day breaks.
-  - **The drop still eats the Resend pool.** One email per Pro subscriber per
-    trading day, so past ~50 Pro the drop plus a full auth day exceeds 100 and
-    Resend starts refusing regardless of what Supabase allows.
-  They're alerted separately (`auth_email_rate_limited` vs
-  `resend_quota_exhausted`) because one is a toggle and the other is a billing
-  decision.
+  deliberately claims under half of Supabase's 50/hr and leaves the rest for
+  people creating accounts. **Size it against the hourly Supabase cap, not
+  against Resend's daily quota** — they are different budgets in different
+  units. (It was briefly cut to 3/hr on 2026-09-04 by reading the Supabase cap
+  as 50/day; restored.)
+- **Two email ceilings, in different units — `lib/emailBudget.ts` is the single
+  source of truth for both, and anything quoting a number to a human should
+  quote it from there.** Supabase caps auth email at **50/HOUR** (dashboard,
+  free to raise). **Resend's free tier caps *everything* at 100/DAY** — auth email *plus* the pre-close drop
+  *plus* ops alerts (confirmed in the Resend dashboard 2026-09-04: 100/day,
+  3,000/month, which is just 100 × 30 and so never binds separately). Resend is
+  therefore the real constraint: an hour's worth of Supabase's allowance would
+  spend half of Resend's day. The drop sends one email per Pro subscriber per
+  trading day, so subscriber growth eats the auth budget — near ~80 Pro, signups
+  start failing for reasons unrelated to signups. Raising Supabase's hourly cap
+  past what Resend delivers daily just moves the failure from "Supabase refuses"
+  to "Resend refuses", which is worse because it surfaces as a 5xx mid-send
+  rather than a clean refusal.
+  Three separate alerts, because the fixes differ: `auth_email_rate_limited`
+  (Supabase refused — a dashboard toggle), `resend_quota_exhausted` (the
+  pre-close batch was refused — a billing decision), and
+  `auth_email_send_failed` (the send died *beneath* Supabase, i.e. SMTP/Resend
+  returned 5xx). That third one exists because `/api/auth/email` only
+  classified 429s: a provider-level refusal fell through to the generic-OK
+  swallow, so the user was told "check your inbox" for mail that never sent and
+  nothing alerted. 5xx is address-independent, so it now returns 503 — which
+  leaks nothing, unlike the 4xx account-state errors that must stay swallowed.
+- **Every "we sent you an email" surface names the junk folder**
+  (`components/auth/CheckSpamHint.tsx`, rendered **above** the resend control in
+  `SignupForm`/`LoginForm`, plus the copy in `lib/authEmail.ts`). Resend's
+  100/day is shared with the pre-close drop, and this audience is behind school
+  mail filters, so a reflex resend is a real cost rather than a UX wrinkle. The
+  sender shown to users is `AUTH_EMAIL_SENDER` in `lib/legal.ts` — display
+  only; the real value lives in Supabase's SMTP config and nothing fails loudly
+  if the two drift.
 - **Recovery + backups: `docs/RECOVERY.md`**, `scripts/backup-db.sh`,
   `scripts/restore-rehearsal.sh`. The backups are **unproven until the
   rehearsal table in that doc has a row.**
@@ -279,22 +398,25 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 ## Environment (`.env.local`)
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- `ANTHROPIC_API_KEY` (read automatically by the SDK; only used in Haiku prose mode)
+- `ANTHROPIC_API_KEY` (read automatically by the SDK; only used in model prose mode)
 - `AI_THESES_ENABLED` — **kill switch for all Anthropic calls / spend**
   (`lib/quant/thesis.ts aiThesesEnabled()`, re-exported from `lib/claude.ts`).
   Since the quant engine took over generation this gates ONLY the optional
-  Haiku prose mode; absent/anything else = OFF (fail-safe: a fresh env can
+  model prose mode; absent/anything else = OFF (fail-safe: a fresh env can
   never spend). The quant pipeline itself is free and runs regardless — theses
   generate and the pre-close email sends with the switch off.
 - `AI_PROSE_MODE` — thesis prose source: unset/`template` (default, $0,
-  deterministic) or `haiku` (one plain Anthropic call per ticker, no web
+  deterministic) or `model` (one plain Anthropic call per ticker, no web
   search; also requires `AI_THESES_ENABLED=true`). Falls back to the template
-  on any failure.
+  on any failure. The value is `model`, not a model name — `ANALYSIS_MODEL` in
+  `lib/quant/thesis.ts` picks which (Sonnet 5 since 2026-09-05).
 - `SEC_EDGAR_USER_AGENT` — contact string SEC requires on EDGAR requests
   (`lib/quant/edgar.ts`), e.g. `"Zenith Screener you@example.com"`.
-- `FINNHUB_API_KEY` — free-tier Finnhub key for the headline catalyst fallback
-  (`lib/quant/news.ts`; runs only when EDGAR finds no filing). Absent = news
-  step silently skipped. Free-tier dependency — revisit at commercial scale.
+- `FINNHUB_API_KEY` — free-tier Finnhub key, used for two things: the headline
+  catalyst fallback (`lib/quant/news.ts`; runs only when EDGAR finds no filing)
+  and the earnings surprise lookup (`lib/quant/earnings.ts`; EDGAR-confirmed
+  earnings only). Absent = both silently skipped. Free-tier dependency —
+  revisit at commercial scale.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRICE_ID` — the Stripe **Price** object for Zenith Pro ($9.99/mo).
   `create-checkout` fails closed without it (500) rather than falling back to an

@@ -10,7 +10,7 @@ import { MarketStatusBadge } from "./MarketStatusBadge";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatSessionDay } from "@/lib/format";
 import type { DailyGainer } from "@/lib/supabase/types";
 
 // Hover halo: a brand-cyan border + outer bloom (the CTA-button glow
@@ -91,6 +91,10 @@ export function GainersHero() {
   const { data } = useGainers();
   const { data: streaks } = useStreaks();
   const top = (data?.gainers ?? []).slice(0, 5);
+  // The market is open but the provider is still 15 minutes behind, so these
+  // cards are an EARLIER session's close. The headline says "Today's", so the
+  // subhead — the line people actually read — has to say otherwise.
+  const warmingUp = data?.warmingUp ?? false;
   const [selected, setSelected] = useState<DailyGainer | null>(null);
   const openTicker = useTickerOpen(setSelected);
 
@@ -108,7 +112,14 @@ export function GainersHero() {
             Today&apos;s top short candidates
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            The day&apos;s biggest market gainers, ranked highest to lowest.
+            {warmingUp ? (
+              <>
+                Today&apos;s numbers land a few minutes after the open — until
+                then, showing the close from {formatSessionDay(data?.date)}.
+              </>
+            ) : (
+              <>The day&apos;s biggest market gainers, ranked highest to lowest.</>
+            )}
           </p>
         </div>
         {data && (
@@ -116,6 +127,7 @@ export function GainersHero() {
             asOf={data.asOf}
             date={data.date}
             isFinal={(data.gainers ?? []).some((g) => g.is_final)}
+            warmingUp={warmingUp}
           />
         )}
       </div>

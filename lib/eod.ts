@@ -6,7 +6,7 @@ import { updateStreaks } from "./streaks";
 import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
 import { type BaseRate } from "./baseRates";
-import { recordThesisOutcomes } from "./quant/outcomes";
+import { recordScoredDayCloses, recordThesisOutcomes } from "./quant/outcomes";
 
 /** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
 async function fetchStreaks(
@@ -50,8 +50,15 @@ async function fetchBaseRates(admin: SupabaseClient<Database>): Promise<BaseRate
   return rates;
 }
 
-/** Cleaned (frozen-repeats removed) gainers → re-ranked GainerRow set. */
-function toGainerRows(cleaned: DailyGainer[]): GainerRow[] {
+/**
+ * Cleaned (frozen-repeats removed) gainers → re-ranked GainerRow set.
+ *
+ * `sessionDate` is the row's own `date`: a row only reaches daily_gainers after
+ * persistGainers' session gate has confirmed the batch described that day, so
+ * the stored date IS the session. Nothing downstream of here re-persists, but
+ * leaving it null would misreport these as un-timestamped.
+ */
+function toGainerRows(cleaned: DailyGainer[], dateKey: string): GainerRow[] {
   return cleaned.map((g, i) => ({
     ticker: g.ticker,
     exchange: g.exchange,
@@ -62,6 +69,7 @@ function toGainerRows(cleaned: DailyGainer[]): GainerRow[] {
     relativeVolume: g.relative_volume,
     marketCap: g.market_cap,
     sector: g.sector,
+    sessionDate: dateKey,
     rank: i + 1,
   }));
 }
@@ -82,7 +90,7 @@ export async function runPreCloseProcessing(
   const cleaned = await getCleanedGainers(admin, dateKey);
   if (cleaned.length === 0) return 0;
 
-  const rows = toGainerRows(cleaned);
+  const rows = toGainerRows(cleaned, dateKey);
   const top = rows.slice(0, aiCount);
   const streaks = await fetchStreaks(admin, top.map((r) => r.ticker));
   const baseRates = await fetchBaseRates(admin);
@@ -124,7 +132,7 @@ export async function runEodProcessing(
   const cleaned = await getCleanedGainers(admin, dateKey);
   if (cleaned.length === 0) return 0;
 
-  const rows = toGainerRows(cleaned);
+  const rows = toGainerRows(cleaned, dateKey);
   const top = rows.slice(0, aiCount);
   // Read streaks BEFORE updateStreaks so the count is on the same prior-day basis
   // as the pre-close drop (not yet including today).
@@ -147,5 +155,26 @@ export async function runEodProcessing(
     console.error("[eod] outcome recording:", (e as Error)?.message);
   }
 
-  return generateAndStoreTopAnalyses(admin, rows, dateKey, streaks, baseRates, aiCount);
+  const created = await generateAndStoreTopAnalyses(
+    admin,
+    rows,
+    dateKey,
+    streaks,
+    baseRates,
+    aiCount,
+  );
+
+  // Stamp TODAY's theses with today's official close — the baseline tomorrow's
+  // outcome pass measures against, and the "closed X%" line on /analysis.
+  // Deliberately AFTER generation so a fallback set created by this very pass
+  // gets its baseline in the same run. Best-effort and null-guarded, like the
+  // outcome recorder above: whatever this run misses, a later same-day trigger
+  // (cron backstop, read-path finalize) fills.
+  try {
+    await recordScoredDayCloses(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] scored-day close:", (e as Error)?.message);
+  }
+
+  return created;
 }

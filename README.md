@@ -28,8 +28,10 @@ with or endorsed by DECA Inc. or the SIFMA Foundation.*
   trade entered during market hours fills at *that day's close*, so a thesis is only actionable
   if it lands before 4 PM ET.
 - **Short theses without the API bill** — risk level, catalyst, a 1–10 short score, and an
-  estimated chance the stock closes lower tomorrow — produced by a deterministic quant engine
-  (SEC EDGAR + base rates + technicals), not an LLM. $0/day, zero Anthropic calls.
+  estimated chance the stock closes lower tomorrow — every figure produced by a deterministic
+  quant engine (SEC EDGAR + base rates + technicals). $0/day and zero Anthropic calls in the
+  default template mode; an optional model mode rewrites the *wording* only, never a number
+  (~$4/yr — see the prose seam below).
 - **History** — browse past trading days (free: last 5 trading days; Pro: unlimited).
 - **Market status** — live session badge with a countdown to the 4 PM ET close and a
   "Live as of {time}" freshness stamp. Regular session only.
@@ -89,10 +91,21 @@ rarely win), offerings fade on dilution, real earnings and FDA wins can keep run
 are violent in both directions.
 
 Prose is a **swappable seam**. The default is a $0 deterministic template. Setting
-`AI_PROSE_MODE=haiku` (which *also* requires `AI_THESES_ENABLED=true`) swaps in one plain
-Anthropic call over the same structured findings — a config flip, not a rewrite — and silently
-falls back to the template on any failure. Rows are self-describing: the stored `model` column
-reads `quant-v1` or `quant-v1+haiku`.
+`AI_PROSE_MODE=model` (which *also* requires `AI_THESES_ENABLED=true`) adds one plain Anthropic
+call over the same structured findings — a config flip, not a rewrite — and falls back to the
+template on any failure.
+
+The model only ever writes the **narrative half** (why it spiked, how that catalyst class
+behaves). Every sentence carrying a figure or a risk disclosure — the new-listing warning, our
+own prior call on the ticker, the base rate, the expected move — is appended verbatim by
+`pinnedSentences()` and never passes through the model. What the model *does* write is then
+checked by `ungroundedNumbers()`: any figure that doesn't trace back to one the engine computed
+discards the whole attempt and the row renders from the template.
+
+Rows are self-describing, and honest about fallbacks: the stored `model` column is computed
+**per row** from what actually produced that row's prose — `quant-v3`, or `quant-v3+<model id>`
+only when the model's text was accepted. When most of a batch falls back, a `model_prose_degraded`
+alert fires; without it, a total Anthropic outage looks like a completely successful run.
 
 > **`AI_THESES_ENABLED` is a hard kill switch for all Anthropic spend.** Absent or anything
 > other than `true` = off, so a fresh environment can never surprise you with a bill. The quant
@@ -221,8 +234,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Anthropic — OFF by default. The quant engine needs none of this.
 AI_THESES_ENABLED=                 # kill switch for ALL Anthropic spend; only `true` enables
-AI_PROSE_MODE=                     # unset/`template` ($0, default) or `haiku`
-ANTHROPIC_API_KEY=                 # only read in haiku prose mode
+AI_PROSE_MODE=                     # unset/`template` ($0, default) or `model`
+ANTHROPIC_API_KEY=                 # only read in model prose mode
 
 # Email — pre-close drop + scraper failure alerts (optional; console-only if unset)
 RESEND_API_KEY=

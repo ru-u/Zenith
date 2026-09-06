@@ -31,7 +31,8 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // `data-closed:pointer-events-none` — see the note on <DialogContent>.
+        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:pointer-events-none data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -58,7 +59,16 @@ function DialogContent({
           // directions — it's centred with -translate-y-1/2 — putting its own
           // header and close button above y=0 with no way to scroll to them.
           // `dvh`, not `vh`: mobile browser chrome must count against it.
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          //
+          // `data-closed:pointer-events-none` guards the same base-ui stall the
+          // MobileNav drawer hit (see components/ui/sheet.tsx for the full
+          // trace): the portal unmounts only once useAnimationsFinished
+          // resolves, and that helper has no timeout fallback, so a cancelled
+          // exit transition can leave the popup mounted at opacity 0, un-inert
+          // and hit-testable. Here the stakes are higher than a stray link —
+          // this popup and its backdrop are full-viewport, so a stalled close
+          // would silently deaden the entire page.
+          "fixed top-1/2 left-1/2 z-50 grid data-closed:pointer-events-none max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

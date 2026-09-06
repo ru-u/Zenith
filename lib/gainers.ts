@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
-import { isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
+import { batchSessionDate, isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
 import { isAllowedExchange } from "./marketdata/symbols";
 import { maybeAlert } from "./alerts";
 import {
+  getMarketSession,
   getMarketStatus,
   isDataStale,
   type MarketStatus,
@@ -61,42 +62,39 @@ function checkSymbolIntegrity(rows: GainerRow[]): {
   return { kept, dropped, unqualified: kept.filter((r) => r.exchange == null) };
 }
 
-/**
- * Tickers that already have an AI thesis for this date. The pre-close drop
- * writes theses off the 15:30 board, so a ticker can be top-5 then and gone
- * from the board by the finalize scrape — AEHL on 2026-08-31 straddled the
- * $25M market-cap floor (3.9M shares outstanding put the cutoff at a $6.47
- * share price) and was filtered out at 16:10, after which the prune deleted
- * the row its thesis pointed at. The Analysis tab then advertises a stock the
- * screener doesn't list. These stay pinned for the day regardless of rank.
- * Returns null if the lookup fails — the caller skips the prune rather than
- * guess.
- */
-async function tickersWithTheses(
-  admin: SupabaseClient<Database>,
-  dateKey: string,
-): Promise<string[] | null> {
-  const { data, error } = await admin
-    .from("ai_analyses")
-    .select("ticker")
-    .eq("date", dateKey);
-  if (error) {
-    console.error("[gainers] thesis pin lookup failed:", error.message);
-    return null;
-  }
-  // Interpolated into a PostgREST filter list below — admit only well-formed
-  // tickers, matching the ingest gate.
-  return (data ?? []).map((r) => r.ticker).filter((t) => TICKER_RE.test(t));
+export interface PersistResult {
+  /** Whether rows were written. False means the batch was refused, not that it failed. */
+  persisted: boolean;
+  /**
+   * The session the batch described (modal `sessionDate`). Null means the
+   * provider didn't timestamp it — the gate fails OPEN in that case, so
+   * `persisted: true` with a null sessionDate is the "we wrote it blind"
+   * signal callers alert on (feed_session_unknown).
+   */
+  sessionDate: string | null;
+  /** Why nothing was written. "stale-session" is the morning warm-up case. */
+  reason?: "empty" | "stale-session";
 }
 
-/** Upsert a ranked set of gainers for a date. Uses the service-role client. */
+/**
+ * Upsert a ranked set of gainers for a date. Uses the service-role client.
+ *
+ * Two gates run before anything is written, both at this single ingest
+ * boundary so the read path and both crons inherit them: symbol integrity
+ * (below) and the SESSION check — the batch must describe the day we're about
+ * to file it under. TradingView's feed is 15-min delayed, so from 9:30 to
+ * ~9:47 ET it still serves the previous session; without this gate the first
+ * page load of the day writes yesterday's change% under today's date and the
+ * screener renders it as live (observed 2026-08-21 09:32: five rows whose
+ * percentages all measured 8/19→8/20).
+ */
 export async function persistGainers(
   admin: SupabaseClient<Database>,
   allRows: GainerRow[],
   dateKey: string,
   isFinal: boolean,
-): Promise<void> {
-  if (allRows.length === 0) return;
+): Promise<PersistResult> {
+  if (allRows.length === 0) return { persisted: false, sessionDate: null, reason: "empty" };
 
   const { kept: rows, dropped, unqualified } = checkSymbolIntegrity(allRows);
   if (dropped.length > 0 || unqualified.length > 0) {
@@ -116,7 +114,18 @@ export async function persistGainers(
         `the TradingView scanner contract changed (lib/marketdata/tradingview.ts).`,
     });
   }
-  if (rows.length === 0) return;
+  if (rows.length === 0) return { persisted: false, sessionDate: null, reason: "empty" };
+
+  // Session gate. Null = the provider gave us no bar timestamp at all; fail
+  // OPEN there (a contract change must not blank the product for a whole day)
+  // and let the caller alert on the blind write.
+  const sessionDate = batchSessionDate(rows);
+  if (sessionDate != null && sessionDate !== dateKey) {
+    console.warn(
+      `[gainers] session gate: provider is serving ${sessionDate}, refusing to file it as ${dateKey}`,
+    );
+    return { persisted: false, sessionDate, reason: "stale-session" };
+  }
 
   const scrapedAt = new Date().toISOString();
   const dbRows = rows.map((r) => toDbRow(r, dateKey, isFinal, scrapedAt));
@@ -128,12 +137,19 @@ export async function persistGainers(
   // Self-prune: remove rows for this date whose ticker fell out of the current
   // ranked set (the top-N shifts intraday, and upsert leaves orphans). Guarded
   // so a thin/failed fetch can't wipe the table.
+  //
+  // This used to PIN tickers that had an AI thesis, so a thesis never pointed
+  // at a row the screener didn't list. That was the wrong half of the problem
+  // to solve: nothing ever refreshed a pinned row, so a ticker that spiked into
+  // the 3:30 drop and then reversed kept its last intraday snapshot forever —
+  // AIFU sat at rank 98, +5.603%, is_final = false on a day it closed -18.58%.
+  // A fabricated gainer in the product's core table, and worse, invisible to
+  // recordThesisOutcomes' `is_final` filter, so it silently left calibration.
+  // Theses are self-contained now (scored_day_close and the denormalized board
+  // figures live on ai_analyses), so the board can go back to meaning exactly
+  // "stocks that closed up today" and a reversal simply isn't one.
   if (rows.length >= 10) {
-    const pinned = await tickersWithTheses(admin, dateKey);
-    // Couldn't read the theses — skip the prune entirely rather than risk
-    // deleting a thesis's row. Orphan rows are cosmetic; an orphan thesis isn't.
-    if (pinned == null) return;
-    const keep = [...new Set([...rows.map((r) => r.ticker), ...pinned])];
+    const keep = rows.map((r) => r.ticker);
     const { error: pruneError } = await admin
       .from("daily_gainers")
       .delete()
@@ -143,6 +159,8 @@ export async function persistGainers(
       console.error("[gainers] prune failed:", pruneError.message);
     }
   }
+
+  return { persisted: true, sessionDate };
 }
 
 /** Read cached gainers for a date, ranked. */
@@ -155,10 +173,9 @@ export async function getCachedGainers(
     .select("*")
     .eq("date", dateKey)
     .order("rank", { ascending: true })
-    // Tiebreak: a ticker pinned by `tickersWithTheses` keeps the rank it held
-    // at the scrape that last saw it, so it can collide with a later row's
-    // rank. Change% desc makes that order deterministic and correct — the
-    // pinned row was, by definition, out-gaining whatever inherited its rank.
+    // Tiebreak. Originally load-bearing: pinned rows kept a stale rank that
+    // could collide with a later row's. The pin is gone, so collisions should
+    // no longer occur — this stays as the determinism guarantee, not as a fix.
     .order("change_percent", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -272,6 +289,13 @@ export interface GainersPayload {
   asOf: string | null;
   stale: boolean;
   status: MarketStatus;
+  /**
+   * The market is open but we're serving an earlier session, because the
+   * provider hasn't published today's yet (its feed is 15-min delayed, so this
+   * is every day from 9:30 until ~9:47 ET). The UI must say so rather than
+   * stamping the previous close with a live timestamp.
+   */
+  warmingUp: boolean;
   gainers: DailyGainer[];
 }
 
@@ -318,15 +342,23 @@ export async function serveStoredGainers(
     rows = dropFrozenRepeats(rows, await getCachedGainers(client, prevDate));
   }
 
+  // Serving an earlier day while the market is open means exactly one thing:
+  // today's session hasn't reached us yet. Derived here rather than passed in,
+  // because this is the only place that knows the fallback above fired.
+  const warmingUp = servedDate !== dateKey && getMarketSession() === "open";
+
   return {
     date: servedDate,
     asOf,
     stale: isDataStale(asOf, FRESHNESS_MINUTES),
-    status: getMarketStatus({
-      isFinal: rows.some((r) => r.is_final),
-      scrapedAt: asOf,
-      isToday: servedDate === dateKey,
-    }),
+    status: warmingUp
+      ? "WARMING"
+      : getMarketStatus({
+          isFinal: rows.some((r) => r.is_final),
+          scrapedAt: asOf,
+          isToday: servedDate === dateKey,
+        }),
+    warmingUp,
     gainers: rows,
   };
 }

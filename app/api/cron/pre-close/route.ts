@@ -35,7 +35,23 @@ export async function GET(req: Request) {
     const alreadyFinal = existing.some((r) => r.is_final);
     if (!alreadyFinal) {
       const gainers = await getProvider().getTopGainers(FETCH_LIMIT);
-      await persistGainers(admin, gainers, dateKey, false);
+      const result = await persistGainers(admin, gainers, dateKey, false);
+      if (result.reason === "stale-session") {
+        // Never expected at 3:30 — the feed's 15-minute delay is a morning
+        // problem. Alert, but DON'T skip the drop: whatever is already stored
+        // for today came from earlier reads and is still today's board, and
+        // this is the one moment of the day the theses have to land.
+        await maybeAlert(admin, {
+          date: dateKey,
+          type: "feed_not_rolled",
+          subject: `Zenith: feed still on ${result.sessionDate} at the pre-close drop (${dateKey})`,
+          body:
+            `${getProvider().name} returned session ${result.sessionDate} instead of ${dateKey} ` +
+            `at the ~3:30 drop, so the refresh was refused by the session gate. The drop is ` +
+            `running off the ${existing.length} row(s) already stored for today — check whether ` +
+            `those are current before trusting the theses.`,
+        });
+      }
     }
 
     const analyses = await runPreCloseProcessing(admin, dateKey);

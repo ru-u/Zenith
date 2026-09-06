@@ -81,9 +81,22 @@ create table if not exists public.ai_analyses (
   rank                 integer,  -- denormalized from daily_gainers at the ~3:30 drop
   company_name         text,     -- so the AI card renders the exact drop set, in order
   exchange             text,     -- denormalized venue so chart embeds can qualify the symbol
+  -- Board figures at the moment of scoring, so the landing panel and the AI card
+  -- render the scored set without joining daily_gainers — a join that can never
+  -- be total (the day cap in lib/claude.ts) and that reads a stale row for any
+  -- ticker which left the board before the close.
+  price_at_score       double precision,
+  change_percent_at_score double precision,
   -- Calendar days from listing to the scored session, stored only while the
   -- listing is recent enough to be decision-relevant (lib/quant/listing.ts).
   listing_age_days     integer,
+  -- The scored session's OFFICIAL close, written by the finalize pass. Two jobs:
+  -- the baseline the next-session outcome is measured from, and the "scored at
+  -- 3:30 → closed X%" line on /analysis. Written even when the ticker left the
+  -- gainer board before the close — precisely the case daily_gainers cannot
+  -- answer, and the one that used to drop out of calibration entirely.
+  scored_day_close     double precision,
+  scored_day_change_percent double precision,
   -- Realized next-session outcome, recorded by the following day's EOD run —
   -- the calibration data the scoring Δs get re-fit against (lib/quant/outcomes.ts).
   next_date            date,              -- the session the outcome was measured on

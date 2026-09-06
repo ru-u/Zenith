@@ -8,7 +8,14 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      // `overscroll-x-contain`: a horizontal scroller parked at either end
+      // chains its overscroll outward, and `body` is `overflow-x: hidden`
+      // (globals.css), so the ONLY thing left to consume that chain is the
+      // browser's back/forward swipe — a drag on the table quietly navigates
+      // away. The -x axis deliberately: chaining vertical overscroll from a
+      // table out to the page is correct and stays. `contain`, not `none`, so
+      // the local rubber-band still signals "this is the end".
+      className="relative w-full overflow-x-auto overscroll-x-contain"
     >
       <table
         data-slot="table"

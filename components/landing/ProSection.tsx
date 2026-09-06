@@ -26,9 +26,9 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
           </h2>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
             Anyone can see what spiked. Pro adds a written short thesis on each
-            of the day&apos;s top five — computed by a quant engine from public
-            market data, not written by a chatbot — posted at 3:30 before the
-            close.
+            of the day&apos;s top five — every figure computed by a quant engine
+            from public market data, with AI used only to phrase the findings —
+            posted at 3:30 before the close.
           </p>
           <ul className="mt-5 flex flex-col gap-3">
             {TIER_FEATURES.pro.map((f) => (

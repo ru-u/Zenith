@@ -89,6 +89,19 @@ alter table public.ai_analyses add column if not exists invalidation text;
 alter table public.ai_analyses add column if not exists rank integer;
 alter table public.ai_analyses add column if not exists company_name text;
 alter table public.ai_analyses add column if not exists exchange text;
+-- The board figures the thesis was scored against, denormalized for the same
+-- reason as rank/company_name above: the landing panel renders the scored set
+-- without joining daily_gainers. That join can never be total (the day cap in
+-- lib/claude.ts stops the EOD pass re-scoring the finalized board) and it reads
+-- a stale row for any ticker that left the board before the close.
+alter table public.ai_analyses add column if not exists price_at_score double precision;
+alter table public.ai_analyses add column if not exists change_percent_at_score double precision;
+-- The scored session's OFFICIAL close, written by the finalize pass. Replaces
+-- the daily_gainers + is_final join as the outcome baseline: a ticker that fell
+-- off the board by the close has no is_final row, so its outcome silently never
+-- recorded — and those are exactly the intraday reversals.
+alter table public.ai_analyses add column if not exists scored_day_close double precision;
+alter table public.ai_analyses add column if not exists scored_day_change_percent double precision;
 -- Realized next-session outcome (calibration data; lib/quant/outcomes.ts)
 alter table public.ai_analyses add column if not exists next_date date;
 alter table public.ai_analyses add column if not exists next_close double precision;

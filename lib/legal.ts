@@ -2,12 +2,21 @@
 // disclaimers that ride along with the product surfaces themselves.
 // Update LEGAL_UPDATED whenever any policy text changes.
 export const LEGAL_CONTACT_EMAIL = "support@zenithscreener.com";
-export const LEGAL_UPDATED = "September 1, 2026";
+
+// The From address on Supabase's auth email (confirmations, password resets).
+// Shown to users so they can search their mail for it and whitelist it — every
+// resend that prevents is one back in Resend's 100/day account quota, which is
+// shared with the pre-close drop (see CLAUDE.md).
+// NOT read by any send path: the value lives in Supabase's custom SMTP config
+// (Authentication -> Emails -> SMTP, sender address). If it is changed there,
+// change it here — nothing will fail loudly if they drift.
+export const AUTH_EMAIL_SENDER = "auth@zenithscreener.com";
+export const LEGAL_UPDATED = "September 6, 2026";
 
 // /engine (how the thesis engine works) is disclosure, not policy — it changes
 // when the engine changes, which is a different cadence from the policy pages.
 // Bump this on a scoring/prose change; don't drag LEGAL_UPDATED along with it.
-export const ENGINE_UPDATED = "August 26, 2026";
+export const ENGINE_UPDATED = "September 6, 2026";
 
 // The two lines that must be visible wherever Zenith shows a ranking or a
 // thesis — not only on /terms. NOT_ADVICE is the securities disclaimer;

@@ -41,6 +41,22 @@ export function MobileNav({
   const pathname = usePathname();
   const signOut = useSignOut();
 
+  // Every link below already closes the drawer on tap, so this only catches the
+  // routes that change underneath it: browser back/forward (an edge-swipe works
+  // fine with the drawer open) and the redirects in proxy.ts. A drawer that
+  // survives a navigation is a full-height fixed panel over the *new* page —
+  // the same shape of bug as the ghost drawer documented in components/ui/sheet.tsx.
+  //
+  // Adjusted during render rather than in an effect: this is React's documented
+  // "reset state when a prop changes" pattern, and it avoids the extra
+  // commit-and-repaint (plus the react-hooks/set-state-in-effect error) that a
+  // useEffect would cost.
+  const [drawerRoute, setDrawerRoute] = useState(pathname);
+  if (drawerRoute !== pathname) {
+    setDrawerRoute(pathname);
+    if (open) setOpen(false);
+  }
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger

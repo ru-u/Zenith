@@ -1,14 +1,18 @@
 // The thesis engine's orchestrator. Historically this file WAS the Anthropic
 // call (Haiku + web-search per ticker); it now drives the free in-house quant
 // engine in lib/quant/ — EDGAR catalyst detection, base-rate/rule scoring,
-// TradingView technicals, templated prose — and makes zero Anthropic calls
-// itself. The only remaining Anthropic surface is the optional Haiku prose
-// mode inside lib/quant/thesis.ts, still behind the AI_THESES_ENABLED spend
-// switch. The AnalysisResult contract and ai_analyses writes are unchanged.
+// TradingView technicals, prose — and contains no Anthropic call of its own.
+//
+// The single Anthropic surface in the whole repo is lib/quant/thesis.ts, which
+// this file reaches only through generateThesisText(). That call happens when
+// AI_PROSE_MODE=model AND AI_THESES_ENABLED=true; it writes the narrative half
+// of a thesis and never the figures. It is off by default, and everything here
+// runs unchanged with it off.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GainerRow } from "@/lib/marketdata/types";
 import type { Database } from "@/lib/supabase/types";
+import { maybeAlert } from "@/lib/alerts";
 import {
   dayRangePct,
   expectedMovePercent,
@@ -17,6 +21,7 @@ import {
 } from "@/lib/baseRates";
 import { detectCatalyst } from "./quant/edgar";
 import { detectNewsCatalyst } from "./quant/news";
+import { fetchEarningsSurprise } from "./quant/earnings";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
 import { scoreShort } from "./quant/score";
 import { effectiveAgeDays, isRecentListing } from "./quant/listing";
@@ -25,7 +30,13 @@ import {
   type FeatureSnapshot,
   type SectorContext,
 } from "./quant/features";
-import { activeProseMode, generateThesisText } from "./quant/thesis";
+import {
+  activeProseMode,
+  ANALYSIS_MODEL,
+  generateThesisText,
+  PROSE_BUDGET_MS,
+  type ProseSource,
+} from "./quant/thesis";
 
 // The spend switch + model id live with the only code that can spend now.
 export { aiThesesEnabled, ANALYSIS_MODEL } from "./quant/thesis";
@@ -57,6 +68,9 @@ export interface AnalysisResult {
   short_score: number;
   percent_win_estimate: number;
   expected_move_percent: number | null;
+  /** What actually wrote the prose. Drives the stored `model` value, so a model
+   *  call that failed and fell back is never recorded as a model-written row. */
+  prose_source: ProseSource;
 }
 
 // Defensive coercion at the storage boundary, kept from the LLM era — the
@@ -101,15 +115,17 @@ export async function generateAnalysis(
   baseRate: BaseRate | null,
   tech: Technicals | null,
   snapshot: FeatureSnapshot | null = null,
+  /** Epoch-ms ceiling shared across the batch's prose calls; see PROSE_BUDGET_MS. */
+  proseDeadline: number = Number.POSITIVE_INFINITY,
 ): Promise<AnalysisResult | null> {
   try {
     // EDGAR is authoritative; headlines only fill the gap when no filing says
     // anything (deals announced by press release before the 8-K arrives).
     // Both degrade to null on their own — null means "nothing decisive" and
     // the score falls back to price-action + base rate.
+    const edgarCat = await detectCatalyst(g.ticker, dateKey, g.companyName ?? null);
     const cat =
-      (await detectCatalyst(g.ticker, dateKey, g.companyName ?? null)) ??
-      (await detectNewsCatalyst(g.ticker, dateKey, g.companyName ?? null));
+      edgarCat ?? (await detectNewsCatalyst(g.ticker, dateKey, g.companyName ?? null));
     // No company-specific catalyst but the whole sector is in motion → the
     // spike has macro fuel (oil, metals…), not hype. A real filing/headline
     // always wins; the sector context then stays capture-only.
@@ -128,21 +144,36 @@ export async function generateAnalysis(
       snapshot?.pinned_tape.pinned ?? false,
       isRecentListing(snapshot?.listing ?? null),
     );
+    // Actual vs consensus EPS, so neither renderer has to infer from the size of
+    // the spike whether the results were good. EDGAR-confirmed earnings ONLY:
+    // that path has already cross-checked the SEC registrant against the
+    // scanner's company name (lib/quant/identity.ts), and Finnhub's earnings
+    // endpoint — unlike its headlines — returns nothing to identity-check a bare
+    // ticker against. Degrades to null, which just omits the figures.
+    const earnings =
+      edgarCat && catalyst_type === "earnings"
+        ? await fetchEarningsSurprise(g.ticker, dateKey)
+        : null;
+
     const expected_move_percent = expectedMovePercent(scored.percent_win_estimate, baseRate);
-    const short_thesis = await generateThesisText({
-      g,
-      catalyst: cat?.catalyst ?? macroLine,
-      catalystType: catalyst_type,
-      streakCount,
-      baseRate,
-      tech,
-      shortScore: scored.short_score,
-      percentWin: scored.percent_win_estimate,
-      expectedMove: expected_move_percent,
-      path: snapshot?.path ?? null,
-      listingAgeDays: effectiveAgeDays(snapshot?.listing ?? null),
-      priorCall: snapshot?.prior_call ?? null,
-    });
+    const prose = await generateThesisText(
+      {
+        g,
+        catalyst: cat?.catalyst ?? macroLine,
+        catalystType: catalyst_type,
+        streakCount,
+        baseRate,
+        tech,
+        shortScore: scored.short_score,
+        percentWin: scored.percent_win_estimate,
+        expectedMove: expected_move_percent,
+        path: snapshot?.path ?? null,
+        listingAgeDays: effectiveAgeDays(snapshot?.listing ?? null),
+        priorCall: snapshot?.prior_call ?? null,
+        earnings,
+      },
+      proseDeadline,
+    );
     return {
       catalyst:
         cat?.catalyst ??
@@ -150,10 +181,11 @@ export async function generateAnalysis(
         `No fresh SEC filing found for ${g.ticker} — the move looks driven by momentum, social buzz, or news outside official filings.`,
       catalyst_url: cat?.catalyst_url ?? "",
       catalyst_type,
-      short_thesis,
+      short_thesis: prose.text,
       short_score: clampInt(scored.short_score, 1, 10, 5),
       percent_win_estimate: clampInt(scored.percent_win_estimate, 0, 100, 50),
       expected_move_percent,
+      prose_source: prose.source,
     };
   } catch (err) {
     console.error(`[quant] analysis failed for ${g.ticker}:`, (err as Error).message);
@@ -231,9 +263,10 @@ export async function generateAndStoreTopAnalyses(
   // scoring (the safety cap); every input degrades independently.
   const snapshots = await buildFeatureSnapshots(admin, top, dateKey, techs, streaks, baseRates);
 
-  // Self-describing rows: the scoring version, plus the prose source when the
-  // paid Haiku mode is active (per-row template fallbacks aren't tracked).
-  const model = activeProseMode() === "haiku" ? `${QUANT_VERSION}+haiku` : QUANT_VERSION;
+  // Shared wall-clock budget for the whole batch's prose. Only bites in model
+  // mode; in template mode nothing reads it.
+  const proseDeadline = Date.now() + PROSE_BUDGET_MS;
+  let modelRows = 0;
 
   let created = 0;
   for (const g of top) {
@@ -247,8 +280,22 @@ export async function generateAndStoreTopAnalyses(
       baseRates.get(g.ticker) ?? null,
       techs.get(g.ticker) ?? null,
       snapshot,
+      proseDeadline,
     );
     if (!a) continue;
+    // Self-describing rows: the scoring version, plus the prose source THIS row
+    // actually used. Computed per row on purpose — it used to be computed once
+    // per batch from activeProseMode(), which meant a run where every Anthropic
+    // call failed still stamped all five rows as model-written, and nothing
+    // anywhere could tell you the prose was templated.
+    //
+    // Records the model ID rather than a generic "+model" suffix: this column is
+    // the audit trail, ANALYSIS_MODEL has already changed once (Haiku 4.5 →
+    // Sonnet 5), and "which model wrote this row" is exactly the question it
+    // will be asked. Prefix-match on `quant-v3` to group by scoring version.
+    const model =
+      a.prose_source === "model" ? `${QUANT_VERSION}+${ANALYSIS_MODEL}` : QUANT_VERSION;
+    if (a.prose_source === "model") modelRows++;
     const { error } = await admin.from("ai_analyses").upsert(
       {
         date: dateKey,
@@ -266,9 +313,17 @@ export async function generateAndStoreTopAnalyses(
         // Denormalized so the AI card renders exactly this drop's set, in order,
         // independent of how the live gainer list shifts before the close
         // (exchange: so its chart embed opens the right venue's symbol).
+        //
+        // price/change% ride along for the same reason: the landing panel needs
+        // the drop's own figures. Reading them back off daily_gainers can't
+        // work — the day cap above means the finalized board's new entrants
+        // never get a thesis, so the join has holes, and a ticker that leaves
+        // the board keeps whatever intraday snapshot it last had.
         rank: g.rank,
         company_name: g.companyName,
         exchange: g.exchange,
+        price_at_score: g.price,
+        change_percent_at_score: g.changePercent,
       },
       { onConflict: "date,ticker" },
     );
@@ -278,6 +333,29 @@ export async function generateAndStoreTopAnalyses(
       created++;
       remaining--;
     }
+  }
+
+  // Model prose degrades per ticker: the call is caught inside generateThesisText and
+  // the row is still written, with template prose. That is the right runtime
+  // behaviour and a terrible silent failure — without this, a total Anthropic
+  // outage produces a run that looks completely successful (five rows, no
+  // errors) while /engine tells users a model wrote them. `ai_all_failed` never
+  // fires here because it only triggers on ZERO rows.
+  if (activeProseMode() === "model" && created > 0 && modelRows * 2 < created) {
+    await maybeAlert(admin, {
+      date: dateKey,
+      type: "model_prose_degraded",
+      subject: `Model prose degraded: ${modelRows}/${created} rows on ${dateKey}`,
+      body:
+        `AI_PROSE_MODE=model (${ANALYSIS_MODEL}), but only ${modelRows} of ${created} theses for ${dateKey} ` +
+        `came back from the model. The rest fell back to the deterministic template ` +
+        `and are stored as "${QUANT_VERSION}".\n\n` +
+        `Users are unaffected — the template is the safe path — but /engine is ` +
+        `currently claiming a model writes the prose.\n\n` +
+        `Grep the logs for '"kind":"model_prose"' and for '[thesis] model prose' ` +
+        `to see the per-ticker reason (timeout, budget spent, ungrounded figures, ` +
+        `truncation, or an API error).`,
+    });
   }
   return created;
 }
