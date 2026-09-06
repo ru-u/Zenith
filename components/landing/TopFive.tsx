@@ -44,6 +44,7 @@ function ScoreCell({
   isPro,
   scored,
   score,
+  loading,
 }: {
   rank: number;
   dateKey: string;
@@ -51,10 +52,17 @@ function ScoreCell({
   /** Whether the day's theses have landed (i.e. this row came from the drop). */
   scored: boolean;
   score: number | null;
+  /** The Pro thesis query is still in flight — don't flash a dash at it. */
+  loading: boolean;
 }) {
   return (
     <span className="flex items-baseline justify-end gap-1">
-      {isPro ? (
+      {isPro && loading ? (
+        // First paint for a Pro viewer: the board is already cached but the
+        // theses query has not resolved, so `scored` is still false. Showing a
+        // dash here flashed "no score" for a beat on a day that HAS scores.
+        <span className="h-3 w-4 animate-pulse rounded-sm bg-foreground/15 motion-reduce:animate-none" />
+      ) : isPro ? (
         <span
           className="font-mono text-sm font-bold leading-none tabular-nums"
           // Pre-drop the honest answer is that nothing is scored yet, for
@@ -90,6 +98,7 @@ function Row({
   dateKey,
   isPro,
   scored,
+  loading,
 }: {
   row: PanelRow;
   rank: number;
@@ -97,9 +106,14 @@ function Row({
   dateKey: string;
   isPro: boolean;
   scored: boolean;
+  loading: boolean;
 }) {
-  const change = row.changePercent ?? 0;
-  const decimals = Math.abs(change) >= 100 ? 0 : 1;
+  // NEVER coerce a missing figure to 0 — "+0.0%" reads as a real, flat session
+  // rather than as "we don't have this". Theses scored before
+  // change_percent_at_score existed have null here, and the whole point of this
+  // panel's rewrite was to stop showing invented numbers.
+  const change = row.changePercent;
+  const decimals = change != null && Math.abs(change) >= 100 ? 0 : 1;
   return (
     <li className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/3 sm:grid-cols-[2.5rem_minmax(0,1fr)_6.5rem_7rem_5.5rem] sm:gap-4 sm:px-6">
       <span className="font-mono text-xs text-muted-foreground/70 tabular-nums">
@@ -123,6 +137,7 @@ function Row({
           isPro={isPro}
           scored={scored}
           score={row.score}
+          loading={loading}
         />
       </span>
       {/* The "+" is hardcoded, and safe: both sets are gainers — the board is
@@ -131,8 +146,12 @@ function Row({
           ticker's actual CLOSE and can be deeply negative (AIFU 2026-09-04
           closed -18.58%), which would render as a green "+-18.6%". That figure
           belongs on /analysis, which renders it sign-aware. */}
-      <span className="text-right font-mono text-sm font-semibold text-up tabular-nums">
-        +{change.toFixed(decimals)}%
+      <span
+        className={`text-right font-mono text-sm font-semibold tabular-nums ${
+          change != null ? "text-up" : "text-muted-foreground"
+        }`}
+      >
+        {change != null ? `+${change.toFixed(decimals)}%` : "—"}
       </span>
       <span className="hidden text-right font-mono text-sm text-muted-foreground tabular-nums sm:block">
         {formatPrice(row.price)}
@@ -152,7 +171,10 @@ export function TopFive({ isPro }: { isPro: boolean }) {
   // Drop-aware query (1-min poll until the day's theses land, focus refetch),
   // shared with AIAnalysisCard. Pro-gated at the route, so free visitors never
   // fetch it — which is also why they keep the public board below.
-  const { data: analyses } = useAiAnalyses(dateKey || undefined, isPro);
+  const { data: analyses, isLoading: analysesLoading } = useAiAnalyses(
+    dateKey || undefined,
+    isPro,
+  );
 
   // Ordering mirrors AIAnalysisCard: best→worst short, tie-broken on the stored
   // board rank. Kept identical on purpose — one drop, one order, two surfaces.
@@ -231,6 +253,7 @@ export function TopFive({ isPro }: { isPro: boolean }) {
                   dateKey={dateKey}
                   isPro={isPro}
                   scored={scored}
+                  loading={analysesLoading}
                 />
               ))}
             </ul>
