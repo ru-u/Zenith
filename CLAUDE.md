@@ -83,21 +83,25 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 ## Layout
 
 - `app/` — `page.tsx` (home / today), `history/`, `upgrade/`, `settings/`,
-  `auth/{login,signup}/`
+  `auth/{login,signup}/`, `stock/` + `stock/[ticker]/` (public ticker pages),
+  `learn/` + `learn/[slug]/` (explainers), `llms.txt/` (route handler)
   - `app/api/` — `gainers/`, `gainers/[date]/`, `streaks/`, `ai-analysis/`
     (Pro-gated), `cron/{run-eod,pre-close}/`, `unsubscribe/`,
     `stripe/{create-checkout,create-portal,webhook}/`
   - `instrumentation.ts` (repo root) — in-process `node-cron` scheduler (Railway)
 - `components/` — `gainers/` (hero, table, row, StockChart, badges), `ai/`,
   `history/`, `settings/`, `auth/`, `layout/` (Header, UserMenu, Logo,
-  GradientMesh), `ui/` (base-ui)
+  GradientMesh), `ui/` (base-ui), `seo/` (`JsonLd`), `learn/` (`Prose`)
 - `lib/` — `marketdata/` (provider interface + tradingview), `supabase/`,
   `quant/` (thesis engine: `edgar.ts` catalyst detection, `score.ts`
   deterministic scoring, `technicals.ts` TradingView indicators, `thesis.ts`
   prose seam + spend switch), `gainers.ts`, `streaks.ts`, `eod.ts`,
   `claude.ts` (thesis orchestrator), `notify.ts` (pre-close email),
   `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`,
-  `emailBudget.ts` (the two email ceilings, mirrored from provider config)
+  `emailBudget.ts` (the two email ceilings, mirrored from provider config),
+  `gainersSeed.ts` (server-render seed for the board), `schema.ts` (schema.org
+  nodes), `tickerPages.ts` (aggregates behind `/stock`), `learn.ts` (article
+  content)
 - `hooks/` — `useGainers`, `useStreaks`, `useSubscription`, `useMounted`
 - `supabase/` — `schema.sql` (fresh install), `migrate.sql` (idempotent, for an
   existing DB)
@@ -271,6 +275,80 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
   (`lib/quant/identity.ts`) — a ticker the SEC map attributes to a different
   company yields *no* catalyst rather than the wrong company's filings.
   Finnhub headlines are guarded by `mentionsCompany` in `lib/quant/news.ts`.
+- **The board is server-rendered, and the seed is stale ON PURPOSE.**
+  `lib/gainersSeed.ts` seeds the `["gainers"]` query cache so `/` and
+  `/screener` ship the real rows in their HTML. It reuses `serveStoredGainers`
+  — the side-effect-free half of `/api/gainers` — and **nothing else from that
+  route**: the provider refresh, the close capture and the pre-close drop stay
+  on the request path. The dehydrated state carries **`updatedAt: 0`** so the
+  query is stale on arrival and the client still fetches on mount. That is
+  load-bearing, not a detail: there is no morning cron, the first fetch of a day
+  is whoever loads the page first after 9:30, and a seed the client trusted for
+  10 minutes would silently disable every intraday refresh, the close capture
+  and the warm-up probe. The seed is also memoized in-process for 60s — safe
+  precisely *because* it is stale on arrival, so the window only decides how
+  fresh the first paint is. Per-process, same single-replica assumption as
+  `lib/ratelimit.ts`.
+- **`loading.tsx` and crawlable content are mutually exclusive on a dynamic
+  route.** A `loading.tsx` wraps the page in `<Suspense>`; an awaiting page
+  suspends into it and React streams the resolved markup into a `<div hidden>`
+  for a client script to swap in. Measured on `/screener` (2026-09-06): with the
+  fallback, the board is present but only inside that hidden container and the
+  prefetch payload is 67,781 B; without it, the board is in the visible HTML and
+  the prefetch payload is 187 B. **These are one mechanism** — the prefetchable
+  shell for a dynamic route *is* the loading fallback — so you cannot have both.
+  `loading.tsx` stays, because it fixes ~5s dead taps on mobile (Next skips
+  prefetch entirely for a dynamic route with no fallback) and `/screener` cannot
+  win "top gainers today" against Yahoo Finance and Barchart anyway. The seed
+  lives in `app/screener/layout.tsx` rather than the page so it doesn't suspend;
+  that does NOT make it crawlable there, and moving it back down or deleting
+  `loading.tsx` to "simplify" each silently breaks what the other fixes. The
+  crawlable surface is `/` (no `loading.tsx` — deliberately, per its own theme
+  note), `/stock/*` and `/learn/*`.
+- **`/stock/[ticker]` carries AGGREGATES ONLY — the per-session list is what Pro
+  sells.** Counts, a first/last date range, typical figures and the bucket base
+  rate. A date with its rank and price *is* the archive, and publishing it makes
+  "Unlimited history" in `lib/pricing.ts` false. Before adding a field, ask
+  whether it reconstructs a past board. The `MIN_BOARD_APPEARANCES = 8` bar in
+  `lib/tickerPages.ts` is a **thin-content guard, not an arbitrary cutoff**:
+  2,134 tickers have hit the board and 1,286 have done it twice, but with 83
+  base-rate buckets, 20 sectors and 947 of 1,000 streaks sitting at 1, a
+  two-appearance page is a template with a name swapped in — and ~1,300 of those
+  on a small domain is what Google's scaled-content-abuse policy targets, with
+  site-wide rather than page-level consequences. Re-run
+  `scripts/seo-inventory.mjs` before moving it, and let Search Console decide:
+  "Crawled – currently not indexed" means narrow, clean indexing means widen.
+  (Note "**Discovered** – currently not indexed" is the benign one — not yet
+  crawled, no judgement made.)
+- **`components/seo/JsonLd.tsx` is the ONLY `dangerouslySetInnerHTML` in the
+  repo**, and the CSP rationale in `next.config.ts` names it. It is required —
+  React escapes a `<script>` text child and corrupts the JSON — and safe because
+  the input is our own object literals with `<` escaped. If user-authored content
+  ever reaches it, move to a nonce first. **Never emit `Review`, `Rating`,
+  `Recommendation` or `FinancialProduct` for a thesis or a short score**: that
+  markup asserts an investment recommendation about a real security, which is
+  precisely what `NOT_ADVICE` says Zenith does not make.
+- **The entity is "Zenith Screener", never bare "Zenith", in anything a machine
+  reads** — `lib/schema.ts` `ENTITY_NAME`, `applicationName`, the title
+  template. The bare word belongs to Zenith Electronics, Zenith watches and
+  Zenith Bank, so it is not a name Google or an answer engine can resolve to
+  this product. The UI still says "Zenith"; this is about the machine-readable
+  layer.
+- **`/llms.txt` is a route handler, not a file in `public/`**, so it reads the
+  URL, the disclaimers, the price and the live `AI_PROSE_MODE` from the modules
+  that already own them. It self-heals on a prose-mode flip the same way
+  `/engine` does — unlike the copy listed above, which does not. `robots.ts`
+  names twelve AI crawlers explicitly with the same fence as `*`: being explicit
+  makes the decision auditable and stops a future tightening of `*` from
+  silently cutting off citations. `Google-Extended` governs Gemini grounding
+  only and has **no** effect on Search ranking in either direction.
+- **Measurement is Search Console only — do NOT add an analytics script.**
+  `app/privacy/page.tsx` and `app/cookies/page.tsx` promise no analytics
+  cookies or scripts, so adding Plausible or GA would have to revert that copy
+  in the same change — the same copy-coupled-to-config trap as `AI_PROSE_MODE`
+  above. Search Console is verified by DNS TXT and adds nothing to the page.
+  IndexNow is a static key file in `public/` (Bing/Yandex/Seznam only; Google
+  does not participate).
 - **Branding:** cyan→teal + polar-white on near-black (logo
   `components/layout/Logo.tsx`, favicon `app/icon.png`). Tokens
   `--brand`/`--brand-2`/`--up`/`--down` in `app/globals.css` (light `:root` +
@@ -451,6 +529,9 @@ report identical values day-over-day are dropped by `dropFrozenRepeats`
 - `npm run build` / `npm run start` / `npm run lint`
 - DB setup: run `supabase/schema.sql` (new) or `supabase/migrate.sql` (existing)
   in the Supabase SQL editor.
+- `node --env-file=.env.local scripts/seo-inventory.mjs` — read-only; counts
+  board appearances per ticker and reports how many clear
+  `MIN_BOARD_APPEARANCES`. Run before changing that constant.
 - Trigger pre-close drop / EOD locally:
   `curl -H "Authorization: Bearer $CRON_SECRET" localhost:3000/api/cron/pre-close`
   `curl -H "Authorization: Bearer $CRON_SECRET" localhost:3000/api/cron/run-eod`

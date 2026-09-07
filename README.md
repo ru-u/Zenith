@@ -184,7 +184,11 @@ app/
 ├── settings/                # account, theme, email opt-in, feedback
 ├── upgrade/                 # Stripe checkout entry
 ├── auth/{login,signup}/     # email/password + Google OAuth
+├── stock/                   # public ticker index + /[ticker] aggregate pages
+├── learn/                   # public explainers, /[slug] from lib/learn.ts
+├── engine/                  # methodology disclosure (public, force-dynamic)
 ├── {privacy,terms,cookies}/ # legal
+├── llms.txt/                # route handler: site summary for language models
 └── api/
     ├── gainers/             # today (freshness + lock) and /[date]
     ├── streaks/
@@ -301,6 +305,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 | `npm run build` | Production build (typecheck + compile) |
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint |
+| `node --env-file=.env.local scripts/seo-inventory.mjs` | Read-only. Board appearances per ticker + how many clear `MIN_BOARD_APPEARANCES`; run before changing that constant. |
 
 ---
 
