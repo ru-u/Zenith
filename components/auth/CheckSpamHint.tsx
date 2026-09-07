@@ -25,7 +25,7 @@ export function CheckSpamHint({ className }: { className?: string }) {
           Don&apos;t see it? Check your spam or junk folder.
         </span>{" "}
         <span className="text-muted-foreground">
-          It comes from {AUTH_EMAIL_SENDER} — mark it &ldquo;not spam&rdquo; so
+          It comes from {AUTH_EMAIL_SENDER}{" "}— mark it &ldquo;not spam&rdquo; so
           the next one reaches your inbox.
         </span>
       </p>
