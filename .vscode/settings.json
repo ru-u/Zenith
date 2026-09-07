@@ -14,5 +14,23 @@
   // opening them. (Reload the window once to drop any already-open node_modules tab.)
   "files.exclude": {
     "**/node_modules": true
-  }
+  },
+
+  // Tailwind IntelliSense's suggestCanonicalClasses rule (v4-only, warns by
+  // default) flags an arbitrary value whenever the theme has a named equivalent
+  // — e.g. blur-[4px] -> blur-xs, rounded-[2px] -> rounded-xs. Ten of these are
+  // spread across components/, and they are style preferences, not defects:
+  // eslint and tsc are both clean on every one.
+  //
+  // Silenced rather than applied because the suggestions are NOT all no-ops.
+  // Four of them (min-w-[260px], p-[3px], bottom-[-5px], rounded-[2px]) rewrite
+  // an absolute pixel value into calc(var(--spacing) * n) or var(--radius-xs),
+  // which is rem-derived — identical at a 16px root font, but it starts scaling
+  // with the reader's browser font-size setting. That's a rendering change, and
+  // an intentional px stays px.
+  //
+  // One suggestion IS worth taking on its own merits and is tracked separately:
+  // bg-gradient-to-b -> bg-linear-to-b in components/gainers/AuthGatePrompt.tsx
+  // is a real v3 -> v4 rename, not a style nit.
+  "tailwindCSS.lint.suggestCanonicalClasses": "ignore"
 }
