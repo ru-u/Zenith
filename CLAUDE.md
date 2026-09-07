@@ -80,6 +80,18 @@ sessions/holidays/half-days live in `lib/market-calendar.ts`. Halted stocks that
 report identical values day-over-day are dropped by `dropFrozenRepeats`
 (`lib/gainers.ts`).
 
+**A row on our board can still be untradeable in the game, and that is NOT a bug to
+fix.** Our floors (`MIN_PRICE` $3, `MIN_MARKET_CAP` $25M in
+`lib/marketdata/normalize.ts`) are checked against the **live intraday price** — the
+scanner's `close` column is the last trade, not yesterday's. DECA reads eligibility off
+the **previous close**. Both prior figures are recoverable from columns already on every
+row (`prevClose = price / (1 + change%/100)`, same for the cap), and because the board
+ranks by largest % gain the divergence is *worst at rank 1*: a name up 100% at $3.10
+closed at $1.55 with a $13M cap. Filtering on the previous close instead would empty the
+board — the biggest movers are by construction the ones that were cheap yesterday — so
+this is disclosed to users (`app/engine/page.tsx`, "What's covered") rather than fixed in
+code.
+
 ## Layout
 
 - `app/` — `page.tsx` (home / today), `history/`, `upgrade/`, `settings/`,

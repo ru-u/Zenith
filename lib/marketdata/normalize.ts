@@ -2,6 +2,16 @@ import type { GainerRow, RawGainer } from "./types";
 
 // Product filters: real, liquid names only. Applied locally so we control them
 // independent of the provider.
+//
+// Both floors are checked against the LIVE intraday price: `r.price` is the
+// scanner's `close` column, i.e. the last trade, not yesterday's close. DECA
+// reads eligibility off the PREVIOUS close, so a row that clears these can still
+// be untradeable in the game — recover the prior figures from columns already on
+// the row (`prevClose = price / (1 + changePercent/100)`, same for the cap).
+// Ranking by largest % gain makes the gap worst at rank 1: +100% at $3.10 closed
+// at $1.55. Matching DECA's timing is a NON-GOAL — filtering on the previous
+// close would empty the board. Disclosed to users on /engine ("What's covered"),
+// with the full reasoning in CLAUDE.md under "Competition mechanics".
 export const MIN_PRICE = 3;
 export const MIN_MARKET_CAP = 25_000_000;
 

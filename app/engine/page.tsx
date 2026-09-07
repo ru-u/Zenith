@@ -236,8 +236,15 @@ export default function EnginePage() {
           The price and size floors are set where they are because the Stock
           Market Game applies similar limits to what you may trade. They are not
           a promise: the game also reserves the right to block or unwind trades
-          in unusually volatile stocks, and its rules govern, not ours. Check
-          before you place an order.
+          in unusually volatile stocks, and its rules govern, not ours.
+        </p>
+        <p>
+          They are also measured at a different moment. Our floors look at what a
+          stock costs right now; the game looks at where it closed the day
+          before. A stock that has doubled today can sit above $3 on this page
+          and still have closed below the game&apos;s floor yesterday — and the
+          bigger the gain, the more likely that is, so it applies most to the
+          names at the top of the board. Check before you place an order.
         </p>
       </LegalSection>
 
