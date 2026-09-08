@@ -16,8 +16,11 @@ import { cn } from "@/lib/utils";
 
 const ANY = "any";
 
-// The scrape already floors at ≥$3 / ≥$25M (lib/marketdata/normalize.ts), so
-// those options would be no-ops — the dropdowns only offer tighter narrowing.
+// The scrape already floors at ≥$3 / ≥$25M on the PREVIOUS close
+// (lib/marketdata/normalize.ts), so those options would be near no-ops — the
+// dropdowns only offer tighter narrowing. Note these filter the live price
+// while the floors filter the prior one, so "≥ $5" can still leave a row that
+// closed at $3.50.
 const PRICE_OPTIONS = [
   { v: ANY, label: "Any price" },
   { v: "5", label: "≥ $5" },

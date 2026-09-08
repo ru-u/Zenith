@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DailyGainer } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
-import { batchSessionDate, isLikelySplitArtifact, TICKER_RE } from "./marketdata/normalize";
+import {
+  batchSessionDate,
+  isGameEligible,
+  isLikelySplitArtifact,
+  TICKER_RE,
+} from "./marketdata/normalize";
 import { isAllowedExchange } from "./marketdata/symbols";
 import { maybeAlert } from "./alerts";
 import {
@@ -61,6 +66,14 @@ function checkSymbolIntegrity(rows: GainerRow[]): {
           .map((r, i) => ({ ...r, rank: i + 1 }));
   return { kept, dropped, unqualified: kept.filter((r) => r.exchange == null) };
 }
+
+/**
+ * Floor for a plausible board. The provider over-fetches 3x and there are
+ * hundreds of gainers on the quietest day, so falling under this means the
+ * local filters over-fired — not that the market was calm. Set well below the
+ * worst genuine day on record (92) so it stays a real signal.
+ */
+const EXPECTED_MIN_ROWS = 60;
 
 export interface PersistResult {
   /** Whether rows were written. False means the batch was refused, not that it failed. */
@@ -125,6 +138,28 @@ export async function persistGainers(
       `[gainers] session gate: provider is serving ${sessionDate}, refusing to file it as ${dateKey}`,
     );
     return { persisted: false, sessionDate, reason: "stale-session" };
+  }
+
+  // A board this short means the local filters over-fired, not that the market
+  // was quiet — there are hundreds of gainers on the dullest day, and the
+  // provider over-fetches 3x. The likeliest cause is the previous-close
+  // eligibility filter working off a broken `change` column, which would gut
+  // the board silently rather than fail. Worst genuine day on record is 92.
+  if (rows.length < EXPECTED_MIN_ROWS) {
+    console.error(`[gainers] short board: only ${rows.length} rows survived filtering`);
+    await maybeAlert(admin, {
+      date: dateKey,
+      type: "board_short",
+      subject: `Zenith: only ${rows.length} gainers survived filtering (${dateKey})`,
+      body:
+        `The scanner returned enough candidates but only ${rows.length} cleared the ` +
+        `local filters, against a floor of ${EXPECTED_MIN_ROWS}.\n\n` +
+        `Most likely the previous-close eligibility check (isGameEligible in ` +
+        `lib/marketdata/normalize.ts) is dividing by a broken \`change\` column — ` +
+        `it derives the prior close as price / (1 + change%/100), so a contract ` +
+        `change there silently makes every row look ineligible. Check the raw ` +
+        `scanner response before assuming the market was quiet.`,
+    });
   }
 
   const scrapedAt = new Date().toISOString();
@@ -240,6 +275,38 @@ export function dropSplitArtifacts(rows: DailyGainer[]): DailyGainer[] {
   return kept.map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
+/**
+ * Drop rows that weren't tradeable in the game and re-rank. New fetches are
+ * already filtered in rankAndFilter; this heals rows persisted before the
+ * eligibility guard existed, so the archive and the live board agree.
+ *
+ * Measured over the 62 sessions stored when this shipped: 242 of 6,179 rows go
+ * (3.9 a day, worst 9), the smallest surviving board is 86 rows, and rank 1
+ * changes on 26 of them — the damage was always concentrated at the top.
+ */
+export function dropIneligible(rows: DailyGainer[]): DailyGainer[] {
+  const kept = rows.filter((r) =>
+    isGameEligible(r.price, r.change_percent, r.market_cap),
+  );
+  if (kept.length === rows.length) return rows;
+  return kept.map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+/**
+ * Every read-path filter, in one place. Two callers used to keep parallel
+ * copies of this chain (getCleanedGainers and serveStoredGainers) and had to be
+ * edited in lockstep; adding a third filter is what made that worth fixing.
+ *
+ * Order doesn't affect the result — the three predicates are independent, and
+ * whichever runs last re-ranks — so it reads cheapest-first.
+ */
+export function cleanStoredGainers(
+  rows: DailyGainer[],
+  prev: FrozenRepeatProbe[],
+): DailyGainer[] {
+  return dropFrozenRepeats(dropIneligible(dropSplitArtifacts(rows)), prev);
+}
+
 /** The only fields dropFrozenRepeats compares. */
 export type FrozenRepeatProbe = Pick<
   DailyGainer,
@@ -295,7 +362,7 @@ export async function getCleanedGainers(
   if (rows.length === 0) return rows;
   const prevDate = await getGainersDateBefore(client, date);
   const prev = prevDate ? await getFrozenRepeatProbe(client, prevDate) : [];
-  return dropFrozenRepeats(dropSplitArtifacts(rows), prev);
+  return cleanStoredGainers(rows, prev);
 }
 
 /** Most recent scraped_at among a date's rows (drives the freshness check). */
@@ -360,14 +427,14 @@ export async function serveStoredGainers(
     }
   }
 
-  // Drop reverse-split artifacts stored before the ingestion guard existed,
-  // then frozen repeats (e.g. a halted stock reporting identical values daily)
-  // vs the prior trading day.
-  rows = dropSplitArtifacts(rows);
+  // Split artifacts, rows that were never tradeable in the game, then frozen
+  // repeats (e.g. a halted stock reporting identical values daily) vs the prior
+  // trading day.
   const prevDate = await getGainersDateBefore(client, servedDate);
-  if (prevDate) {
-    rows = dropFrozenRepeats(rows, await getFrozenRepeatProbe(client, prevDate));
-  }
+  rows = cleanStoredGainers(
+    rows,
+    prevDate ? await getFrozenRepeatProbe(client, prevDate) : [],
+  );
 
   // Serving an earlier day while the market is open means exactly one thing:
   // today's session hasn't reached us yet. Derived here rather than passed in,

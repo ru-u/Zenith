@@ -228,9 +228,10 @@ export default function EnginePage() {
 
       <LegalSection title="What's covered">
         <p>
-          The screener looks at common stock on the NASDAQ and NYSE, priced at
-          $3 or more, with a market value of at least $25 million, ranked by
+          The screener looks at common stock on the NASDAQ and NYSE, ranked by
           percentage gain over the regular session. No over-the-counter stocks.
+          To appear, a stock has to have finished the previous session at $3 or
+          more with a market value of at least $25 million.
         </p>
         <p>
           The price and size floors are set where they are because the Stock
@@ -239,12 +240,12 @@ export default function EnginePage() {
           in unusually volatile stocks, and its rules govern, not ours.
         </p>
         <p>
-          They are also measured at a different moment. Our floors look at what a
-          stock costs right now; the game looks at where it closed the day
-          before. A stock that has doubled today can sit above $3 on this page
-          and still have closed below the game&apos;s floor yesterday — and the
-          bigger the gain, the more likely that is, so it applies most to the
-          names at the top of the board. Check before you place an order.
+          They are measured the way the game measures them — against the
+          previous close, not against what a stock costs right now. That
+          difference matters most at the top of the board, where a name that has
+          doubled today can be above $3 on screen and have closed well under it
+          yesterday. Those rows are left off the board rather than listed with a
+          warning, so the ranking you see is one you could have acted on.
         </p>
       </LegalSection>
 

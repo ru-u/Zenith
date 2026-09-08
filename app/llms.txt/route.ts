@@ -46,6 +46,11 @@ especially in smaller stocks, often give back ground in the sessions after.
 Whether a given spike does is exactly what the thesis is for; Zenith takes no
 positions and places no trades.
 
+The board covers NASDAQ and NYSE common stock only, and lists a stock only if it
+finished the PREVIOUS session at $3 or more with a market value of at least $25
+million — the floors measured the way the Stock Market Game measures them, so
+that a ranked row is one a competitor could actually have traded.
+
 The DECA Stock Market Game is an end-of-day game: an order placed during market
 hours fills at that day's 4:00 PM ET close, and orders stay pending and
 cancelable until then. That is why the daily thesis is published at about 3:30 PM

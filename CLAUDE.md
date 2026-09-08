@@ -80,17 +80,48 @@ sessions/holidays/half-days live in `lib/market-calendar.ts`. Halted stocks that
 report identical values day-over-day are dropped by `dropFrozenRepeats`
 (`lib/gainers.ts`).
 
-**A row on our board can still be untradeable in the game, and that is NOT a bug to
-fix.** Our floors (`MIN_PRICE` $3, `MIN_MARKET_CAP` $25M in
-`lib/marketdata/normalize.ts`) are checked against the **live intraday price** — the
-scanner's `close` column is the last trade, not yesterday's. DECA reads eligibility off
-the **previous close**. Both prior figures are recoverable from columns already on every
-row (`prevClose = price / (1 + change%/100)`, same for the cap), and because the board
-ranks by largest % gain the divergence is *worst at rank 1*: a name up 100% at $3.10
-closed at $1.55 with a $13M cap. Filtering on the previous close instead would empty the
-board — the biggest movers are by construction the ones that were cheap yesterday — so
-this is disclosed to users (`app/engine/page.tsx`, "What's covered") rather than fixed in
-code.
+**Both floors are measured on the PREVIOUS CLOSE, because that is what DECA measures.**
+`MIN_PRICE` $3 and `MIN_MARKET_CAP` $25M (`lib/marketdata/normalize.ts`) are applied by
+`isGameEligible` to figures backed out of the live ones — the scanner's `close` column is
+the last trade, not yesterday's, so `prevClose = price / (1 + change%/100)`, same for the
+cap. Enforced in **three** places, and all three are needed: `rankAndFilter` for new
+fetches, `dropIneligible` (via `cleanStoredGainers`) for stored rows on the read path —
+the same write/read pairing the split guard uses — and **`lib/tickerPages.ts` separately**,
+because `/stock` queries `daily_gainers` directly and goes through neither. That third one
+is easy to miss: the `/stock` pages kept serving ineligible appearances after the first two
+were in place, and only the page count moving 117 → 109 revealed it.
+
+This was long documented as a NON-GOAL on the grounds that filtering on the previous
+close "would empty the board". **That was wrong, and the numbers are here so it is not
+re-derived from intuition.** Over the 62 sessions stored on 2026-09-08: **96.1% of rows
+survive** (5,937/6,179), no session drops below 86 rows, mean 3.9 dropped a day and worst
+9. The intuition was right only about *where* the damage lands — ranking by % gain makes
+the divergence worst at rank 1, which was ineligible on **26 of 62 sessions (42%)**, with
+~1 of every top-5 ineligible. **53 of 299 past Pro theses (17.7%) were written about a
+ticker a competitor could never have traded.** The trigger was day one of the competition
+(2026-09-08): rank 1 was NUR, +70.6% at $3.02 — a $1.77 close and a $23.2M cap, under
+both floors.
+
+Three things that look optional and are not:
+- **No Finnhub, and no new column.** The derivation was checked against Finnhub's
+  `/quote` `pc` for all 25 of that session's top rows: exact to four decimals, 25/25. A
+  per-ticker lookup would add ~100 free-tier calls per 10-min refresh to the read path for
+  a number the scanner's own two columns already give exactly — and it cannot heal stored
+  history, which the derivation does for free.
+- **`FLOOR_EPSILON`** (1e-6, relative) exists because the floors are exact and the prior
+  figures are a division: a $3.00 close up exactly 10% comes back as
+  `2.9999999999999996`. $2.99 and a $24.99M cap still fail.
+- **The cap half is approximate; the price half is exact.** Dividing the cap assumes
+  shares outstanding didn't change overnight, which a dilutive offering breaks. There is
+  no free source of historical share counts, so this is a documented limit, not a TODO.
+
+The over-fetch in `tradingview.ts` is **3x, not 2x**, because this filter runs before the
+`.slice` and has to be able to backfill to a full 100. `board_short` alerts if fewer than
+60 rows ever survive — the failure mode is a TradingView `change` contract change making
+every row look ineligible, which guts the board without any request failing. Accepted
+cost: 53 tickers left the archive and 8 `/stock` pages fell under
+`MIN_BOARD_APPEARANCES` and now 404 (INHD, DFDV, SOWG, MTC, FIEE, LVLU, PYXS, MF); do
+**not** lower that constant to win them back.
 
 ## Layout
 

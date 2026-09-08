@@ -3,17 +3,88 @@ import type { GainerRow, RawGainer } from "./types";
 // Product filters: real, liquid names only. Applied locally so we control them
 // independent of the provider.
 //
-// Both floors are checked against the LIVE intraday price: `r.price` is the
-// scanner's `close` column, i.e. the last trade, not yesterday's close. DECA
-// reads eligibility off the PREVIOUS close, so a row that clears these can still
-// be untradeable in the game — recover the prior figures from columns already on
-// the row (`prevClose = price / (1 + changePercent/100)`, same for the cap).
-// Ranking by largest % gain makes the gap worst at rank 1: +100% at $3.10 closed
-// at $1.55. Matching DECA's timing is a NON-GOAL — filtering on the previous
-// close would empty the board. Disclosed to users on /engine ("What's covered"),
-// with the full reasoning in CLAUDE.md under "Competition mechanics".
+// Both floors are measured against the PREVIOUS CLOSE, because that is what DECA
+// measures. `r.price` is the scanner's `close` column — the last trade, not
+// yesterday's close — so checking the floors against it lists rows that are
+// untradeable in the game, and ranking by largest % gain makes that worst
+// exactly at rank 1 (2026-09-08, day one of the competition: NUR +70.6% at
+// $3.02, i.e. a $1.77 close and a $23.2M cap — under both floors).
 export const MIN_PRICE = 3;
 export const MIN_MARKET_CAP = 25_000_000;
+
+/**
+ * Back out the previous session's price and market cap from the live figures.
+ *
+ * `changePercent` is measured against the previous close, so the prior price is
+ * just `price / (1 + changePercent/100)`. Checked against Finnhub's `/quote`
+ * `pc` for all 25 of a session's top rows (2026-09-08): exact to four decimals,
+ * 25/25 — the scanner's own two columns are self-consistent, so there is no
+ * third-party lookup to add here.
+ *
+ * The cap divides by the same factor, which assumes shares outstanding did not
+ * change overnight. That holds for a normal session but NOT across a dilutive
+ * offering, so the cap half is approximate where the price half is exact.
+ *
+ * Returns nulls rather than throwing: an unknown input must not become a
+ * confident answer, and every caller treats null as "don't filter on this".
+ */
+export function previousSessionFigures(
+  price: number | null,
+  changePercent: number | null,
+  marketCap: number | null,
+): { price: number | null; marketCap: number | null } {
+  const factor = changePercent == null ? null : 1 + changePercent / 100;
+  if (factor == null || !Number.isFinite(factor) || factor <= 0) {
+    return { price: null, marketCap: null };
+  }
+  return {
+    price: price == null ? null : price / factor,
+    marketCap: marketCap == null ? null : marketCap / factor,
+  };
+}
+
+/**
+ * Relative slack on the floor comparisons, because the previous figures are a
+ * division and the floors are exact. A stock that closed at exactly $3.00 and
+ * gained exactly 10% comes back as 2.9999999999999996, which would drop a row
+ * that is precisely on the line. A millionth is far below any real price or cap
+ * difference — $2.99 and a $24.99M cap still fail — so this only absorbs the
+ * float error, never a genuine miss.
+ */
+const FLOOR_EPSILON = 1e-6;
+
+/**
+ * Could a competitor actually trade this row? DECA reads both floors off the
+ * PREVIOUS close, so a name up 100% to $3.10 closed at $1.55 and is ineligible
+ * however it looks on the board right now.
+ *
+ * Null skips its half of the check, matching rankAndFilter's convention — we
+ * drop only on positive evidence. Safe in practice: every stored row with an
+ * unknown market cap is a fund or preferred (SLBT, MFP, OPI, ADIG), not a
+ * gainer, and all of them clear the price floor anyway.
+ *
+ * Strictly additive to the live-price floors it replaces: for a row that is UP,
+ * `prevPrice >= MIN_PRICE` implies `price > MIN_PRICE`, and likewise for the
+ * cap — so this only ever removes rows, and the scanner's server-side
+ * `close >= MIN_PRICE` filter never withholds one it would have kept.
+ */
+export function isGameEligible(
+  price: number | null,
+  changePercent: number | null,
+  marketCap: number | null,
+): boolean {
+  const prev = previousSessionFigures(price, changePercent, marketCap);
+  if (prev.price != null && prev.price < MIN_PRICE * (1 - FLOOR_EPSILON)) {
+    return false;
+  }
+  if (
+    prev.marketCap != null &&
+    prev.marketCap < MIN_MARKET_CAP * (1 - FLOOR_EPSILON)
+  ) {
+    return false;
+  }
+  return true;
+}
 
 // Only NASDAQ/NYSE common stock: 1–4 uppercase letters. This drops OTC 5-letter
 // symbols, foreign ADRs, and class/unit/warrant tickers (dots/suffixes). Rare
@@ -75,13 +146,19 @@ export function batchSessionDate(rows: Array<{ sessionDate: string | null }>): s
  * Filter → sort (change% desc) → rank → slice.
  * A filter is skipped when its value is null/undefined, so we never drop a
  * row just because a field is unknown.
+ *
+ * The eligibility filter runs BEFORE the slice, so dropping an ineligible name
+ * pulls the next candidate up rather than leaving a short board — which is why
+ * the provider over-fetches (see the `range` in tradingview.ts). It also runs
+ * after the `changePercent > 0` filter, so by then every surviving row is up
+ * and the floors it applies are strictly tighter than the live-price ones it
+ * replaces.
  */
 export function rankAndFilter(rows: RawGainer[], limit: number): GainerRow[] {
   return rows
     .filter((r) => TICKER_RE.test(r.ticker))
-    .filter((r) => r.price == null || r.price >= MIN_PRICE)
-    .filter((r) => r.marketCap == null || r.marketCap >= MIN_MARKET_CAP)
     .filter((r) => r.changePercent != null && r.changePercent > 0)
+    .filter((r) => isGameEligible(r.price, r.changePercent, r.marketCap))
     .filter((r) => !isLikelySplitArtifact(r.changePercent, r.relativeVolume))
     .sort((a, b) => (b.changePercent ?? 0) - (a.changePercent ?? 0))
     .slice(0, limit)

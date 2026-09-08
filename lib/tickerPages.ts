@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveBaseRate, type BaseRate } from "@/lib/baseRates";
 import type { DailyGainer } from "@/lib/supabase/types";
+import { isGameEligible } from "@/lib/marketdata/normalize";
 
 // Data behind the public /stock/[ticker] pages.
 //
@@ -67,10 +68,16 @@ async function countAppearances(): Promise<Map<string, number>> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await db
       .from("daily_gainers")
-      .select("ticker")
+      .select("ticker, price, change_percent, market_cap")
       .range(from, from + PAGE - 1);
     if (error) throw error;
-    for (const r of data) counts.set(r.ticker, (counts.get(r.ticker) ?? 0) + 1);
+    // Count only appearances a competitor could have traded, so a page's
+    // headline count matches the rows /history and the board actually show.
+    // Costs three more columns on a query that already pages the whole table.
+    for (const r of data) {
+      if (!isGameEligible(r.price, r.change_percent, r.market_cap)) continue;
+      counts.set(r.ticker, (counts.get(r.ticker) ?? 0) + 1);
+    }
     if (data.length < PAGE) return counts;
   }
 }
@@ -103,7 +110,12 @@ export async function tickerProfile(
     .order("date", { ascending: true });
   if (error) throw error;
 
-  const board = (rows ?? []) as DailyGainer[];
+  // Same filter the board and /history apply on read (dropIneligible), so every
+  // figure on this page describes sessions the stock was actually tradeable in.
+  // Not dropIneligible itself: that re-ranks, and `rank` here is per-date.
+  const board = ((rows ?? []) as DailyGainer[]).filter((r) =>
+    isGameEligible(r.price, r.change_percent, r.market_cap),
+  );
   if (board.length < MIN_BOARD_APPEARANCES) return null;
 
   const [{ data: streak }, { data: rates }] = await Promise.all([

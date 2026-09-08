@@ -97,11 +97,13 @@ export default function TermsPage() {
             text as your own writing.
           </li>
           <li>
-            Zenith does not guarantee that any stock it lists is tradeable or
-            shortable under the game&apos;s rules (for example the game&apos;s
-            $3 minimum price on the prior day, $25 million minimum market cap,
-            and its right to block or unwind trades in extremely volatile
-            stocks). Check the game&apos;s rules before placing an order.
+            Zenith screens for the game&apos;s $3 minimum price and $25 million
+            minimum market cap as measured on the prior day&apos;s close, but
+            does not guarantee that any stock it lists is tradeable or shortable
+            under the game&apos;s rules — which vary between versions of the
+            game, and which reserve the right to block or unwind trades in
+            extremely volatile stocks. Check the game&apos;s rules before
+            placing an order.
           </li>
         </ul>
         <p>

@@ -23,6 +23,11 @@ export type AlertType =
   // telling users a model wrote it. Nothing else can detect that.
   | "model_prose_degraded" // most/all model prose calls fell back to the template
   | "symbol_integrity" // scanner rows we couldn't safely qualify (wrong venue / malformed ticker)
+  // The board came back far shorter than the filters should ever leave it. The
+  // previous-close eligibility check derives the prior close by dividing by the
+  // scanner's `change` column, so a contract change there turns every row
+  // ineligible and guts the board without any request failing.
+  | "board_short" // too few rows survived local filtering
   // The two halves of the session gate in persistGainers, split because the
   // fixes have nothing in common. Neither fires during the normal 9:30-9:47
   // warm-up — that mismatch is expected and the read path stays silent through

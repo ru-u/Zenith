@@ -72,8 +72,13 @@ function buildPayload(limit: number) {
     symbols: { query: { types: [] }, tickers: [] },
     columns: [...COLUMNS],
     sort: { sortBy: "change", sortOrder: "desc" },
-    // Over-fetch so the local filters still leave us `limit` rows.
-    range: [0, Math.max(limit * 2, 100)],
+    // Over-fetch so the local filters still leave us `limit` rows. 3x, not 2x:
+    // the previous-close eligibility filter in rankAndFilter drops ~4 rows a day
+    // (worst observed 9) on top of everything else, and at 2x the board already
+    // came up short on the heavier days (92 rows on 2026-09-03, 98 on
+    // 2026-08-20). Costs bytes in the one response we already make, not a
+    // second request.
+    range: [0, Math.max(limit * 3, 150)],
   };
 }
 
