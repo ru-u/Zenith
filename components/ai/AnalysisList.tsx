@@ -10,11 +10,30 @@ import {
 } from "@/components/ui/dialog";
 import type { AIAnalysis } from "@/lib/supabase/types";
 
+// The columns this view actually renders. `ai_analyses` has 29, including the
+// `features` jsonb blob and the long `invalidation` / `key_catalysts` fields —
+// none of which appear here, and all of which used to ride along on a
+// select("*") for the largest per-row payload in the app. The list lives beside
+// its only consumer so the query and the component cannot drift.
+export type AnalysisListItem = Pick<
+  AIAnalysis,
+  | "ticker"
+  | "company_name"
+  | "exchange"
+  | "rank"
+  | "short_score"
+  | "short_thesis"
+  | "catalyst"
+  | "catalyst_type"
+  | "change_percent_at_score"
+  | "scored_day_change_percent"
+>;
+
 // Full-detail thesis view for the Pro /analysis page: one well-spaced block per
 // thesis, ordered metadata → score → why it spiked → thesis. No clamping — this
 // is the depth view (the home card is the compact summary). Like the home card,
 // percent_win_estimate is never rendered as a figure.
-export function AnalysisList({ analyses }: { analyses: AIAnalysis[] }) {
+export function AnalysisList({ analyses }: { analyses: AnalysisListItem[] }) {
   const ordered = [...analyses].sort(
     (a, b) =>
       (b.short_score ?? -1) - (a.short_score ?? -1) ||

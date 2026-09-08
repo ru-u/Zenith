@@ -34,6 +34,20 @@ export type Viewer = {
 //
 // `created_at` is selected because /settings needs it; it costs nothing extra
 // on a row we're already fetching, and keeps every caller on one query.
+//
+// DELIBERATELY still getUser(), not getClaims() — proxy.ts uses getClaims and
+// this does not, which looks inconsistent until you see why. getClaims reads
+// user_metadata out of the JWT, and the JWT is a SNAPSHOT taken when the token
+// was issued: auth-js's updateUser() does `session.user = data.user` and
+// re-saves the SAME access_token (GoTrueClient `_updateUser`), so it never
+// re-mints the claim. A user who edits their name in /settings would keep
+// seeing the old one in the header until the token happened to refresh — up to
+// an hour. proxy.ts is safe on getClaims because it only reads `sub`, which
+// cannot change; every caller here reads user_metadata via lib/displayName.ts.
+//
+// The cost of that decision is bounded: this now runs inside the <Suspense>
+// boundary in components/layout/Header.tsx, so it no longer blocks the document
+// the way the proxy's call did.
 export const getViewer = cache(async (): Promise<Viewer> => {
   const supabase = await createClient();
   const {

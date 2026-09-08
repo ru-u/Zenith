@@ -1,17 +1,29 @@
+import { Suspense } from "react";
 import Link from "next/link";
-import { getViewer } from "@/lib/viewer";
-import { UserMenu } from "./UserMenu";
 import { Logo } from "./Logo";
 import { NavLinks } from "./NavLinks";
-import { MobileNav } from "./MobileNav";
 import { ThemeToggleButton } from "./ThemeToggleButton";
-import { displayName } from "@/lib/displayName";
+import {
+  HeaderUpgrade,
+  HeaderUpgradeFallback,
+  HeaderAccount,
+  HeaderAccountFallback,
+} from "./HeaderAccount";
 
-export async function Header() {
-  // Shared with the page being rendered — see lib/viewer.ts. Pro status drives
-  // the nav: free/guest see "Upgrade", Pro see a "Pro" badge.
-  const { user, isPro } = await getViewer();
-
+// DELIBERATELY SYNCHRONOUS. This renders in the root layout, so anything it
+// awaits blocks the whole document — on every route, above every per-segment
+// loading.tsx, which Next nests *inside* the layout rather than around it
+// (node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/
+// loading.md). It used to `await getViewer()` here, which put two serial
+// Supabase round trips in front of the first byte and, with them, the browser's
+// discovery of the stylesheet and the JS bundle.
+//
+// The bar itself — the sticky box, the border, the blur, the h-14 container, the
+// logo, the nav and the theme toggle — needs no auth, so it is shell content and
+// flushes immediately. Only the two auth-dependent slots suspend; see
+// ./HeaderAccount.tsx for why they are two boundaries and how the fallbacks are
+// sized.
+export function Header() {
   return (
     <header className="sticky top-0 z-20 border-b border-foreground/5 backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6">
@@ -22,54 +34,21 @@ export async function Header() {
         <nav className="flex items-center gap-1 text-sm sm:gap-2">
           {/* Text nav collapses on phones — the header otherwise overflows
               narrow viewports and drags the whole page wider. <MobileNav>
-              below carries the same routes in a drawer, so the phone header is
-              Logo · Upgrade · theme · menu. */}
+              (inside <HeaderAccount>) carries the same routes in a drawer, so
+              the phone header is Logo · Upgrade · theme · menu. */}
           <NavLinks />
 
-          {isPro ? (
-            <Link
-              href="/settings"
-              title="Manage your Pro subscription"
-              className="rounded-md bg-brand/15 px-2.5 py-1 text-xs font-semibold text-brand transition-colors hover:bg-brand/25"
-            >
-              Pro
-            </Link>
-          ) : (
-            <Link
-              href="/upgrade"
-              className="rounded-md bg-brand/15 px-3 py-1.5 font-medium text-brand transition-colors hover:bg-brand/25"
-            >
-              Upgrade
-            </Link>
-          )}
+          <Suspense fallback={<HeaderUpgradeFallback />}>
+            <HeaderUpgrade />
+          </Suspense>
 
-          {/* Theme toggle — available to everyone, signed in or not. */}
+          {/* Theme toggle — available to everyone, signed in or not, so it sits
+              outside the boundaries and paints with the shell. */}
           <ThemeToggleButton />
 
-          {/* Both of these are desktop-only: on phones the same actions live
-              in <MobileNav>'s drawer, and rendering an avatar menu beside a
-              hamburger gives a phone user two menus to choose between. */}
-          {user ? (
-            <span className="hidden sm:contents">
-              <UserMenu
-                name={displayName(user)}
-                email={user.email ?? undefined}
-              />
-            </span>
-          ) : (
-            <Link
-              href="/auth/login"
-              className="hidden rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground sm:block"
-            >
-              Sign in
-            </Link>
-          )}
-
-          <MobileNav
-            isSignedIn={!!user}
-            name={user ? displayName(user) : undefined}
-            email={user?.email ?? undefined}
-          />
+          <Suspense fallback={<HeaderAccountFallback />}>
+            <HeaderAccount />
+          </Suspense>
         </nav>
       </div>
     </header>

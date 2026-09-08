@@ -7,6 +7,14 @@ import { getTodayET } from "@/lib/market-calendar";
 // Server-side seed for the ["gainers"] query, so "/" and /screener ship the real
 // board in their HTML instead of skeletons.
 //
+// TWO CALL SITES, TWO SHAPES. app/page.tsx awaits it alongside getViewer() in a
+// Promise.all, above the fold and with no loading.tsx — "/" is the crawlable
+// surface, so there the board is in the first paint. app/screener/page.tsx
+// awaits it inside the boundary its loading.tsx creates, so there the skeleton
+// paints first and the board streams in a beat later. That asymmetry is
+// deliberate: /screener is not crawlable (see its page docblock), so it trades
+// board-in-first-paint for a shell that arrives ~0.9s sooner.
+//
 // WHY THIS EXISTS: client components DO server-render, so the headings, the FAQ
 // and the page chrome were always in the document — but TanStack Query has no
 // data during SSR, so every ticker, price and company name was missing. Googlebot
@@ -27,11 +35,12 @@ import { getTodayET } from "@/lib/market-calendar";
 // fetch of a day is whoever loads the page first after 9:30" (CLAUDE.md). Every
 // intraday refresh, the close capture and the warm-up probe hang off that first
 // client request. Marking the seed stale keeps the request count and the write
-// path exactly as they are today — the seed buys crawlable HTML and a
-// skeleton-free first paint, and buys nothing else on purpose.
+// path exactly as they are today — the seed buys crawlable HTML, and board
+// markup that needs no hydration to appear, and buys nothing else on purpose.
 //
-// CACHED FOR 60s ACROSS REQUESTS, because the read is not cheap and it now sits
-// in front of the HTML. Measured on production the day this shipped:
+// CACHED FOR 60s ACROSS REQUESTS, because the read is not cheap. Measured on
+// production the day the seed shipped, when it still sat in front of the HTML on
+// both routes:
 //
 //   /engine, /privacy, /learn   (no board read)   ~0.10s TTFB
 //   /, /screener                (board read)      0.58-1.06s TTFB

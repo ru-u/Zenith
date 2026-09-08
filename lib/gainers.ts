@@ -208,7 +208,7 @@ function near(a: number | null, b: number | null, eps: number): boolean {
  */
 export function dropFrozenRepeats(
   rows: DailyGainer[],
-  prev: DailyGainer[],
+  prev: FrozenRepeatProbe[],
 ): DailyGainer[] {
   if (prev.length === 0) return rows;
   const prevByTicker = new Map(prev.map((p) => [p.ticker, p]));
@@ -240,6 +240,33 @@ export function dropSplitArtifacts(rows: DailyGainer[]): DailyGainer[] {
   return kept.map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
+/** The only fields dropFrozenRepeats compares. */
+export type FrozenRepeatProbe = Pick<
+  DailyGainer,
+  "ticker" | "price" | "change_percent" | "volume"
+>;
+
+/**
+ * The prior trading day, fetched for the frozen-repeat comparison ONLY.
+ *
+ * This used to be a full getCachedGainers() — a second `select("*")` of ~100
+ * rows × 14 columns (~30 KB over the wire) to feed a three-field check, on a
+ * read that already runs 3-5 times sequentially. Everything but these four
+ * columns was fetched and thrown away. It sits on the path of /api/gainers, the
+ * server-side seed AND /api/gainers/[date], so it was paid three times over.
+ */
+export async function getFrozenRepeatProbe(
+  client: SupabaseClient<Database>,
+  dateKey: string,
+): Promise<FrozenRepeatProbe[]> {
+  const { data, error } = await client
+    .from("daily_gainers")
+    .select("ticker, price, change_percent, volume")
+    .eq("date", dateKey);
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Most recent stored date strictly before `date`, or null. */
 export async function getGainersDateBefore(
   client: SupabaseClient<Database>,
@@ -267,7 +294,7 @@ export async function getCleanedGainers(
   const rows = await getCachedGainers(client, date);
   if (rows.length === 0) return rows;
   const prevDate = await getGainersDateBefore(client, date);
-  const prev = prevDate ? await getCachedGainers(client, prevDate) : [];
+  const prev = prevDate ? await getFrozenRepeatProbe(client, prevDate) : [];
   return dropFrozenRepeats(dropSplitArtifacts(rows), prev);
 }
 
@@ -339,7 +366,7 @@ export async function serveStoredGainers(
   rows = dropSplitArtifacts(rows);
   const prevDate = await getGainersDateBefore(client, servedDate);
   if (prevDate) {
-    rows = dropFrozenRepeats(rows, await getCachedGainers(client, prevDate));
+    rows = dropFrozenRepeats(rows, await getFrozenRepeatProbe(client, prevDate));
   }
 
   // Serving an earlier day while the market is open means exactly one thing:

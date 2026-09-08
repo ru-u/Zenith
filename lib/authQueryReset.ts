@@ -5,7 +5,15 @@ import type { QueryClient } from "@tanstack/react-query";
 // the previous identity across a sign-in/out — a guest's `favorites: null` would
 // stick after login, and one user's favorites/streaks would linger after sign-out.
 // Called from the login, signup, and sign-out handlers before navigating.
-const AUTH_SCOPED_KEYS = [["favorites"], ["streaks"], ["ai-analysis"]] as const;
+const AUTH_SCOPED_KEYS = [
+  ["favorites"],
+  ["streaks"],
+  ["ai-analysis"],
+  // The signed-in/Pro booleans behind useSubscription. Seeded from the server
+  // per page, so without this a signed-out user would keep the previous
+  // identity's Pro gate until the seed on the next server render replaced it.
+  ["viewer"],
+] as const;
 
 export function resetAuthQueries(queryClient: QueryClient) {
   for (const queryKey of AUTH_SCOPED_KEYS) {

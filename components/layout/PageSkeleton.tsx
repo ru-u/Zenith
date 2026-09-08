@@ -1,8 +1,16 @@
+import { cn } from "@/lib/utils";
+
 /**
  * Route-level loading silhouette for the app pages (history / analysis /
  * settings / engine): PageHeader-shaped bars over one glass panel of rows.
  * Theme-aware (`foreground/N`, not `white/N`) since these pages keep
  * light/dark, and the route ViewTransition cross-fades it into the real page.
+ *
+ * `header` renders the two PageHeader-shaped bars. Drop it (`header={false}`)
+ * when this sits BELOW a real <PageHeader> — i.e. as the fallback for an
+ * in-page <Suspense> boundary, where the chrome has already painted and only
+ * the data panel is still streaming. The route-level loading.tsx files keep the
+ * bars, since on a cold navigation nothing has painted yet.
  *
  * Motion is `.skeleton-sweep` per bar rather than one `animate-pulse` on the
  * wrapper. A pulse is an opacity fade, and on a phone — where .glass drops its
@@ -14,18 +22,29 @@
  */
 export function PageSkeleton({
   rows = 4,
+  header = true,
   className,
 }: {
   rows?: number;
+  header?: boolean;
   className?: string;
 }) {
   return (
     <div role="status" className={className}>
       <span className="sr-only">Loading…</span>
       <div aria-hidden>
-        <div className="skeleton-sweep h-3 w-28 rounded bg-foreground/10" />
-        <div className="skeleton-sweep mt-3 h-8 w-56 rounded-md bg-foreground/10" />
-        <div className="mt-8 overflow-hidden rounded-2xl bg-foreground/3 ring-1 ring-foreground/8">
+        {header && (
+          <>
+            <div className="skeleton-sweep h-3 w-28 rounded bg-foreground/10" />
+            <div className="skeleton-sweep mt-3 h-8 w-56 rounded-md bg-foreground/10" />
+          </>
+        )}
+        <div
+          className={cn(
+            "overflow-hidden rounded-2xl bg-foreground/3 ring-1 ring-foreground/8",
+            header && "mt-8",
+          )}
+        >
           <div className="divide-y divide-foreground/5">
             {Array.from({ length: rows }).map((_, i) => (
               <div key={i} className="px-6 py-4">

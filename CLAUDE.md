@@ -98,12 +98,14 @@ code.
   `auth/{login,signup}/`, `stock/` + `stock/[ticker]/` (public ticker pages),
   `learn/` + `learn/[slug]/` (explainers), `llms.txt/` (route handler)
   - `app/api/` — `gainers/`, `gainers/[date]/`, `streaks/`, `ai-analysis/`
-    (Pro-gated), `cron/{run-eod,pre-close}/`, `unsubscribe/`,
+    (Pro-gated), `viewer/` (signed-in + Pro booleans for `useSubscription`),
+    `cron/{run-eod,pre-close}/`, `unsubscribe/`,
     `stripe/{create-checkout,create-portal,webhook}/`
   - `instrumentation.ts` (repo root) — in-process `node-cron` scheduler (Railway)
 - `components/` — `gainers/` (hero, table, row, StockChart, badges), `ai/`,
-  `history/`, `settings/`, `auth/`, `layout/` (Header, UserMenu, Logo,
-  GradientMesh), `ui/` (base-ui), `seo/` (`JsonLd`), `learn/` (`Prose`)
+  `history/`, `settings/`, `auth/`, `layout/` (Header + HeaderAccount, UserMenu,
+  Logo, GradientMesh, PageSkeleton), `ui/` (base-ui), `seo/` (`JsonLd`),
+  `learn/` (`Prose`)
 - `lib/` — `marketdata/` (provider interface + tradingview), `supabase/`,
   `quant/` (thesis engine: `edgar.ts` catalyst detection, `score.ts`
   deterministic scoring, `technicals.ts` TradingView indicators, `thesis.ts`
@@ -111,7 +113,8 @@ code.
   `claude.ts` (thesis orchestrator), `notify.ts` (pre-close email),
   `market-calendar.ts`, `format.ts`, `alerts.ts`, `baseRates.ts`,
   `emailBudget.ts` (the two email ceilings, mirrored from provider config),
-  `gainersSeed.ts` (server-render seed for the board), `schema.ts` (schema.org
+  `gainersSeed.ts` (server-render seed for the board), `viewerSeed.ts`
+  (server-render seed for `["viewer"]`), `schema.ts` (schema.org
   nodes), `tickerPages.ts` (aggregates behind `/stock`), `learn.ts` (article
   content)
 - `hooks/` — `useGainers`, `useStreaks`, `useSubscription`, `useMounted`
@@ -143,7 +146,20 @@ code.
   `middleware.ts`** — Next.js 16 renamed the `middleware` convention to `proxy`
   (export `proxy()`, not `middleware()`). It refreshes the Supabase session
   cookie on every matched request and auth-gates `/history` (redirects to
-  `/auth/login?next=…`).
+  `/auth/login?next=…`). **`/api/*` is excluded from the matcher on purpose** —
+  every route handler authenticates itself, so running the proxy in front of them
+  re-validated the same token twice on every poll and every history chip tap.
+  That is safe for refresh because `setAll` in `lib/supabase/server.ts` is only
+  swallowed in Server Components; route handlers do persist a refreshed token.
+  It verifies with **`getClaims()`, not `getUser()`** — local JWKS verification
+  with no network once the project moves to asymmetric JWT signing keys, and an
+  automatic fallback to a `getUser()`-equivalent round trip on the current HS256
+  secret, so the swap is behaviour-neutral until that migration
+  (`docs/AUTH-JWT-KEYS.md`). **`lib/viewer.ts` deliberately stays on
+  `getUser()`** — it reads `user_metadata`, which in a JWT is a snapshot from
+  token-issue time, and `updateUser()` reuses the same access token, so a name
+  edited in `/settings` would go stale in the header for up to an hour. The proxy
+  is safe because it reads only `sub`.
 - **The apex `zenithscreener.com` is canonical**; `www` 301s to it via
   `redirects()` in `next.config.ts` (host-matched on `CANONICAL_HOST` from
   `lib/site.ts`). Both are registered as Railway custom domains so both get
@@ -301,6 +317,19 @@ code.
   precisely *because* it is stale on arrival, so the window only decides how
   fresh the first paint is. Per-process, same single-replica assumption as
   `lib/ratelimit.ts`.
+- **There are TWO server seeds and their staleness is opposite ON PURPOSE.**
+  `lib/gainersSeed.ts` seeds `["gainers"]` with `updatedAt: 0` so the client
+  *always* refetches (above). `lib/viewerSeed.ts` seeds `["viewer"]` with a real
+  `updatedAt` so the client *never* refetches — nothing hangs off it, and the
+  point is to answer `useSubscription` with zero requests. Do not "make them
+  consistent"; each direction is load-bearing. `useSubscription`
+  (`hooks/useSubscription.ts`) is a deduped TanStack query over `/api/viewer`,
+  **not** a per-mount `useEffect` doing browser→Supabase auth: `<ChartDialog>`
+  is rendered mounted-closed by `GainersHero`, `GainersTable` and
+  `HistoryBrowser`, so the old shape fired `auth.getUser()` + a `profiles`
+  select three times per `/screener` load for two booleans the server already
+  had. Seeded on `/screener` and `/history`; `/analysis` does not need it
+  (`AnalysisList` renders `StockChart` directly, not `ChartDialog`).
 - **`loading.tsx` and crawlable content are mutually exclusive on a dynamic
   route.** A `loading.tsx` wraps the page in `<Suspense>`; an awaiting page
   suspends into it and React streams the resolved markup into a `<div hidden>`
@@ -311,12 +340,31 @@ code.
   shell for a dynamic route *is* the loading fallback — so you cannot have both.
   `loading.tsx` stays, because it fixes ~5s dead taps on mobile (Next skips
   prefetch entirely for a dynamic route with no fallback) and `/screener` cannot
-  win "top gainers today" against Yahoo Finance and Barchart anyway. The seed
-  lives in `app/screener/layout.tsx` rather than the page so it doesn't suspend;
-  that does NOT make it crawlable there, and moving it back down or deleting
-  `loading.tsx` to "simplify" each silently breaks what the other fixes. The
+  win "top gainers today" against Yahoo Finance and Barchart anyway. The
   crawlable surface is `/` (no `loading.tsx` — deliberately, per its own theme
   note), `/stock/*` and `/learn/*`.
+- **Nothing may `await` in a layout, and `<Header>` must stay synchronous.**
+  Next nests `loading.tsx` **inside** `layout.tsx`, so an awaiting layout blocks
+  its own skeleton — the whole document, not just the data. `/screener`'s seed
+  used to sit in `app/screener/layout.tsx` for exactly the wrong reason (to keep
+  the page from suspending, for crawlers it never reached), which put
+  `serveStoredGainers`' 3-5 serial Supabase reads in front of the first byte. It
+  now lives in `app/screener/page.tsx` and suspends into `loading.tsx` as
+  intended. Same rule, bigger blast radius, for `components/layout/Header.tsx`:
+  it renders in the ROOT layout, so its `getViewer()` used to block **every route
+  in the app**. The auth-dependent half is now
+  `components/layout/HeaderAccount.tsx` behind two `<Suspense>` boundaries, and
+  `Header` itself must never become `async` again. `/history` and `/analysis`
+  follow the same shape — a synchronous page rendering `HistoryShell` /
+  `AnalysisShell`, with the reads in a suspended panel — so the `<h1>` is shell
+  content. Measured after: `/screener` TTFB 47 ms with the head, header and
+  skeleton in the first chunk and the board arriving at ~800 ms, where the whole
+  response used to block until ~800 ms.
+- **Signed-out timings prove nothing about this.** `auth.getUser()` /
+  `getClaims()` short-circuit with `AuthSessionMissingError` when there is no
+  session cookie and make **no network call at all**, so an anonymous check of
+  any page looks fast whatever the render path does. Every auth round trip is
+  signed-in-only. Measure with a real session cookie.
 - **`/stock/[ticker]` carries AGGREGATES ONLY — the per-session list is what Pro
   sells.** Counts, a first/last date range, typical figures and the bucket base
   rate. A date with its rank and price *is* the archive, and publishing it makes
