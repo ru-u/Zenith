@@ -360,6 +360,19 @@ code.
   content. Measured after: `/screener` TTFB 47 ms with the head, header and
   skeleton in the first chunk and the board arriving at ~800 ms, where the whole
   response used to block until ~800 ms.
+- **No page may rely on another file's dynamic access, and CI is the only thing
+  that catches it.** Until 2026-09-08 the async `<Header>` in the root layout
+  read `cookies()`, which bailed **every route in the app** to dynamic before its
+  own code ran — so `app/stock/page.tsx` and `app/stock/[ticker]/page.tsx` were
+  dynamic by accident, having declared nothing. Making `Header` synchronous
+  removed that blanket, both pages tried to prerender, and `createAdminClient()`
+  threw `supabaseKey is required` at build time. Both now declare
+  `force-dynamic` explicitly, which is what their 6h `QUALIFY_TTL_MS` runtime
+  cache in `lib/tickerPages.ts` always implied. **A local `npm run build` cannot
+  catch this**: it reads `.env.local`, so the service-role key is present and the
+  prerender succeeds. `.github/workflows/ci.yml` deliberately supplies only
+  `NEXT_PUBLIC_*` placeholders — to reproduce it, build from a clean clone with
+  no `.env.local`.
 - **Signed-out timings prove nothing about this.** `auth.getUser()` /
   `getClaims()` short-circuit with `AuthSessionMissingError` when there is no
   session cookie and make **no network call at all**, so an anonymous check of

@@ -9,6 +9,23 @@ import { tickerProfile, type TickerProfile } from "@/lib/tickerPages";
 import { qualifiedSymbol } from "@/lib/marketdata/symbols";
 import { formatDayLabel } from "@/lib/format";
 
+// DYNAMIC ON PURPOSE, and it must stay declared here explicitly.
+//
+// This page reads the board archive through lib/tickerPages.ts, whose 6h
+// QUALIFY_TTL_MS cache only makes sense if it renders per request: prerendered
+// at build time, the ticker list and every aggregate would freeze until the next
+// deploy, and a newly qualifying ticker would have no page.
+//
+// It USED to be dynamic by accident. <Header> is in the root layout and was
+// async, awaiting getViewer() -> cookies(), which bailed every route in the app
+// to dynamic before its own code ran. Making Header synchronous (so the shell
+// could stream) removed that blanket, and this page went back to what it had
+// always actually declared: nothing. It then tried to prerender, called
+// createAdminClient() at build time and threw "supabaseKey is required" in CI,
+// which has no SUPABASE_SERVICE_ROLE_KEY. Nothing here may rely on another
+// file's dynamic access again.
+export const dynamic = "force-dynamic";
+
 // A public, aggregate profile of a ticker that keeps showing up on the board.
 //
 // Exists for search and for answer engines: the screener itself is one URL that
