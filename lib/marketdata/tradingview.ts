@@ -59,9 +59,26 @@ interface ScanResponse {
   data: Array<{ s: string; d: unknown[] }>;
 }
 
+// How many rows to ask for per row we intend to keep, and the floor under that.
+//
+// The scanner can only floor on the LIVE price (`close`); our real bar is the
+// PREVIOUS close (lib/marketdata/normalize.ts), and that gap is not spread
+// evenly down the list — it is concentrated at the top. A +200% name needs to
+// trade above $9 to clear a $3 previous close, a +10% name only above $3.30, so
+// the local filter eats the head of the scan and barely touches the tail. The
+// old 2x over-fetch was sized for filters that dropped a handful of rows; this
+// one can drop a third of the leaders, so ask for more. Cheap either way — the
+// response is ~11 numeric columns a row, fetched at most every 10 minutes.
+const OVERFETCH_FACTOR = 4;
+const MIN_SCAN_ROWS = 200;
+
 function buildPayload(limit: number) {
   return {
     filter: [
+      // Coarse pre-filter only: a row that closed above MIN_PRICE yesterday is
+      // trading above it today (it's a gainer), so this is a superset of what
+      // rankAndFilter keeps and just trims the payload. The bar that decides is
+      // isGameEligible, applied locally against the previous close.
       { left: "close", operation: "egreater", right: MIN_PRICE },
       { left: "change", operation: "greater", right: 0 },
       // NASDAQ/NYSE only — no OTC or other exchanges.
@@ -73,7 +90,7 @@ function buildPayload(limit: number) {
     columns: [...COLUMNS],
     sort: { sortBy: "change", sortOrder: "desc" },
     // Over-fetch so the local filters still leave us `limit` rows.
-    range: [0, Math.max(limit * 2, 100)],
+    range: [0, Math.max(limit * OVERFETCH_FACTOR, MIN_SCAN_ROWS)],
   };
 }
 

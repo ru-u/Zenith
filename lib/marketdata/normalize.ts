@@ -3,15 +3,26 @@ import type { GainerRow, RawGainer } from "./types";
 // Product filters: real, liquid names only. Applied locally so we control them
 // independent of the provider.
 //
-// Both floors are checked against the LIVE intraday price: `r.price` is the
-// scanner's `close` column, i.e. the last trade, not yesterday's close. DECA
-// reads eligibility off the PREVIOUS close, so a row that clears these can still
-// be untradeable in the game — recover the prior figures from columns already on
-// the row (`prevClose = price / (1 + changePercent/100)`, same for the cap).
-// Ranking by largest % gain makes the gap worst at rank 1: +100% at $3.10 closed
-// at $1.55. Matching DECA's timing is a NON-GOAL — filtering on the previous
-// close would empty the board. Disclosed to users on /engine ("What's covered"),
-// with the full reasoning in CLAUDE.md under "Competition mechanics".
+// THE FLOORS ARE MEASURED AT THE PREVIOUS SESSION'S CLOSE, NOT THE LIVE PRICE.
+// They exist to match the Stock Market Game's own eligibility bar, and the game
+// reads that bar off where a stock closed the day before: an order entered
+// today fills at today's close, but whether the security may be traded at all
+// was settled last night. `r.price` is the scanner's `close` column — the last
+// trade — so testing it answers the wrong question. A name up 100% at $3.10
+// clears a live $3 floor having closed at $1.55, and the game refuses it.
+//
+// Ranking by largest % gain makes that the NORMAL case at rank 1, not an edge
+// case: the biggest movers are by construction the ones that were cheap
+// yesterday. That is the row a reader acts on first and the row the pre-close
+// thesis drop writes about, so a live-price floor put an unusable name at the
+// top of the board and spent a thesis on it (NUR, 2026-09-08). Both prior
+// figures are recoverable from columns already on every row — no extra fetch,
+// see previousClose / previousMarketCap — so the board is filtered on what the
+// game will actually accept.
+//
+// The cost is deliberate: this shifts the board toward more moderate gainers
+// (a +100% name now has to trade above $6 to have closed above $3) and returns
+// fewer rows. Fewer tradeable rows beats more untradeable ones.
 export const MIN_PRICE = 3;
 export const MIN_MARKET_CAP = 25_000_000;
 
@@ -41,6 +52,77 @@ export function isLikelySplitArtifact(
     return false;
   }
   return relativeVolume != null && relativeVolume < SPLIT_ARTIFACT_MAX_RELVOL;
+}
+
+/**
+ * Undo today's percentage move on a figure that scales with the share price.
+ *
+ * Null when either input is missing, or when the change% implies a
+ * non-positive prior value. That last guard is unreachable for a gainer
+ * (change% > 0), and exists so a corrupt row reporting ≤ −100% can never
+ * divide by ~0 and manufacture an enormous "previous close" that sails past
+ * every floor below.
+ */
+function beforeTodaysMove(
+  value: number | null,
+  changePercent: number | null,
+): number | null {
+  if (value == null || changePercent == null) return null;
+  const factor = 1 + changePercent / 100;
+  if (!(factor > 0)) return null;
+  return value / factor;
+}
+
+/**
+ * The previous session's close, back-solved from the live price and the day's
+ * change%. The scanner measures `change` against exactly that close
+ * (change% = (price − prevClose) / prevClose × 100), so this is an identity
+ * rather than an estimate — it loses only the provider's own rounding.
+ */
+export function previousClose(
+  price: number | null,
+  changePercent: number | null,
+): number | null {
+  return beforeTodaysMove(price, changePercent);
+}
+
+/**
+ * The previous session's market cap. Unlike the close this IS an estimate: it
+ * assumes the share count didn't change overnight, which a same-day offering
+ * or a split breaks. Fine for a floor — split-date rows are already dropped by
+ * isLikelySplitArtifact, and a dilution big enough to move a name across the
+ * $25M line is not one this board should be recommending anyway.
+ */
+export function previousMarketCap(
+  marketCap: number | null,
+  changePercent: number | null,
+): number | null {
+  return beforeTodaysMove(marketCap, changePercent);
+}
+
+/**
+ * Does this row clear the floors where the GAME measures them — at the previous
+ * close?
+ *
+ * Null-skips-filter, matching rankAndFilter's convention throughout: a row
+ * whose price or change% we don't know is kept rather than dropped on a figure
+ * we couldn't compute.
+ *
+ * This subsumes the live-price floors it replaced. For any row with a positive
+ * change% the previous close is strictly BELOW the live price, so
+ * `previousClose >= MIN_PRICE` already implies `price > MIN_PRICE`; keeping
+ * both would just be two spellings of the same bar, one of them wrong.
+ */
+export function isGameEligible(row: {
+  price: number | null;
+  marketCap: number | null;
+  changePercent: number | null;
+}): boolean {
+  const close = previousClose(row.price, row.changePercent);
+  if (close != null && close < MIN_PRICE) return false;
+  const cap = previousMarketCap(row.marketCap, row.changePercent);
+  if (cap != null && cap < MIN_MARKET_CAP) return false;
+  return true;
 }
 
 /**
@@ -75,13 +157,15 @@ export function batchSessionDate(rows: Array<{ sessionDate: string | null }>): s
  * Filter → sort (change% desc) → rank → slice.
  * A filter is skipped when its value is null/undefined, so we never drop a
  * row just because a field is unknown.
+ *
+ * The change% check runs before isGameEligible on purpose: the previous close
+ * is derived FROM change%, so a row without one has no eligibility to test.
  */
 export function rankAndFilter(rows: RawGainer[], limit: number): GainerRow[] {
   return rows
     .filter((r) => TICKER_RE.test(r.ticker))
-    .filter((r) => r.price == null || r.price >= MIN_PRICE)
-    .filter((r) => r.marketCap == null || r.marketCap >= MIN_MARKET_CAP)
     .filter((r) => r.changePercent != null && r.changePercent > 0)
+    .filter(isGameEligible)
     .filter((r) => !isLikelySplitArtifact(r.changePercent, r.relativeVolume))
     .sort((a, b) => (b.changePercent ?? 0) - (a.changePercent ?? 0))
     .slice(0, limit)
