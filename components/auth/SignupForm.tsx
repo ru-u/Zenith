@@ -13,6 +13,7 @@ import { AuthDivider } from "./GoogleButton";
 import { GoogleIdentityButton } from "./GoogleIdentityButton";
 import { ResendConfirmation } from "./ResendConfirmation";
 import { CheckSpamHint } from "./CheckSpamHint";
+import { useCaptcha } from "./CaptchaField";
 
 export function SignupForm() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const captcha = useCaptcha();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,11 +45,17 @@ export function SignupForm() {
         // between dev and prod, a localhost signup confirms into production.
         // Bare /auth/callback lands on /screener (the route's `next` default).
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // Undefined when no site key is configured; Supabase only demands one
+        // once CAPTCHA protection is enabled on the project. See CaptchaField.
+        captchaToken: captcha.token,
       },
     });
     if (error) {
       setError(error.message);
       setLoading(false);
+      // Single-use token — without this the retry sends a spent one and fails
+      // for a reason the user cannot see or fix.
+      captcha.reset();
       return;
     }
     // If email confirmation is required, there's no active session yet.
@@ -127,6 +135,7 @@ export function SignupForm() {
           <ResendConfirmation email={email} className="mt-2.5" />
         </div>
       )}
+      {captcha.field}
       <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Creating account…" : "Create free account"}

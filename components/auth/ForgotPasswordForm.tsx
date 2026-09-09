@@ -7,12 +7,14 @@ import { useCooldown } from "@/hooks/useCooldown";
 import { authEmailMessage, requestAuthEmail } from "@/lib/authEmail";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useCaptcha } from "./CaptchaField";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const cooldown = useCooldown();
+  const captcha = useCaptcha();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,11 +25,14 @@ export function ForgotPasswordForm() {
     // returns the same generic result whether or not the account exists, so the
     // enumeration safety this form has always had is preserved — it just lives
     // on the server now.
-    const result = await requestAuthEmail("password_reset", email);
+    const result = await requestAuthEmail("password_reset", email, captcha.token);
     setNotice(authEmailMessage(result, "password_reset"));
     setLoading(false);
     // Don't make the user sit out a cooldown for a send that never happened.
     if (result === "ok") cooldown.start();
+    // Single-use token: anything other than a clean send leaves a spent one in
+    // state, so the retry would fail the captcha rather than the original cause.
+    else captcha.reset();
   }
 
   return (
@@ -49,6 +54,7 @@ export function ForgotPasswordForm() {
           {notice}
         </p>
       )}
+      {captcha.field}
       <Button
         type="submit"
         disabled={loading || cooldown.active}

@@ -510,6 +510,34 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
   favorites, feedback, both Stripe POSTs. Do NOT add it to the Stripe webhook
   (signature-authed, no Origin) or the cron routes (bearer-authed) or
   `/api/auth/google-callback` (Google posts it from accounts.google.com).
+- **Turnstile guards the one email path our own limiter cannot see.**
+  `supabase.auth.signUp` runs browser → Supabase directly, so nothing in
+  `lib/ratelimit.ts` applies to it and `/auth/v1/signup` is reachable by anyone
+  holding the anon key that ships in every JS bundle — the cheapest way to
+  drain the 50/HOUR auth-email budget. On 2026-09-08 that budget was exhausted
+  with 7 Pro subscribers on the books, i.e. nothing to do with the pre-close
+  drop, and the only reason it alerted at all was that someone happened to hit
+  "Resend confirmation" and get refused (`auth_email_rate_limited` fires only
+  from `/api/auth/email`; a refused *signup* still alerts nothing). Three
+  things that look optional and are not:
+  - **Supabase's CAPTCHA setting is project-wide, not per-endpoint.** Enabling
+    it makes GoTrue demand a token on signup, sign-in, recover AND resend at
+    once, so all four forms carry a widget via `useCaptcha`
+    (`components/auth/CaptchaField.tsx`). A form that forgets one breaks
+    completely rather than degrading.
+  - **Turnstile tokens are single use**, so every failed submit must call
+    `captcha.reset()`. Without it the retry sends a spent token and the user
+    gets a captcha error they cannot clear by trying again — on the login form,
+    one wrong password would otherwise poison the correct one.
+  - **A captcha rejection is a 400**, which `/api/auth/email` swallows by
+    design (the enumeration guard). It needs its own branch or the route
+    answers "Sent. Check your inbox" for mail it never attempted — the same bug
+    the 5xx branch above it already documents. It is deliberately NOT alerted:
+    `maybeAlert` dedups once per day, so one stale token would mask a real
+    failure for the rest of it.
+  Ordering matters on setup: ship the site key and confirm the widget renders
+  BEFORE enabling the dashboard toggle. The reverse order locks every user out
+  of signup, sign-in and password reset simultaneously.
 - **Google sign-in runs through Google Identity Services, not
   `signInWithOAuth`** — `lib/googleIdentity.ts` +
   `components/auth/GoogleIdentityButton.tsx` +
@@ -538,6 +566,10 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
   people by pre-fetching the link. The emails send RFC 8058
   `List-Unsubscribe-Post` headers so native mail-client unsubscribe still works
   in one click.
+- **`challenges.cloudflare.com` is in BOTH `script-src` and `frame-src`**
+  (`next.config.ts`) — Turnstile serves `api.js` from there and renders its
+  challenge in an iframe from the same origin. Miss either and the widget fails
+  silently: no token, and every auth action refused by Supabase.
 - **CSP allows `'unsafe-inline'` for scripts** (`next.config.ts`) — a conscious
   tradeoff, since nonces would force every page dynamic and the app renders no
   user-generated HTML (no `dangerouslySetInnerHTML` anywhere). **If
@@ -636,6 +668,15 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
   Public by design, but `NEXT_PUBLIC_*` is inlined at BUILD time, so a Railway
   change needs a rebuild, not a restart. Unset ⇒ auth pages silently fall back
   to the Supabase redirect flow (and its `supabase.co` consent screen).
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — the Cloudflare Turnstile **site** key
+  (24 chars, `0x4A…`). Same build-time inlining trap as the Google client ID
+  above: a Railway change needs a rebuild, not a restart. Unset ⇒ no widget
+  renders and no token is sent, which is fine only while Supabase's CAPTCHA
+  protection is off. **The Turnstile SECRET key is not in this repo and must
+  never be** — it lives in the Supabase dashboard, which is what verifies the
+  token. Both keys start `0x4AAAAAAA`, so only length distinguishes them: 24 =
+  site key, ~35 = secret. A secret pasted into this `NEXT_PUBLIC_*` var ships
+  to every browser and has to be rotated, not just corrected.
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper
   failure alerts via `lib/alerts.ts`; if unset, alerts log to console only, no

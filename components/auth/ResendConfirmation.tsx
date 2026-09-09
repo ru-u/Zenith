@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useCooldown } from "@/hooks/useCooldown";
 import { authEmailMessage, requestAuthEmail } from "@/lib/authEmail";
+import { useCaptcha } from "./CaptchaField";
 
 /**
  * "Didn't get the email?" — the way back for someone whose confirmation never
@@ -24,22 +25,32 @@ export function ResendConfirmation({
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const cooldown = useCooldown();
+  const captcha = useCaptcha();
 
   async function resend() {
     if (sending || cooldown.active || !email) return;
     setSending(true);
     setNotice(null);
-    const result = await requestAuthEmail("confirmation", email);
+    const result = await requestAuthEmail("confirmation", email, captcha.token);
     setNotice(authEmailMessage(result, "confirmation"));
     setSending(false);
     // Only hold the button when a send was actually accepted. Starting the
     // cooldown after a failure would make the user wait out a minute for
     // nothing.
     if (result === "ok") cooldown.start();
+    // Single-use token — clear it on anything else so the retry fails for the
+    // original reason rather than on a spent captcha.
+    else captcha.reset();
   }
 
   return (
     <div className={className}>
+      {/* Rendered up front rather than on first click, because the token has to
+          already exist at the moment the button is pressed. When the signup or
+          login form above is also showing its own widget this is the second one
+          on the page — unavoidable, since that form's token was spent by the
+          attempt that produced this control. */}
+      {captcha.field}
       <button
         type="button"
         onClick={resend}

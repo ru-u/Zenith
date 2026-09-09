@@ -13,6 +13,7 @@ import { AuthDivider } from "./GoogleButton";
 import { GoogleIdentityButton } from "./GoogleIdentityButton";
 import { ResendConfirmation } from "./ResendConfirmation";
 import { CheckSpamHint } from "./CheckSpamHint";
+import { useCaptcha } from "./CaptchaField";
 
 export function LoginForm() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export function LoginForm() {
   // the one failure the user can fix themselves, so it gets its own state and
   // a resend control rather than a dead-end error string.
   const [unconfirmed, setUnconfirmed] = useState(false);
+  const captcha = useCaptcha();
   // Coded param (not free text) so a crafted URL can't display arbitrary copy.
   const notice =
     params.get("reset") === "success"
@@ -41,7 +43,13 @@ export function LoginForm() {
     setError(null);
     setUnconfirmed(false);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      // Supabase's CAPTCHA setting is project-wide, so enabling it for signup
+      // demands a token here too — sign-in is not exempt. See CaptchaField.
+      options: { captchaToken: captcha.token },
+    });
     if (error) {
       // Supabase's raw message here is "Email not confirmed", which told the
       // user nothing actionable and offered no way out — the account was
@@ -61,6 +69,9 @@ export function LoginForm() {
         setError(error.message);
       }
       setLoading(false);
+      // Single-use token: a wrong password must not also burn the captcha, or
+      // the correct password on the next try fails too.
+      captcha.reset();
       return;
     }
     // Drop the guest-scoped cache so favorites/streaks refetch as this user.
@@ -129,6 +140,7 @@ export function LoginForm() {
           {notice}
         </p>
       )}
+      {captcha.field}
       <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Signing in…" : "Sign in"}

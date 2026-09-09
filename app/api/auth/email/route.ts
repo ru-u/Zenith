@@ -84,11 +84,22 @@ export async function POST(req: Request) {
 
   const rawType = (body as { type?: unknown })?.type;
   const rawEmail = (body as { email?: unknown })?.email;
+  const rawCaptcha = (body as { captchaToken?: unknown })?.captchaToken;
 
   const type: RequestType | null =
     rawType === "confirmation" || rawType === "password_reset" ? rawType : null;
   const email =
     typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+  // Forwarded as-is. This route deliberately does NOT require or verify it:
+  // Supabase holds the Turnstile secret and is the authority on whether a token
+  // is good, so validating here would mean either duplicating that check or —
+  // worse — rejecting on our own guess and diverging from what the project
+  // actually enforces. Absent token + CAPTCHA protection off is the normal
+  // state before the dashboard toggle is flipped.
+  const captchaToken =
+    typeof rawCaptcha === "string" && rawCaptcha.length > 0 && rawCaptcha.length <= 4096
+      ? rawCaptcha
+      : undefined;
 
   if (
     !type ||
@@ -147,15 +158,16 @@ export async function POST(req: Request) {
       ? await supabase.auth.resend({
           type: "signup",
           email,
-          options: { emailRedirectTo: `${origin}/auth/callback` },
+          options: { emailRedirectTo: `${origin}/auth/callback`, captchaToken },
         })
       : await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${origin}/auth/callback?next=/reset-password`,
+          captchaToken,
         });
 
   if (error) {
-    // Two ways the mail can fail to leave, and they need different responses to
-    // ops even though the caller sees the same thing.
+    // Three ways the mail can fail to leave, and they need different responses
+    // to ops even though the caller sees the same thing.
     //
     // 1. Supabase's own daily ceiling — a free dashboard toggle.
     const rateLimited =
@@ -168,6 +180,31 @@ export async function POST(req: Request) {
     //    alert fired, because `resend_quota_exhausted` is only raised by the
     //    pre-close batch in notify.ts, which this path never touches.
     const sendFailed = !rateLimited && (error.status ?? 0) >= 500;
+    // 3. The CAPTCHA token was missing, spent or rejected. This arrives as a
+    //    400, so before this branch existed it fell into the same swallow the
+    //    5xx case did — "Sent. Check your inbox" for mail that was never
+    //    attempted, with the user's only recourse being to press the button
+    //    again and burn another spent token. Matched on code AND message
+    //    because GoTrue's phrasing here has moved between versions, the same
+    //    belt-and-braces LoginForm uses for email_not_confirmed.
+    const captchaFailed =
+      !rateLimited &&
+      !sendFailed &&
+      (error.code === "captcha_failed" || /captcha/i.test(error.message));
+
+    // Deliberately NOT alerted: a failed captcha is one user with a stale
+    // token or a blocked widget, not an outage, and maybeAlert dedups once per
+    // day — one person's bad token would then mask a real failure for the rest
+    // of the day. It is also address-independent, so reporting it honestly
+    // leaks nothing, same reasoning as the 503 below.
+    if (captchaFailed) {
+      logSecurityEvent("input.rejected", {
+        ip,
+        route: "POST /api/auth/email",
+        detail: "captcha_failed",
+      });
+      return NextResponse.json({ error: "captcha_failed" }, { status: 400 });
+    }
 
     // Both are safe to report honestly: neither depends on the address, so a
     // 503 here reveals nothing that a 200 wouldn't. Only the 4xx account-state

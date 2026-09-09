@@ -14,21 +14,39 @@ export type AuthEmailResult =
   | "rate_limited"
   /** Supabase's hourly send cap is exhausted — nobody is getting mail right now. */
   | "unavailable"
+  /**
+   * Supabase rejected the CAPTCHA token. Reported honestly rather than folded
+   * into "ok": nothing was sent, and unlike the account-state errors this one
+   * is address-independent, so saying so leaks nothing. The caller must reset
+   * its widget before the user retries — the token is single use.
+   */
+  | "captcha"
   | "error";
 
 export async function requestAuthEmail(
   type: AuthEmailType,
   email: string,
+  // Undefined until Supabase's project-wide CAPTCHA protection is enabled and
+  // NEXT_PUBLIC_TURNSTILE_SITE_KEY is set. The route forwards whatever it gets
+  // and lets Supabase be the authority — see the note there.
+  captchaToken?: string,
 ): Promise<AuthEmailResult> {
   try {
     const res = await fetch("/api/auth/email", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type, email }),
+      body: JSON.stringify({ type, email, captchaToken }),
     });
     if (res.ok) return "ok";
     if (res.status === 429) return "rate_limited";
     if (res.status === 503) return "unavailable";
+    if (res.status === 400) {
+      const code = await res
+        .json()
+        .then((b: { error?: string }) => b?.error)
+        .catch(() => undefined);
+      if (code === "captcha_failed") return "captcha";
+    }
     return "error";
   } catch {
     return "error";
@@ -57,6 +75,8 @@ export function authEmailMessage(
       return "Too many requests. Wait a few minutes and try again.";
     case "unavailable":
       return "We can't send email right now. Please try again in a little while.";
+    case "captcha":
+      return "The bot check didn't pass. Please try again.";
     case "error":
       return "Something went wrong. Please try again.";
   }

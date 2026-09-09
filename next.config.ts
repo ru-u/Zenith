@@ -42,9 +42,13 @@ const supabaseOrigin = (() => {
 const csp = [
   `default-src 'self'`,
   // s3.tradingview.com serves tv.js, which builds the chart widget.
+  // challenges.cloudflare.com serves Turnstile's api.js AND the iframe it renders
+  // the challenge into, so it is needed in script-src and frame-src both. Miss
+  // either and the widget fails silently — no token, and every signup, sign-in
+  // and password reset is refused by Supabase with a captcha error.
   // accounts.google.com/gsi/client is the Google Identity Services library that
   // renders the sign-in button (see components/auth/GoogleIdentityButton.tsx).
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://s3.tradingview.com https://accounts.google.com/gsi/client`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://s3.tradingview.com https://accounts.google.com/gsi/client https://challenges.cloudflare.com`,
   `style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style`,
   `img-src 'self' blob: data: https://*.tradingview.com`,
   // next/font self-hosts Geist at build time, so no external font origin.
@@ -53,7 +57,7 @@ const csp = [
   // Google-side change of endpoint doesn't silently break sign-in.
   `connect-src 'self' ${supabaseOrigin} https://*.tradingview.com wss://*.tradingview.com https://accounts.google.com/gsi/${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
   // We frame TradingView and the GIS button; nobody frames us.
-  `frame-src https://*.tradingview.com https://accounts.google.com/gsi/`,
+  `frame-src https://*.tradingview.com https://accounts.google.com/gsi/ https://challenges.cloudflare.com`,
   `frame-ancestors 'none'`,
   `object-src 'none'`,
   `base-uri 'self'`,
