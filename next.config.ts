@@ -116,10 +116,11 @@ const nextConfig: NextConfig = {
   ...(process.env.DEV_ALLOWED_ORIGIN
     ? { allowedDevOrigins: [process.env.DEV_ALLOWED_ORIGIN] }
     : {}),
-  experimental: {
-    // React <ViewTransition> on route navigations (see app/layout.tsx).
-    viewTransition: true,
-  },
+  // No `experimental.viewTransition` flag: it graduated in Next 16.3 and was
+  // removed from the config type, so leaving it in place is a hard build
+  // failure ("'viewTransition' does not exist in type 'ExperimentalConfig'"),
+  // not a warning. React <ViewTransition> in app/layout.tsx needs no config —
+  // the App Router runs a React canary that ships it on by default.
   // Don't advertise the framework; it's free reconnaissance.
   poweredByHeader: false,
   async headers() {

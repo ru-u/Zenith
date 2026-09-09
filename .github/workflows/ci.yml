@@ -28,9 +28,6 @@ jobs:
       # reviewed and whatever npm resolved this morning.
       - run: npm ci
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
-
       - run: npm run lint
 
       - name: Typecheck
@@ -45,6 +42,37 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           NEXT_PUBLIC_SITE_URL: https://zenithscreener.com
+
+  # Its OWN job, deliberately not a step inside `verify`.
+  #
+  # It used to run second in `verify`, ahead of lint/typecheck/build. On
+  # 2026-09-08 two critical advisories were published against the pinned
+  # `next` — a dependency nobody had touched — and the job died at 24s, so
+  # lint, typecheck and build never ran on the two commits that had just
+  # landed. A red X said "something is wrong" while hiding whether the code
+  # even compiled, which is the one thing CI is for.
+  #
+  # These are different signals with different owners: `verify` failing means
+  # somebody's code is broken and the fix is in the diff. `audit` failing
+  # usually means the world changed under a version nobody edited, and the fix
+  # is a maintenance decision. Neither should be able to mask the other, so
+  # they run in parallel and fail independently. That the weekly `schedule`
+  # above exists at all is the same admission — a clean audit on Monday says
+  # nothing about Thursday.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
 
   secret-scan:
     runs-on: ubuntu-latest
