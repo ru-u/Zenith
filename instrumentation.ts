@@ -13,6 +13,26 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // Dev servers must not drive the production pipeline. Next runs register() on
+  // EVERY server start, `npm run dev` included, and .env.local holds the real
+  // CRON_SECRET, Supabase service key and RESEND_API_KEY — so a dev server left
+  // open past 3:30 ET mailed the live Pro list a drop whose links were built on
+  // NEXT_PUBLIC_APP_URL=http://localhost:3000, and claimed the shared
+  // once-per-day dedup row so Railway's own 3:30 run sent nothing. Same shape
+  // for the other two jobs against the same database: run-eod would freeze
+  // is_final off a dev fetch, and the hourly prune DELETES unconfirmed accounts,
+  // which is the one irreversible job here.
+  //
+  // The cron endpoints stay curl-able locally (see CLAUDE.md) — that is the
+  // supported way to exercise them, and it is deliberate rather than a timer
+  // nobody remembers is armed. lib/notify.ts independently refuses to send on a
+  // loopback base URL, so a local `npm run start` (NODE_ENV=production) still
+  // can't mail broken links.
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[scheduler] non-production build — in-process scheduler disabled");
+    return;
+  }
+
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     console.warn("[scheduler] CRON_SECRET not set — in-process scheduler disabled");

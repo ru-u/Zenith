@@ -3,7 +3,7 @@ import type { Database } from "./supabase/types";
 import type { GainerRow } from "./marketdata/types";
 import { secondsUntilCloseET } from "./market-calendar";
 import { maybeAlert } from "./alerts";
-import { siteUrl } from "./site";
+import { siteUrl, isLocalSiteUrl } from "./site";
 import { RESEND_EMAILS_PER_DAY } from "./emailBudget";
 import { DISCLAIMER_LINE, LEGAL_CONTACT_EMAIL } from "./legal";
 
@@ -93,6 +93,52 @@ export async function sendPreCloseEmails(
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn("[notify] RESEND_API_KEY not set — skipping pre-close emails");
+    return 0;
+  }
+
+  // Every link in this email is built on siteUrl(), so a loopback base URL means
+  // a real subscriber gets a mail whose CTA and unsubscribe link point at their
+  // own machine. That is not hypothetical: .env.local sets
+  // NEXT_PUBLIC_APP_URL=http://localhost:3000 and also holds the production
+  // RESEND_API_KEY, CRON_SECRET and Supabase service key, so a dev server alive
+  // at 3:30 ET mails the real Pro list with localhost links.
+  //
+  // This check sits ABOVE the dedup claim on purpose. The claim is a row in the
+  // shared system_alerts table, so a dev send doesn't just mail broken links —
+  // it takes the day's slot and Railway's own 3:30 run then finds 23505 and
+  // sends nothing. Refusing before the insert leaves the real send available.
+  //
+  // instrumentation.ts no longer arms the scheduler outside production, which
+  // removes the usual way this fires; this stays as the backstop for a manual
+  // curl of /api/cron/pre-close, a read-path trigger in dev, and the case that
+  // matters most — a production build that lost NEXT_PUBLIC_SITE_URL.
+  if (isLocalSiteUrl()) {
+    console.warn(
+      `[notify] base URL is ${siteUrl()} — refusing to send the pre-close drop ` +
+        "with unreachable links (dedup slot left unclaimed)",
+    );
+    // Only alert from a real deployment. In dev this path is the expected
+    // outcome and a daily ops email for it would be pure noise.
+    if (process.env.NODE_ENV === "production") {
+      await maybeAlert(admin, {
+        date: dateKey,
+        type: "site_url_unset",
+        subject: "Zenith: pre-close drop skipped — NEXT_PUBLIC_SITE_URL missing",
+        body: [
+          `siteUrl() resolved to ${siteUrl()} in a production build, so every`,
+          `link in the ${dateKey} pre-close drop would have pointed at the`,
+          "container itself. The email was NOT sent.",
+          "",
+          "NEXT_PUBLIC_SITE_URL and NEXT_PUBLIC_APP_URL are inlined at BUILD",
+          "time, so this is a build-time environment problem: setting the",
+          "variable on Railway and restarting will not fix it. Set it and",
+          "redeploy (rebuild).",
+          "",
+          "Everything else in the drop ran normally — the theses for today are",
+          "generated and stored; only the email was withheld.",
+        ].join("\n"),
+      });
+    }
     return 0;
   }
 

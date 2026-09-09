@@ -44,7 +44,13 @@ export type AlertType =
   // 100/DAY — different units, do not conflate).
   | "auth_email_rate_limited" // Supabase's hourly auth-email cap (50/hr) refused a send
   | "auth_email_send_failed" // the send failed BENEATH Supabase (SMTP/provider 5xx)
-  | "resend_quota_exhausted"; // Resend's daily account quota (100/day free) refused a send
+  | "resend_quota_exhausted" // Resend's daily account quota (100/day free) refused a send
+  // The pre-close drop was withheld because siteUrl() came back as loopback, so
+  // every link in it would have pointed at the container. Distinct from the two
+  // send-failure alerts above: nothing refused us and nothing was attempted —
+  // we declined to mail a dead link. Only reachable from a production build,
+  // and only fixable by a REBUILD, since NEXT_PUBLIC_* is inlined at build time.
+  | "site_url_unset";
 
 /**
  * Send one ops email (alerts, feedback notifications) to ALERT_EMAIL_TO via

@@ -71,6 +71,31 @@ scheduler — `instrumentation.ts`, ET timezone, an every-5-min check so it adap
 to half-days — so **run a SINGLE replica** (jobs are idempotent regardless).
 `vercel.json` keeps the run-eod cron as a Vercel-deployment fallback.
 
+**The scheduler is gated to `NODE_ENV === "production"`, and that gate is not
+cosmetic.** Next runs `instrumentation.register()` on *every* server start,
+`npm run dev` included, and `.env.local` holds the **live** `CRON_SECRET`,
+service-role key and `RESEND_API_KEY` pointed at the **production** Supabase
+project — so a dev server left open past 3:30 ET ran the real drop. It mailed
+the real Pro list an email whose every link was built on
+`NEXT_PUBLIC_APP_URL=http://localhost:3000`, *and* claimed the shared
+once-per-day `system_alerts` dedup row, so Railway's own 3:30 run hit `23505`
+and sent nothing — a broken email instead of the real one, not in addition to
+it. The other two jobs share the shape against the same database: run-eod would
+freeze `is_final` off a dev fetch, and the hourly prune **deletes** unconfirmed
+accounts. Trigger the endpoints with the documented `curl`s instead; that is
+deliberate rather than a timer nobody remembers is armed.
+
+`sendPreCloseEmails` **independently refuses to send when `siteUrl()` is
+loopback** (`isLocalSiteUrl()` in `lib/site.ts`), and the check sits **above**
+the dedup insert so a refused dev send leaves the day's slot for the real one.
+It is host-based rather than `NODE_ENV`-based on purpose: the case worth
+catching is a production *build* that lost `NEXT_PUBLIC_SITE_URL`, which looks
+exactly like production to `NODE_ENV` and is a live possibility on every Railway
+rebuild since both URL vars are inlined at build time. That case alerts
+(`site_url_unset`) and is fixable only by a **rebuild**, not a restart; in dev it
+just logs. Email is the only `siteUrl()` consumer that needs this — a localhost
+OG tag or sitemap entry is only ever read on the machine that made it.
+
 **Competition mechanics (DECA SMG).** It's the *End-of-Day* game: a trade entered
 any time during market hours fills at **that day's close**; entered after close →
 the **next** day's close. Orders are pending + cancelable until the close — there's
