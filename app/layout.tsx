@@ -36,7 +36,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: "Zenith — Today's Top Short Candidates",
+    default: "Zenith Screener — Today's Top Short Candidates",
     template: "%s — Zenith Screener",
   },
   description:
@@ -46,15 +46,15 @@ export const metadata: Metadata = {
   // engines — has to be the two-word one. Matches lib/schema.ts ENTITY_NAME.
   applicationName: "Zenith Screener",
   openGraph: {
-    title: "Zenith — Today's Top Short Candidates",
+    title: "Zenith Screener — Today's Top Short Candidates",
     description:
       "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
-    siteName: "Zenith",
+    siteName: "Zenith Screener",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Zenith — Today's Top Short Candidates",
+    title: "Zenith Screener — Today's Top Short Candidates",
     description:
       "The day's biggest stock-market gainers, ranked. Spot the top movers and short the runners.",
   },

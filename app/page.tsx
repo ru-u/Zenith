@@ -15,7 +15,15 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { absolute: "Zenith · Short the spike" },
+  // "Zenith Screener", not "Zenith". The title tag is the strongest on-page
+  // relevance signal for the brand query, and the bare word loses it outright:
+  // searching "zenith screener" returns Screener.in's pages for Indian
+  // companies named Zenith (Zenith Drugs, Zenith Exports, Zenith Health Care) —
+  // a site that owns one of the two words as its own domain. Not a fight we win
+  // on markup, but spending the title on a phrase containing neither word the
+  // searcher typed guaranteed we lose it. `absolute` because the layout
+  // template would otherwise append " — Zenith Screener" twice.
+  title: { absolute: "Zenith Screener · Short the spike" },
   description:
     "Zenith ranks the day's biggest US market gainers and drops a quant-built short thesis on the top five at 3:30 ET. Built for DECA Stock Market Game competitors.",
   alternates: { canonical: "/" },
