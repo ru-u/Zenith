@@ -17,7 +17,7 @@ import { AUTH_EMAIL_SENDER } from "@/lib/legal";
 export function CheckSpamHint({ className }: { className?: string }) {
   return (
     <div
-      className={`flex items-start gap-2 rounded-md border border-foreground/10 bg-foreground/[0.06] px-2.5 py-2 ${className ?? ""}`}
+      className={`flex items-start gap-2 rounded-lg border border-foreground/10 bg-foreground/[0.06] px-2.5 py-2 ${className ?? ""}`}
     >
       <MailSearch aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
       <p className="text-sm leading-relaxed">

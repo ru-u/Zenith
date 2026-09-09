@@ -15,8 +15,8 @@ const SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 const READY_TIMEOUT_MS = 2500;
 
 // Last-resort width if neither the container nor its parent can be measured:
-// max-w-sm (384) − px-6 (48) − the card's p-7 (56).
-const AUTH_CARD_WIDTH_PX = 280;
+// max-w-sm (384) − px-6 (48) − the card's p-6 (48). Tracks AuthShell.
+const AUTH_CARD_WIDTH_PX = 288;
 
 type GsiIdApi = {
   initialize(config: {
@@ -165,9 +165,9 @@ function GisButton({ next, clientId }: { next: string; clientId: string }) {
         id.renderButton(el, {
           type: "standard",
           theme: buttonTheme,
-          // "medium" is 32px tall, matching the h-8 Input/Button next to it;
-          // "large" is 40px and stood proud of every other field.
-          size: "medium",
+          // "large" is 40px, matching the h-10 Field/Button next to it.
+          // ("medium" is 32px — correct back when every control was h-8.)
+          size: "large",
           text: "continue_with",
           shape: "rectangular",
           logo_alignment: "left",
@@ -191,18 +191,18 @@ function GisButton({ next, clientId }: { next: string; clientId: string }) {
       {/* Kept mounted (just hidden) so the ref is valid when renderButton runs. */}
       <div
         ref={containerRef}
-        // h-8 to match the Input/Button row; the clamp keeps Google's own
+        // h-10 to match the Field/Button row; the clamp keeps Google's own
         // fixed-width markup from spilling past the card on narrow phones.
         className={
           mode === "gis"
-            ? "flex h-8 justify-center [&>*]:max-w-full"
+            ? "flex h-10 justify-center [&>*]:max-w-full"
             : "hidden"
         }
       />
       {mode === "loading" && (
         <div
           aria-hidden
-          className="h-8 animate-pulse rounded-lg border border-foreground/10 bg-foreground/5"
+          className="h-10 animate-pulse rounded-lg border border-foreground/10 bg-foreground/5"
         />
       )}
       {mode === "fallback" && <GoogleButton next={next} />}

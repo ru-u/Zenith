@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useCooldown } from "@/hooks/useCooldown";
 import { authEmailMessage, requestAuthEmail } from "@/lib/authEmail";
-import { Input } from "@/components/ui/input";
+import { Field } from "./Field";
 import { Button } from "@/components/ui/button";
 import { useCaptcha } from "./CaptchaField";
 
@@ -37,17 +37,17 @@ export function ForgotPasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <Input
+      <Field
+        id="forgot-email"
+        label="Email"
         type="email"
         name="email"
         autoComplete="email"
         spellCheck={false}
-        aria-label="Email"
         required
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
       />
       {notice && (
         <p aria-live="polite" className="text-sm text-up">
@@ -58,7 +58,7 @@ export function ForgotPasswordForm() {
       <Button
         type="submit"
         disabled={loading || cooldown.active}
-        className="bg-brand btn-brand text-brand-foreground"
+        className="h-10 bg-brand btn-brand text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70"
       >
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading
@@ -67,7 +67,7 @@ export function ForgotPasswordForm() {
             ? `Resend in ${cooldown.remaining}s`
             : "Send reset link"}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="border-t border-foreground/10 pt-3 text-center text-sm text-muted-foreground">
         Remembered it?{" "}
         <Link href="/auth/login" className="text-brand hover:underline">
           Back to sign in

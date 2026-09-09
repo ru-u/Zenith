@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
-import { Input } from "@/components/ui/input";
+import { Field } from "./Field";
 import { Button } from "@/components/ui/button";
 
 export function ResetPasswordForm() {
@@ -22,6 +22,7 @@ export function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [mismatch, setMismatch] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -35,8 +36,10 @@ export function ResetPasswordForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setMismatch(false);
     if (password !== confirm) {
       setError("Passwords don't match.");
+      setMismatch(true);
       return;
     }
     setLoading(true);
@@ -76,30 +79,34 @@ export function ResetPasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <Input
-        type="password"
-        name="new-password"
-        autoComplete="new-password"
-        aria-label="New password"
-        required
-        minLength={8}
-        placeholder="New password (min 8 chars)"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
-      />
-      <Input
-        type="password"
-        name="confirm-password"
-        autoComplete="new-password"
-        aria-label="Confirm new password"
-        required
-        minLength={8}
-        placeholder="Confirm new password"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
-      />
+      {/* One decision, two fields — kept tighter than the form's own gap. */}
+      <div className="flex flex-col gap-2">
+        <Field
+          id="reset-new-password"
+          label="New password"
+          help="8+ characters"
+          type="password"
+          name="new-password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          aria-invalid={mismatch || undefined}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <Field
+          id="reset-confirm-password"
+          label="Confirm new password"
+          type="password"
+          name="confirm-password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          aria-invalid={mismatch || undefined}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+        />
+      </div>
       {error && (
         <p aria-live="polite" className="text-sm text-down">
           {error}
@@ -108,7 +115,7 @@ export function ResetPasswordForm() {
       <Button
         type="submit"
         disabled={loading}
-        className="bg-brand btn-brand text-brand-foreground"
+        className="h-10 bg-brand btn-brand text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70"
       >
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Updating…" : "Update password"}

@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
-import { Input } from "@/components/ui/input";
+import { Field } from "./Field";
 import { Button } from "@/components/ui/button";
 import { AuthDivider } from "./GoogleButton";
 import { GoogleIdentityButton } from "./GoogleIdentityButton";
@@ -84,30 +84,29 @@ export function LoginForm() {
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <GoogleIdentityButton next={next} />
       <AuthDivider />
-      <Input
+      <Field
+        id="login-email"
+        label="Email"
         type="email"
         name="email"
         autoComplete="email"
         spellCheck={false}
-        aria-label="Email"
         required
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
       />
-      <Input
+      <Field
+        id="login-password"
+        label="Password"
         type="password"
         name="password"
         autoComplete="current-password"
-        aria-label="Password"
         required
-        placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
       />
-      <div className="-mt-1.5 text-right">
+      <div className="-mt-2.5 text-right">
         <Link
           href="/forgot-password"
           className="text-xs text-muted-foreground transition-colors hover:text-brand"
@@ -141,11 +140,15 @@ export function LoginForm() {
         </p>
       )}
       {captcha.field}
-      <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
+      <Button
+        type="submit"
+        disabled={loading}
+        className="h-10 bg-brand btn-brand text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70"
+      >
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Signing in…" : "Sign in"}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="border-t border-foreground/10 pt-3 text-center text-sm text-muted-foreground">
         No account?{" "}
         <Link
           href={

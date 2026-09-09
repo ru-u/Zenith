@@ -92,6 +92,12 @@ function CaptchaField({
     <Turnstile
       ref={widgetRef}
       siteKey={SITE_KEY}
+      // Turnstile's "flexible" size is 100% width with a HARD 300px minimum,
+      // and the auth card's content box is 288px (max-w-sm 384 − px-6 48 −
+      // p-6 48). Left alone the widget renders 300px and breaks 12px out
+      // through the card's right padding. -mx-1.5 hands back exactly those
+      // 12px so it sits centred on the fields instead of overhanging them.
+      className="-mx-1.5"
       onSuccess={onToken}
       // Both are recoverable and both must clear the stale token, or the next
       // submit ships an expired one. Turnstile re-renders itself on expiry
@@ -103,8 +109,22 @@ function CaptchaField({
         // user has picked a theme explicitly via next-themes. Stay on "auto"
         // until hydration so the widget can't cause a mismatch (useMounted).
         theme: !mounted ? "auto" : resolvedTheme === "light" ? "light" : "dark",
-        // Fills the form column instead of Turnstile's fixed 300px, which is
-        // narrower than the auth inputs and reads as a misaligned foreign box.
+        // Render nothing unless Cloudflare actually wants a challenge. The
+        // widget still runs and still issues a token for everyone else — this
+        // suppresses the BOX, not the check.
+        //
+        // Always-on, it was a 65px slab in a form whose every other control is
+        // 40px, which made a third-party bot check the largest and loudest
+        // element on the signup page. It also meant ResendConfirmation, which
+        // needs a token of its own, rendered a SECOND visible widget nested
+        // inside the success notice.
+        //
+        // Cost: when a challenge IS required the box appears and pushes the
+        // submit button down. That is the right moment to spend layout shift.
+        appearance: "interaction-only",
+        // Only applies when a challenge does surface: fills the form column
+        // instead of Turnstile's fixed 300px, which is narrower than the auth
+        // inputs and reads as a misaligned foreign box.
         size: "flexible",
       }}
     />

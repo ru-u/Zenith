@@ -238,6 +238,43 @@
       0 16px 48px -12px rgb(0 0 0 / 0.6);
   }
 
+  /* Brand top edge for the auth card, composed alongside .glass-strong.
+     The auth card was the one surface in the app carrying no brand presence at
+     all — a grey glass box that could have belonged to any product — while
+     every other CTA and panel picks up cyan somewhere. This is a 1px cyan
+     hairline grazing the top edge, echoing the light-from-above inset highlight
+     .glass-strong already has rather than adding a second idea.
+
+     Inset from the corners on purpose: a full-width strip would cut across the
+     18px radius and read as a broken border instead of a highlight. */
+  .auth-card {
+    position: relative;
+  }
+  .auth-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 1.5rem;
+    right: 1.5rem;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--brand) 55%, transparent),
+      transparent
+    );
+  }
+  /* Near-black ground takes a brighter edge before it reads at all. */
+  .dark .auth-card::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--brand) 85%, transparent),
+      transparent
+    );
+  }
+
   /* Phones drop the backdrop-filter entirely. /screener stacks roughly a dozen
      of these at once (five hero cards, two status pills, the trade-window
      banner, the filter bar, the table shell, the AI tiles) and every one is a

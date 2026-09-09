@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { resetAuthQueries } from "@/lib/authQueryReset";
-import { Input } from "@/components/ui/input";
+import { Field } from "./Field";
 import { Button } from "@/components/ui/button";
 import { AuthDivider } from "./GoogleButton";
 import { GoogleIdentityButton } from "./GoogleIdentityButton";
@@ -26,6 +26,10 @@ export function SignupForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Marks the two password fields aria-invalid. Set at submit and cleared at
+  // the next submit — the mismatch is still reported on submit, not per
+  // keystroke; this only puts the existing error on the fields it's about.
+  const [mismatch, setMismatch] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const captcha = useCaptcha();
@@ -33,8 +37,10 @@ export function SignupForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setMismatch(false);
     if (password !== confirm) {
       setError("Passwords don't match.");
+      setMismatch(true);
       // Deliberately NOT captcha.reset(): the token is only spent once Supabase
       // reads it, and this returns before we call Supabase. Resetting here
       // would make the user re-solve the widget over a typo.
@@ -87,53 +93,57 @@ export function SignupForm() {
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <GoogleIdentityButton next={next} />
       <AuthDivider />
-      <Input
+      <Field
+        id="signup-name"
+        label="Your name"
         type="text"
         name="name"
         autoComplete="name"
-        aria-label="Your name"
         required
-        placeholder="Your name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
       />
-      <Input
+      <Field
+        id="signup-email"
+        label="Email"
         type="email"
         name="email"
         autoComplete="email"
         spellCheck={false}
-        aria-label="Email"
         required
         placeholder="you@email.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
       />
-      <Input
-        type="password"
-        name="password"
-        autoComplete="new-password"
-        aria-label="Password"
-        required
-        minLength={8}
-        placeholder="Password (min 8 chars)"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
-      />
-      <Input
-        type="password"
-        name="confirm-password"
-        autoComplete="new-password"
-        aria-label="Confirm password"
-        required
-        minLength={8}
-        placeholder="Confirm password"
-        value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
-        className="border-foreground/10 bg-foreground/5"
-      />
+      {/* The password and its confirmation are one decision, so they sit
+          tighter than the gap between the fields above them. */}
+      <div className="flex flex-col gap-2">
+        <Field
+          id="signup-password"
+          label="Password"
+          help="8+ characters"
+          type="password"
+          name="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          aria-invalid={mismatch || undefined}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <Field
+          id="signup-confirm-password"
+          label="Confirm password"
+          type="password"
+          name="confirm-password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          aria-invalid={mismatch || undefined}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+        />
+      </div>
       {error && (
         <p aria-live="polite" className="text-sm text-down">
           {error}
@@ -156,11 +166,17 @@ export function SignupForm() {
         </div>
       )}
       {captcha.field}
-      <Button type="submit" disabled={loading} className="bg-brand btn-brand text-brand-foreground">
+      <Button
+        type="submit"
+        disabled={loading}
+        className="h-10 bg-brand btn-brand text-brand-foreground shadow-[0_0_24px_-4px] shadow-brand/70"
+      >
         {loading && <Loader2 aria-hidden className="mr-2 animate-spin" />}
         {loading ? "Creating account…" : "Create free account"}
       </Button>
-      <p className="text-center text-xs leading-relaxed text-muted-foreground">
+      {/* Sits tight under the button it describes — it's a disclosure about
+          that action, not another block of page copy. */}
+      <p className="-mt-0.5 text-xs leading-relaxed text-muted-foreground">
         By creating an account you agree to the{" "}
         <Link href="/terms" className="text-brand hover:underline">
           Terms
@@ -171,7 +187,7 @@ export function SignupForm() {
         </Link>
         .
       </p>
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="border-t border-foreground/10 pt-3 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
           href={
