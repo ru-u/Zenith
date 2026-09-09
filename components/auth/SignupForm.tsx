@@ -24,6 +24,7 @@ export function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,8 +32,15 @@ export function SignupForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      // Deliberately NOT captcha.reset(): the token is only spent once Supabase
+      // reads it, and this returns before we call Supabase. Resetting here
+      // would make the user re-solve the widget over a typo.
+      return;
+    }
+    setLoading(true);
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -112,6 +120,18 @@ export function SignupForm() {
         placeholder="Password (min 8 chars)"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
+        className="border-foreground/10 bg-foreground/5"
+      />
+      <Input
+        type="password"
+        name="confirm-password"
+        autoComplete="new-password"
+        aria-label="Confirm password"
+        required
+        minLength={8}
+        placeholder="Confirm password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
         className="border-foreground/10 bg-foreground/5"
       />
       {error && (
