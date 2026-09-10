@@ -292,7 +292,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 | `profiles` | extends `auth.users`; `subscription_tier`, `stripe_customer_id`, `notify_preclose` (opt-*out*, default on), `unsubscribe_token` |
 | `daily_gainers` | one row per ticker/day; `is_final`, `scraped_at`, rank + metrics |
 | `ticker_streaks` | consecutive-day appearance count per ticker (O(1) updates) |
-| `ai_analyses` | Pro-gated theses; `risk_level`, `key_catalysts[]`, recommendation, `model` |
+| `ai_analyses` | Pro-gated theses; `short_thesis`, `catalyst`, `short_score` (1-10), `model` (`risk_level`, `key_catalysts[]`, `recommendation`, `invalidation` are deprecated — never written, never rendered) |
 | `system_alerts` | failure-alert dedup + audit log |
 
 ---

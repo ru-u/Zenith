@@ -186,11 +186,15 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
   scraped_at. RLS: public read.
 - `ticker_streaks` — `ticker`, `streak_count`, `last_seen_date`. RLS: public
   read (the app-level gate lives in `/api/streaks`, which requires a session).
-- `ai_analyses` — `(date, ticker)`: short_thesis, risk_level, key_catalysts,
-  recommendation, model, denormalized rank/company_name/exchange, the board
+- `ai_analyses` — `(date, ticker)`: short_thesis, catalyst/catalyst_type,
+  short_score (1-10), model, denormalized rank/company_name/exchange, the board
   figures at scoring time (`price_at_score`, `change_percent_at_score` — always
   a gain), and the scored session's official close (`scored_day_close`,
   `scored_day_change_percent` — the outcome baseline, and **can be negative**).
+  `risk_level`, `key_catalysts`, `recommendation` and `invalidation` are
+  **deprecated** — retained nullable for reversibility, but `lib/claude.ts` never
+  writes them and no surface renders them (`components/ai/RiskLevelBadge.tsx` is
+  dead code). Do not reintroduce them into any UI, marketing card included.
   **RLS: Pro only.**
 
 ## Conventions & gotchas
