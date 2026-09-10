@@ -20,11 +20,14 @@ import { PRO_PRICE_MONTHLY, TIER_FEATURES } from "@/lib/pricing";
  * Selling a format the product doesn't ship is false marketing for a paid feature,
  * so anything added here must exist on a real card first.
  *
- * The prose is assembled from the engine's own verbatim strings — describe()
- * in lib/quant/edgar.ts for the catalyst, BEHAVIOR.offering /
- * levelContextSentence / expectedMoveSentence in lib/quant/thesis.ts, and
- * formatBaseRatePrior in lib/baseRates.ts — with illustrative figures. That is
- * why it is figure-dense and ends on the expected-move line.
+ * The prose is built from the engine's own strings with illustrative figures,
+ * in model-mode shape: the two closing sentences are VERBATIM pinned output
+ * (formatBaseRatePrior in lib/baseRates.ts, expectedMoveSentence in
+ * lib/quant/thesis.ts), which is why it is figure-dense and ends on the
+ * expected-move line. The narrative ahead of them paraphrases BEHAVIOR.offering
+ * and levelContextSentence, as the model does in prod — so it reads close to,
+ * but not character-for-character, those template strings. The catalyst line is
+ * verbatim describe() from lib/quant/edgar.ts.
  *
  * Every number in it traces to one the engine actually computes, so the text
  * would pass ungroundedNumbers(): 64.2 is change_percent, 38 comes from
@@ -144,7 +147,7 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             <p className="mt-3 text-base leading-relaxed text-muted-foreground">
               QNTM is up 64.2% today, its third straight day on the board, even
               though the company is raising cash by selling new stock into the
-              run. Pops tied to share offerings usually fade once the dilution
+              run. Spikes tied to share offerings usually fade once the dilution
               sinks in, which makes this a fade-friendly setup. On the chart this
               is a recovery, not a breakout — it&apos;s climbing back into a
               range it already traded this quarter, still ~38% below that prior
