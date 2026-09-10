@@ -71,7 +71,7 @@ export function DropCountdown({ className }: { className?: string }) {
       live = true;
       content = (
         <>
-          Today&apos;s drop is <strong className="text-up">live</strong> ·{" "}
+          Drop is <strong className="text-up">live</strong> ·{" "}
           <strong className="tabular-nums text-foreground">{clock(s)}</strong>{" "}
           to the close
         </>
@@ -93,10 +93,17 @@ export function DropCountdown({ className }: { className?: string }) {
     }
   }
 
+  // NO `flex-wrap` here: the dot and the text are two flex items, so wrapping
+  // breaks the text onto a second flex line and strands the dot alone on the
+  // first — it rendered in the pill's top-left corner above two centred lines of
+  // text. One flex line keeps the dot inline, and `items-center` then centres it
+  // against the text block however many lines that text runs to (the shape
+  // TradeWindowBanner already uses). The mobile type/padding step is what keeps
+  // the longest string — the live branch — on one line down to ~360px.
   return (
     <div
       className={cn(
-        "glass inline-flex min-h-9 max-w-full flex-wrap items-center gap-2 rounded-full px-3.5 py-1.5 text-sm text-muted-foreground",
+        "glass inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground sm:gap-2 sm:px-3.5",
         live && "ring-1 ring-up/40",
         className,
       )}
@@ -109,7 +116,7 @@ export function DropCountdown({ className }: { className?: string }) {
       ) : (
         <Clock className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden />
       )}
-      <span className="font-mono text-[13px]">
+      <span className="min-w-0 text-balance font-mono text-[12px] sm:text-[13px]">
         {content ?? <span className="opacity-0">Next drop</span>}
       </span>
     </div>
