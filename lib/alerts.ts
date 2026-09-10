@@ -8,6 +8,14 @@ import { LEGAL_CONTACT_EMAIL } from "./legal";
 
 export type AlertType =
   | "provider_failed" // both retries exhausted on a trading day — no fresh data
+  // The pre-close drop threw for a reason that ISN'T the provider. Split off
+  // from provider_failed because maybeAlert dedups once per (date, type): on
+  // 2026-09-09 a Supabase 504 inside the drop claimed the provider's slot at
+  // 15:30:06, which would have silently swallowed a genuine TradingView failure
+  // from the read path or run-eod for the rest of that day. It is also the
+  // honest label — the drop's catch wraps DB reads, persist, thesis generation
+  // and email, not just the fetch.
+  | "preclose_failed" // the pre-close drop failed, and not at the provider
   | "eod_not_finalized" // no is_final row locked for a trading day
   // The partial-finalize case, which eod_not_finalized cannot see: its check is
   // `rows.some(r => r.is_final)`, so a day where MOST rows finalized and a few
@@ -135,4 +143,77 @@ export async function maybeAlert(
   } catch (e) {
     console.error("[alerts] maybeAlert error:", (e as Error)?.message);
   }
+}
+
+/**
+ * One scheduler tick. instrumentation.ts pings /api/cron/pre-close every 5
+ * minutes across the whole 30-minute pre-close window, and any page load in
+ * that window fires runPreCloseProcessing independently via after()
+ * (app/api/gainers/route.ts) — so a failure with more than one tick of runway
+ * left has several chances behind it and is not yet news.
+ */
+const LAST_TICK_SECONDS = 5 * 60;
+
+export interface PreCloseFailure {
+  /** Whether the proximate throw was a ProviderError (i.e. actually the feed). */
+  isProviderFault: boolean;
+  /** Theses stored for the day, read back AFTER the drop attempt. */
+  thesisCount: number;
+  /** secondsUntilCloseET() — null past the close or on a non-trading day. */
+  secondsUntilClose: number | null;
+}
+
+export interface PreCloseVerdict {
+  alert: boolean;
+  type: AlertType;
+  /** Human-readable justification — goes in the email body or the suppressed log line. */
+  reason: string;
+}
+
+/**
+ * Whether a failed pre-close tick is worth an ops email, and under which type.
+ *
+ * The old catch alerted on the FIRST failed tick with a hardcoded body claiming
+ * the provider had failed and that the drop produced nothing. On 2026-09-09
+ * both halves were false: a Supabase 504 (message `Gateway Timeout` — a shape
+ * no provider error can take, since those are all "scanner returned <status>"
+ * or "fetch failed: <msg>") threw at 15:30:06, and the read path had all five
+ * theses stored and the Pro email sent by 15:30:45, 39 seconds later.
+ *
+ * Deferring to the last tick costs ~25 minutes of notice on a genuinely dead
+ * drop. That buys nothing — the drop email lands at the same moment either way,
+ * and there is no manual recovery anyone performs in those 25 minutes — and it
+ * buys back an alert that can be believed.
+ *
+ * Pure on purpose: .env.local points at the PRODUCTION database and there is no
+ * test framework in this repo, so this is the half that can be exercised
+ * directly without writing a row someone then has to go delete.
+ */
+export function classifyPreCloseFailure(f: PreCloseFailure): PreCloseVerdict {
+  const type: AlertType = f.isProviderFault ? "provider_failed" : "preclose_failed";
+
+  if (f.thesisCount > 0) {
+    return {
+      alert: false,
+      type,
+      reason: `${f.thesisCount} thesis row(s) already stored for the day — the drop landed`,
+    };
+  }
+  // null means past the close or not a trading day: no further tick is coming,
+  // so this must read as "alert", never as "stay quiet".
+  if (f.secondsUntilClose == null) {
+    return { alert: true, type, reason: "no ticks left — past the close" };
+  }
+  if (f.secondsUntilClose <= LAST_TICK_SECONDS) {
+    return {
+      alert: true,
+      type,
+      reason: `${f.secondsUntilClose}s to the close — this was the last tick`,
+    };
+  }
+  return {
+    alert: false,
+    type,
+    reason: `${f.secondsUntilClose}s to the close — later ticks can still recover it`,
+  };
 }
