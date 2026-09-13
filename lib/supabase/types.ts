@@ -123,6 +123,38 @@ export type HistoricalGainer = {
   relative_volume: number | null;
   sector: string | null;
   industry: string | null;
+  catalyst_type: string | null;
+  catalyst_sec_name: string | null;
+  // Scanner-sourced spike-day figures. `market_cap` above is a Yahoo figure and
+  // disagrees with the scanner's by a median 1.55x — a different capBand() 34.4%
+  // of the time — so the fit keys on market_cap_scanner and skips rows where it
+  // is null. change_percent is what makes the previous-close eligibility test
+  // reproducible on these rows at all.
+  change_percent: number | null;
+  market_cap_scanner: number | null;
+  created_at: string;
+};
+
+// Next-day outcomes for the whole board, captured forward — eligible by
+// construction and keyed on the same scanner figures resolveBaseRate() sees.
+export type BoardOutcome = {
+  id: number;
+  date: string;
+  ticker: string;
+  exchange: string | null;
+  close: number | null;
+  high: number | null;
+  low: number | null;
+  day_range_pct: number | null;
+  change_percent: number | null;
+  market_cap: number | null;
+  relative_volume: number | null;
+  sector: string | null;
+  rank: number | null;
+  next_date: string | null;
+  next_close: number | null;
+  next_day_return: number | null;
+  next_day_down: boolean | null;
   created_at: string;
 };
 
@@ -159,6 +191,7 @@ export type Database = {
       ticker_streaks: Table<TickerStreak>;
       ai_analyses: Table<AIAnalysis>;
       historical_gainers: Table<HistoricalGainer>;
+      board_outcomes: Table<BoardOutcome>;
       gainer_base_rates: Table<GainerBaseRate>;
       fetch_locks: Table<{ key: string; locked_at: string }>;
       system_alerts: Table<{

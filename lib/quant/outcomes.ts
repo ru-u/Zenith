@@ -18,6 +18,7 @@ import { isAllowedExchange } from "../marketdata/symbols";
 import type { SymbolRef } from "./technicals";
 import { withRetry } from "../retry";
 import { tradingDaysAgoKey } from "../market-calendar";
+import { dayRangePct } from "../baseRates";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -25,6 +26,9 @@ const REQUEST_TIMEOUT_MS = 8_000;
 export interface Quote {
   close: number;
   changePercent: number | null;
+  /** Session high/low — only recordBoardDay needs these, for day_range_pct. */
+  high: number | null;
+  low: number | null;
 }
 
 /**
@@ -61,7 +65,9 @@ export async function fetchQuotes(refs: SymbolRef[]): Promise<Map<string, Quote>
           },
           // "change" is the same column the gainer scanner ranks on
           // (lib/marketdata/tradingview.ts) — proven name, same feed.
-          columns: ["name", "close", "change"],
+          // high/low ride along for recordBoardDay's range band; the thesis
+          // callers ignore them. One POST either way.
+          columns: ["name", "close", "change", "high", "low"],
           options: { lang: "en" },
         }),
         signal: controller.signal,
@@ -85,13 +91,17 @@ export async function fetchQuotes(refs: SymbolRef[]): Promise<Map<string, Quote>
     const ticker = (entry.d[0] as string) ?? entry.s.split(":").pop();
     const close = entry.d[1];
     const change = entry.d[2];
+    const num = (v: unknown): number | null =>
+      typeof v === "number" && Number.isFinite(v) ? v : null;
     if (ticker && !out.has(ticker) && typeof close === "number" && Number.isFinite(close)) {
       out.set(ticker, {
         close,
         // Change is optional: a missing/garbage value must not discard a good
-        // close, which is the figure both callers actually depend on.
-        changePercent:
-          typeof change === "number" && Number.isFinite(change) ? change : null,
+        // close, which is the figure every caller actually depends on. Same for
+        // high/low, which only one caller reads at all.
+        changePercent: num(change),
+        high: num(entry.d[3]),
+        low: num(entry.d[4]),
       });
     }
   }
@@ -239,6 +249,138 @@ export async function recordThesisOutcomes(
   }
   if (recorded > 0) {
     console.log(`[outcomes] recorded ${recorded}/${pending.length} outcomes for ${prevKey}`);
+  }
+  return recorded;
+}
+
+/**
+ * Snapshot day `dateKey`'s finalized board into `board_outcomes` — the spike-day
+ * half of the pair. Runs from `runEodProcessing` after the close has settled.
+ *
+ * Why a second table rather than columns on daily_gainers: this is calibration
+ * data, service-role only, and it must not grow the public board row. Why at all:
+ * `historical_gainers` is keyed on Yahoo figures that land a row in a different
+ * capBand() 34.4% of the time than the scanner figures `resolveBaseRate` is
+ * handed at runtime, and it describes the pre-floor board (only 9 of its 512
+ * live-eligible rows are sub-20% gains). These rows are eligible by construction
+ * — they reached daily_gainers through isGameEligible — and carry the same
+ * numbers production buckets on.
+ *
+ * Close/cap/relvol/change all come off the finalized board row; the scanner is
+ * consulted only for the session high/low that daily_gainers doesn't store. A
+ * failed or partial quote is NOT fatal: the row still goes in with a null
+ * day_range_pct and simply feeds the range-free rungs of the ladder, which
+ * resolveBaseRate already walks. Losing a whole session because the scanner
+ * hiccuped would cost more than losing one dimension of it.
+ *
+ * Idempotent via `unique (date, ticker)` + ignoreDuplicates, so a re-run never
+ * disturbs a row the outcome pass has already stamped.
+ */
+export async function recordBoardDay(
+  admin: SupabaseClient<Database>,
+  dateKey: string,
+): Promise<number> {
+  const { data: board } = await admin
+    .from("daily_gainers")
+    .select("ticker, exchange, price, change_percent, market_cap, relative_volume, sector, rank")
+    .eq("date", dateKey)
+    .eq("is_final", true);
+  if (!board || board.length === 0) return 0;
+
+  const quotes = await fetchQuotes(
+    board.map((r) => ({ ticker: r.ticker, exchange: r.exchange ?? null })),
+  );
+
+  const rows = board.map((r) => {
+    const q = quotes.get(r.ticker);
+    return {
+      date: dateKey,
+      ticker: r.ticker,
+      exchange: r.exchange ?? null,
+      // The finalized board price is the official close this table is keyed to;
+      // the quote is only a range source and may lag it by a tick.
+      close: r.price,
+      high: q?.high ?? null,
+      low: q?.low ?? null,
+      day_range_pct: dayRangePct(q?.high ?? null, q?.low ?? null),
+      change_percent: r.change_percent,
+      market_cap: r.market_cap,
+      relative_volume: r.relative_volume,
+      sector: r.sector,
+      rank: r.rank,
+    };
+  });
+
+  const { error } = await admin
+    .from("board_outcomes")
+    .upsert(rows, { onConflict: "date,ticker", ignoreDuplicates: true });
+  if (error) {
+    console.error(`[outcomes] board snapshot ${dateKey} failed:`, error.message);
+    return 0;
+  }
+  const withRange = rows.filter((r) => r.day_range_pct != null).length;
+  console.log(
+    `[outcomes] snapshotted ${rows.length} board rows for ${dateKey} (${withRange} with a range band)`,
+  );
+  return rows.length;
+}
+
+/**
+ * Stamp the previous trading day's `board_outcomes` rows with today's close —
+ * the outcome half. Runs from `runEodProcessing` on day D, so "today's close" is
+ * the correct next-session close for day D-1, exactly as in recordThesisOutcomes.
+ * Never call it intraday.
+ *
+ * The baseline lives on the row itself (`close`, written by recordBoardDay), so
+ * unlike the thesis path there is no daily_gainers join to go wrong: a ticker
+ * that left the board entirely still resolves. Idempotent — only rows with a
+ * null `next_close` are touched.
+ */
+export async function recordBoardOutcomes(
+  admin: SupabaseClient<Database>,
+  dateKey: string,
+): Promise<number> {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const prevKey = tradingDaysAgoKey(2, new Date(Date.UTC(y, m - 1, d, 12)));
+  if (prevKey === dateKey) return 0;
+
+  const { data: pending } = await admin
+    .from("board_outcomes")
+    .select("id, ticker, exchange, close")
+    .eq("date", prevKey)
+    .is("next_close", null);
+  if (!pending || pending.length === 0) return 0;
+
+  const resolvable = pending.filter((r) => r.close != null && r.close > 0);
+  const quotes = await fetchQuotes(
+    resolvable.map((r) => ({ ticker: r.ticker, exchange: r.exchange ?? null })),
+  );
+
+  let recorded = 0;
+  for (const row of resolvable) {
+    const prev = row.close as number;
+    const next = quotes.get(row.ticker)?.close;
+    if (next == null) continue; // unresolvable today; stays null for a later run
+    const { error } = await admin
+      .from("board_outcomes")
+      .update({
+        next_date: dateKey,
+        next_close: next,
+        next_day_return: (next - prev) / prev,
+        next_day_down: next < prev,
+      })
+      .eq("id", row.id)
+      .is("next_close", null);
+    if (error) {
+      console.error(`[outcomes] board outcome ${row.ticker} failed:`, error.message);
+    } else {
+      recorded++;
+    }
+  }
+  if (recorded > 0) {
+    console.log(
+      `[outcomes] recorded ${recorded}/${pending.length} board outcomes for ${prevKey}`,
+    );
   }
   return recorded;
 }

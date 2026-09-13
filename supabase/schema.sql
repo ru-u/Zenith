@@ -135,11 +135,61 @@ create table if not exists public.historical_gainers (
   relative_volume numeric,   -- relvol from the scrape (relvol_30d)
   sector          text,
   industry        text,
+  -- Catalyst class backfilled by scripts/backfill-catalysts.mjs, plus the SEC
+  -- registrant name each label was derived from (the BIOT identity guard can't
+  -- run on rows up to a year old, so the assumption is recorded, not hidden).
+  catalyst_type     text,
+  catalyst_sec_name text,
+  -- Scanner-sourced spike-day figures joined in from the prototype's own board
+  -- export. `market_cap` above is a YAHOO figure and the two sources disagree:
+  -- a median 1.55x apart (p90 18.3x), landing the row in a different capBand()
+  -- 34.4% of the time. Production buckets on the scanner's number, so the fit
+  -- keys on market_cap_scanner and ignores rows where it is null. Relative
+  -- volume is deliberately not reconciled (45% band disagreement, and the
+  -- scanner figure exists for only 343 rows) -- the fit drops relvol rungs.
+  change_percent     numeric,
+  market_cap_scanner numeric,
   created_at      timestamptz not null default now(),
   unique (spike_date, ticker)
 );
 create index if not exists historical_gainers_bucket_idx
   on public.historical_gainers (market_cap, relative_volume);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- board_outcomes — next-day outcomes for the WHOLE board, captured forward.
+-- historical_gainers describes a board that no longer exists (pre-floor penny
+-- stocks up 50-300%; only 9 of its 512 live-eligible rows are sub-20% gains).
+-- This is the record of the board the product actually serves: eligible BY
+-- CONSTRUCTION (every row reached daily_gainers through isGameEligible) and
+-- keyed on the same scanner figures resolveBaseRate() sees at runtime.
+-- Written in two passes by lib/quant/outcomes.ts. Backfill is impossible — the
+-- scanner serves only current quotes, which is why this records forward.
+-- Internal: RLS on, NO policy (deny-all to anon/auth; service role bypasses).
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.board_outcomes (
+  id              bigint generated always as identity primary key,
+  date            date not null,     -- the spike session
+  ticker          text not null,
+  exchange        text,
+  close           numeric,           -- that session's official close
+  high            numeric,
+  low             numeric,
+  day_range_pct   numeric,           -- (high-low)/low*100 — mirrors dayRangePct() in lib/baseRates.ts
+  change_percent  numeric,           -- the spike day's gain, signed
+  market_cap      numeric,
+  relative_volume numeric,
+  sector          text,
+  rank            integer,
+  next_date       date,
+  next_close      numeric,
+  next_day_return numeric,           -- (next_close - close) / close
+  next_day_down   boolean,           -- next_day_return < 0 (a winning next-day short)
+  created_at      timestamptz not null default now(),
+  unique (date, ticker)
+);
+-- The recorder's only hot query: yesterday's rows still awaiting an outcome.
+create index if not exists board_outcomes_pending_idx
+  on public.board_outcomes (date) where next_close is null;
 
 -- gainer_base_rates — precomputed "closed lower next day" rates by feature bucket.
 -- Any band = 'ALL' marks a coarser fallback level; lib/baseRates.ts resolves
@@ -159,6 +209,7 @@ create table if not exists public.gainer_base_rates (
 
 alter table public.historical_gainers enable row level security;
 alter table public.gainer_base_rates  enable row level security;
+alter table public.board_outcomes    enable row level security;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- fetch_locks — atomic claim for on-demand provider fetches (thundering-herd guard)

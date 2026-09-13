@@ -211,6 +211,77 @@ alter table public.historical_gainers add column if not exists catalyst_type tex
 -- assumption is recorded rather than hidden.
 alter table public.historical_gainers add column if not exists catalyst_sec_name text;
 
+-- Scanner-sourced spike-day figures, joined in from the prototype's own board
+-- export by scripts/historical-base-rates.mjs. The rest of this table came from
+-- a Yahoo scrape, and the two sources disagree hard: across the 343 rows where
+-- both exist the Yahoo cap runs a median 1.55x the scanner's (p90 18.3x) and
+-- lands the row in a DIFFERENT capBand() 34.4% of the time. Production buckets
+-- on the scanner's number (daily_gainers.market_cap), so a base rate fitted on
+-- the Yahoo one is filed under a bucket the live lookup never asks for.
+--
+-- change_percent is what the Yahoo scrape never carried at all, and without it
+-- the previous-close eligibility test (isGameEligible) cannot be reproduced on
+-- these rows -- the whole reason MIN_PRICE/MIN_MARKET_CAP could not be applied
+-- to the fit.
+--
+-- Relative volume is deliberately NOT reconciled: the two sources disagree on
+-- relvolBand() 45% of the time and the scanner figure exists for only 343 rows,
+-- so the fit drops the relvol rungs entirely rather than key them wrong.
+--
+-- Rows that cannot be joined keep these null and are excluded from the fit
+-- rather than deleted: scripts/backfill-catalysts.mjs labelled all 1,919 rows
+-- and that sample is the only thing that makes a catalyst delta re-fit possible.
+alter table public.historical_gainers add column if not exists change_percent numeric;
+alter table public.historical_gainers add column if not exists market_cap_scanner numeric;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- board_outcomes -- next-day outcomes for the WHOLE board, captured forward.
+--
+-- The prototype pool (historical_gainers) describes a board that no longer
+-- exists: pre-floor it was penny stocks up 50-300%, and only 9 of its 512
+-- live-eligible rows are sub-20% gains, so it cannot answer questions about the
+-- board the product actually serves today. This table is that record, built
+-- forward at ~100 rows/session.
+--
+-- Eligible BY CONSTRUCTION -- every row reached daily_gainers through
+-- isGameEligible, so no post-hoc filter is needed -- and keyed on the same
+-- scanner figures resolveBaseRate() is handed at runtime.
+--
+-- Written in two passes by lib/quant/outcomes.ts, mirroring the
+-- recordScoredDayCloses / recordThesisOutcomes pair: the spike day's close and
+-- range at that day's EOD, the next session's close at the following EOD.
+-- Backfill is impossible -- the scanner serves only current quotes, which is
+-- why this records forward at all.
+--
+-- RLS on with NO policy, like historical_gainers: internal calibration data,
+-- service-role only.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.board_outcomes (
+  id              bigint generated always as identity primary key,
+  date            date not null,     -- the spike session
+  ticker          text not null,
+  exchange        text,
+  close           numeric,           -- that session's official close
+  high            numeric,
+  low             numeric,
+  day_range_pct   numeric,           -- (high-low)/low*100 -- mirrors dayRangePct() in lib/baseRates.ts
+  change_percent  numeric,           -- the spike day's gain, signed
+  market_cap      numeric,
+  relative_volume numeric,
+  sector          text,
+  rank            integer,
+  next_date       date,
+  next_close      numeric,
+  next_day_return numeric,           -- (next_close - close) / close
+  next_day_down   boolean,           -- next_day_return < 0 (a winning next-day short)
+  created_at      timestamptz not null default now(),
+  unique (date, ticker)
+);
+-- The recorder's only hot query: yesterday's rows still awaiting an outcome.
+create index if not exists board_outcomes_pending_idx
+  on public.board_outcomes (date) where next_close is null;
+alter table public.board_outcomes enable row level security;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- fetch_locks + claim_fetch (thundering-herd guard)
 -- ─────────────────────────────────────────────────────────────────────────────

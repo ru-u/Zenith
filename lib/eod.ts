@@ -6,7 +6,12 @@ import { updateStreaks } from "./streaks";
 import { generateAndStoreTopAnalyses } from "./claude";
 import { sendPreCloseEmails } from "./notify";
 import { type BaseRate } from "./baseRates";
-import { recordScoredDayCloses, recordThesisOutcomes } from "./quant/outcomes";
+import {
+  recordBoardDay,
+  recordBoardOutcomes,
+  recordScoredDayCloses,
+  recordThesisOutcomes,
+} from "./quant/outcomes";
 
 /** Prior-day consecutive-gainer streak per ticker — neutral context for the AI. */
 async function fetchStreaks(
@@ -174,6 +179,27 @@ export async function runEodProcessing(
     await recordScoredDayCloses(admin, dateKey);
   } catch (e) {
     console.error("[eod] scored-day close:", (e as Error)?.message);
+  }
+
+  // The same two passes, for the WHOLE board rather than the five scored rows.
+  // This is the pool the base rates will eventually be fitted on: eligible by
+  // construction and keyed on the scanner figures resolveBaseRate() actually
+  // sees, unlike historical_gainers, whose Yahoo caps land a row in a different
+  // capBand() 34.4% of the time. ~100 rows and one scanner POST per pass.
+  //
+  // Order matters only in that yesterday's outcome is stamped before today's
+  // snapshot is taken; they touch different dates either way. Both are
+  // best-effort and independently caught — calibration bookkeeping must never
+  // be able to fail a finalize.
+  try {
+    await recordBoardOutcomes(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] board outcomes:", (e as Error)?.message);
+  }
+  try {
+    await recordBoardDay(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] board snapshot:", (e as Error)?.message);
   }
 
   return created;
