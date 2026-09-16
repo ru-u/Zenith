@@ -39,8 +39,15 @@ import { PRO_PRICE_MONTHLY, TIER_FEATURES } from "@/lib/pricing";
  * The catalyst is an OFFERING on purpose: the old "low-float squeeze" framing is
  * catalyst_type `meme_squeeze`, which lib/quant/score.ts caps at 4/10, so it could
  * never carry the score the pill shows. Offering is also the only class whose
- * BEHAVIOR line is fade-friendly AND uncapped — buyout caps at 2, macro at 4, and
- * earnings/regulatory/partnership all read as cautionary.
+ * BEHAVIOR line is fade-friendly AND uncapped by CATALYST — buyout caps at 2,
+ * macro at 4, and earnings/regulatory/partnership all read as cautionary.
+ *
+ * Since 2026-09-16 there is also a catalyst-independent cap: MIN_SPIKE_FOR_TOP_SCORE
+ * holds anything under a 35% day to 7/10. The pill here reads 7/10 on a +64.2% day,
+ * so the example still reproduces — but it now depends on 64.2 clearing that floor
+ * as well as on the catalyst class. If that threshold is ever raised above 64.2,
+ * this card becomes output the engine cannot produce; change the example, not the
+ * threshold.
  *
  * The offering and the 3-day streak are consistent, not in tension:
  * LOOKBACK_TRADING_DAYS in edgar.ts is 3, the same span as the streak, so a

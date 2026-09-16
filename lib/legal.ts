@@ -16,7 +16,7 @@ export const LEGAL_UPDATED = "September 8, 2026";
 // /engine (how the thesis engine works) is disclosure, not policy — it changes
 // when the engine changes, which is a different cadence from the policy pages.
 // Bump this on a scoring/prose change; don't drag LEGAL_UPDATED along with it.
-export const ENGINE_UPDATED = "September 8, 2026";
+export const ENGINE_UPDATED = "September 16, 2026";
 
 // The two lines that must be visible wherever Zenith shows a ranking or a
 // thesis — not only on /terms. NOT_ADVICE is the securities disclaimer;

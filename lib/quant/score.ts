@@ -66,10 +66,77 @@ const D_FADING_INTRADAY = 3; // already selling off since the open
 const D_BELOW_VWAP = 2; // buyers underwater on the day
 const D_NEAR_52W_HIGH = -2; // breakout strength — riskier short
 const NEAR_52W_BAND = 0.02;
-// (D_PARABOLIC removed — magnitude now enters through the base-rate range band.
-// It was a binary +2 at a ≥100% day and the only place move size was visible at
-// all; a ≥100% day is almost always in the top range tertile, which on its own
-// carries a 67.5% down-rate, so keeping both would double-count.)
+// D_PARABOLIC removed. Its note used to claim magnitude "now enters through the
+// base-rate range band". AUDITED 2026-09-15: that is FALSE, and the whole path
+// was traced so nobody re-derives it from the claim —
+//   * scoreShort reads only g.price off the row, never g.changePercent;
+//   * resolveBaseRate keys on marketCap, relativeVolume and dayRangePct
+//     (intraday high−low), none of which is the session gain;
+//   * catalystType is text regex over EDGAR filings and Finnhub headlines;
+//   * tech.changeFromOpen is % since TODAY'S OPEN, and is read as a sign test.
+// Magnitude enters scoring at exactly ONE point in the repo: the ≥15%
+// PINNED_MIN_CHANGE_PCT floor gating the pinned-tape cap (lib/quant/features.ts).
+// That is a floor on a cap, not a graded term — the other two pinned conditions
+// are scale-free ratios. Nothing in this file can see how far the stock ran.
+//
+// The range band does not stand in for it. It was fit on historical_gainers,
+// whose change_percent is NULL on all 1,919 rows, so the substitution was never
+// testable there. Live (Sep 2026, the first month a range band actually
+// resolved): 24 r_lo / 11 r_mid / 1 r_hi — 67% in one "tertile", because the fit
+// population was the pre-floor board of penny stocks up 50-300%. Spike size
+// overlaps almost completely across the bands: r_lo spans 10.9-50.4%, r_mid
+// 12.0-75.0%, corr(band, spike %) = +0.30 on n=35.
+//
+// Magnitude is real and it is NOT in the win math. Across 206 theses with a
+// finalized spike % and a next-day outcome, corr(spike %, short P&L) = +0.21
+// (+0.34 within catalyst='other', n=106) while corr(spike %, short_score) =
+// -0.02. But it is a PAYOFF effect, not a probability one: win rate by spike
+// band is flat (67/59/60/59/74%) while the average WIN grows monotonically
+// (+7.0/+7.1/+9.4/+16.9/+23.7%). So it must NOT become a Δ on `win`, which
+// winToScore treats as a probability — that is exactly the BUYOUT_WIN_CEILING
+// mistake (a payoff intuition encoded as a probability drove Brier skill
+// negative). Its home is a magnitude dimension on gainer_base_rates feeding
+// median_down_move/median_up_move -> expectedMovePercent. THAT HALF IS STILL
+// BLOCKED: board_outcomes carries change_percent but records FORWARD and was
+// still empty at this audit.
+//
+// THE Δ PROHIBITION STANDS. Only the cap channel opened — see
+// MIN_SPIKE_FOR_TOP_SCORE below, shipped 2026-09-16. A cap runs after
+// winToScore and never touches percent_win_estimate, so it buys ranking without
+// spending calibration; a Δ on `win` would spend both. The first cap tried here
+// was sub-20% capped at 6, and it was REJECTED on the numbers: it fires twice in
+// 42 days and moves the top pick from +368.0% to +364.6%, i.e. slightly worse
+// than doing nothing. Do not resurrect it — the effect lives at the TOP of the
+// score range, not the bottom of the magnitude range.
+//
+// Magnitude floor for a top-end score. The engine has no edge at 8+ on a modest
+// mover, and the gap is widest exactly where the product is loudest:
+//
+//   score 9+ & spike <35%   n= 9  56% win  MEAN -1.86%   <- negative
+//   score 9+ & spike >=35%  n=13  69% win  mean +11.91%
+//   score 8+ & spike <35%   n=25  64% win  mean  +2.02%
+//   score 8+ & spike >=35%  n=22  77% win  mean +14.06%
+//
+// Trigger was RFAI 2026-09-15: scored 9/10 at +26.1% intraday, closed +13.5%
+// (rank 4 -> rank 10 on the finalized board), traded +30.4% the next session.
+//
+// Three things that look arbitrary and are not:
+//   * 35 is NOT a fitted optimum. The top-pick backtest is flat across the whole
+//     usable range — 25% and 30% both give +398.5%, 35% gives +400.2%, 40% gives
+//     +400.9%, against +365.6% uncapped. 35 was chosen for how much of the score
+//     distribution it spends (it turns 53% of all 8+ scores into 7s), not for a
+//     backtest edge it does not have over 30.
+//   * The 9+ cell is n=9. That is the whole empirical case for the top end, and
+//     it is the same order of sample that made D_OFFERING = +8 wrong. Re-check it
+//     before widening this, and prefer moving the threshold DOWN over up.
+//   * It reads the ~3:30 intraday figure, the only one that exists at scoring
+//     time. The cells above were measured on the FINALIZED close. The two
+//     diverge — RFAI was 26.1% vs 13.5% — so this cap is keyed on a different
+//     number than the evidence for it. RFAI clears neither, but a fade-into-the
+//     -close name can. That gap is entry-price drift, and it is not fixed here.
+const MIN_SPIKE_FOR_TOP_SCORE = 35;
+const MODEST_SPIKE_SCORE_CAP = 7;
+//
 // Recent listings win often and lose catastrophically. Across the live record
 // sub-90-day listings closed lower 71% of the time yet averaged -8.8% — the
 // only age bucket with a negative mean — because the losses are unbounded on
@@ -168,6 +235,14 @@ export function scoreShort(
   // move would otherwise score 6-7 as "other". A cap only prevents recommending
   // shorts with no payoff; it can't create a bad recommendation.
   if (pinned && !BULLISH_CATALYSTS.has(catalystType)) score = Math.min(score, 3);
+  // Modest movers never carry a top-end score — see MIN_SPIKE_FOR_TOP_SCORE. The
+  // ONLY place this file reads how far the stock ran, and deliberately a cap
+  // rather than a Δ: `win` above is already final, so percent_win_estimate (and
+  // therefore expectedMovePercent and every calibration metric) is untouched.
+  // Fails open on a missing change_percent, matching the technical Δs.
+  if (g.changePercent != null && g.changePercent < MIN_SPIKE_FOR_TOP_SCORE) {
+    score = Math.min(score, MODEST_SPIKE_SCORE_CAP);
+  }
   // Applied last and unconditionally — a fresh listing is dangerous to short
   // whatever the catalyst says, and the catalyst caps above are all tighter.
   if (recentListing) score = Math.min(score, RECENT_LISTING_SCORE_CAP);

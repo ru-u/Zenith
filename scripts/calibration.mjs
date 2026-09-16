@@ -20,6 +20,29 @@
 // 15-minute-delayed feed (fixed in 226c510), which shifts returns by ~1% and
 // can flip a marginal win/loss. Pass --since to restrict to clean labels once
 // enough have accumulated.
+//
+// KNOWN GAP — magnitude. Audited 2026-09-15 (full trace in the D_PARABOLIC note
+// in lib/quant/score.ts): the engine cannot see how far the stock ran.
+// corr(spike %, short_score) = -0.02 against corr(spike %, short P&L) = +0.21
+// over 206 theses with a finalized spike % and an outcome. That is a
+// DISCRIMINATION gap — this script's AUC is where it should show up — but do
+// NOT close it by nudging percent_win_estimate. Spike size barely moves the win
+// RATE (67/59/60/59/74% across bands) and strongly moves the win SIZE
+// (+7.0/+7.1/+9.4/+16.9/+23.7%), so a Δ on `win` buys a little ranking with a
+// real calibration loss: the BUYOUT_WIN_CEILING mistake, in the same direction.
+// PARTIALLY CLOSED 2026-09-16. The DISCRIMINATION half shipped as a score cap
+// (MIN_SPIKE_FOR_TOP_SCORE in lib/quant/score.ts): nothing above 7/10 for a
+// sub-35% mover, because 9+ below that line realized a NEGATIVE mean (n=9) vs
+// +11.91% at or above it. A cap was chosen precisely so THIS script's numbers do
+// not move — it runs after winToScore and never touches percent_win_estimate.
+// So: if Brier or the reliability curve shifts after that change, the cap was
+// implemented in the wrong place. AUC should improve; calibration should not
+// budge.
+//
+// The PAYOFF half is still open and still belongs in a magnitude dimension on
+// gainer_base_rates feeding median_down_move/median_up_move ->
+// expectedMovePercent. Still blocked until board_outcomes has rows (it records
+// forward; empty at the 2026-09-15 audit).
 
 import { createClient } from "@supabase/supabase-js";
 

@@ -369,7 +369,12 @@ export async function fetchPriorCalls(
 
   const [y, m, d] = dateKey.split("-").map(Number);
   const probe = new Date(Date.UTC(y, m - 1, d, 12));
-  const sinceKey = tradingDaysAgoKey(11, probe);
+  // 25, not 11. RFAI was scored 1/10 as a buyout on 2026-08-21 and again on
+  // 2026-09-15 — ~17 trading days later, so the 11-day window returned nothing
+  // and the 9/10 card never mentioned our own earlier call on the same ticker.
+  // Display-only (this feeds a prose sentence, never the score), so widening it
+  // cannot move a number.
+  const sinceKey = tradingDaysAgoKey(25, probe);
   const prevSession = tradingDaysAgoKey(2, probe);
 
   const { data, error } = await admin
