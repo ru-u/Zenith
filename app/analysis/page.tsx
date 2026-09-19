@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Info, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { getViewer } from "@/lib/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTodayET } from "@/lib/market-calendar";
@@ -78,56 +78,6 @@ function AnalysisTeaser({ signedIn }: { signedIn: boolean }) {
 // database for the date and then asking again for the rows.
 const LOOKBACK_ROWS = 12;
 
-/**
- * Dated incident notice for the 2026-09-15 RFAI thesis — scored 9/10 at +26.1%
- * intraday, closed +13.5%, then traded +30.4% the next session.
- *
- * TEMPORARY. Remove around 2026-09-30; this is an acknowledgement, not furniture.
- *
- * Lives in the Pro branch of <AnalysisPanel>, NOT in <AnalysisShell>: the shell
- * also wraps <AnalysisTeaser>, so putting it there showed the apology to logged-out
- * and free visitors directly above the upgrade CTA — an audience that never saw the
- * RFAI thesis, since theses and the pre-close email are both Pro-gated. Costs a
- * paint (it now waits on the same Supabase read the rows do); worth it.
- *
- * Two things about the copy are deliberate:
- *   * It names NO threshold, constant or pipeline stage. Same rule
- *     app/engine/page.tsx states for /engine — "no scoring inputs, no Δ
- *     constants, thresholds, or bucket boundaries from score.ts". An earlier
- *     draft spelled out the 35% floor; do not reintroduce it.
- *   * The closing line stays. Without it this reads as a promise that a top
- *     score can no longer lose, which the change does not support — it caps the
- *     confidence, not the pick, and RFAI itself would still have been a 7/10.
- *     That is also not a claim to make under lib/legal.ts NOT_ADVICE.
- *   * "guard against a repeat", not "ensure this does not happen again". The
- *     cap cannot carry the stronger claim: it catches 3 of the 12 worst
- *     drawdowns on record (the worst, USDE at -99.4%, scored 6), and RFAI itself
- *     would still have been a 7/10, i.e. still a short call that still loses
- *     30%. A falsifiable guarantee on a product used by minors is also the one
- *     sentence here that could become a problem under lib/legal.ts NOT_ADVICE.
- *     "To our best ability to guard against" is effort toward an outcome;
- *     "ensure it does not happen again" promises the outcome itself.
- *   * No em dashes, at the user's request (2026-09-16). Keep it that way.
- */
-function EngineNotice() {
-  return (
-    <div className="glass flex gap-3 rounded-2xl p-4 ring-1 ring-brand/20">
-      <Info aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-      <div className="space-y-2 text-sm">
-        <p className="font-medium text-foreground">On our September 15 RFAI thesis</p>
-        <p className="text-muted-foreground">
-          We scored it 9/10 and the trade went against it.
-        </p>
-        <p className="text-muted-foreground">
-          We take these ratings seriously. We have reworked the engine to our best
-          ability and will continue to do so to guard against a repeat of this.
-        </p>
-        <p className="text-muted-foreground">No thesis is a sure thing.</p>
-      </div>
-    </div>
-  );
-}
-
 // Everything that touches the database, below the page's <Suspense>.
 async function AnalysisPanel() {
   // Shared with <Header> for this request — see lib/viewer.ts.
@@ -172,7 +122,6 @@ async function AnalysisPanel() {
           As of {date}
         </p>
       )}
-      <EngineNotice />
       <AnalysisList analyses={analyses} />
     </>
   );
