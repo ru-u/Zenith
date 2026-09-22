@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { checkLimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/csrf";
 import { clientIp, logSecurityEvent } from "@/lib/seclog";
@@ -153,6 +154,16 @@ export async function POST(req: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
+  // The reset MUST use the cookie-backed SSR client, not the bare one above.
+  // /auth/callback finishes it with exchangeCodeForSession, which needs a PKCE
+  // `code` in the link and the matching code-verifier cookie in the browser.
+  // The bare client defaults to the IMPLICIT flow: the email link came back
+  // with tokens in the #fragment and no `code`, so every reset since this route
+  // was introduced (bed29b8, 2026-08-28) landed on "This reset link is invalid
+  // or has expired". The SSR client is PKCE and writes the verifier cookie
+  // immediately (@supabase/ssr flushes `-code-verifier` keys on set), which
+  // rides out on this response to the browser that asked — restoring the
+  // same-browser rule ResetPasswordForm's copy describes.
   const { error } =
     type === "confirmation"
       ? await supabase.auth.resend({
@@ -160,7 +171,7 @@ export async function POST(req: Request) {
           email,
           options: { emailRedirectTo: `${origin}/auth/callback`, captchaToken },
         })
-      : await supabase.auth.resetPasswordForEmail(email, {
+      : await (await createSessionClient()).auth.resetPasswordForEmail(email, {
           redirectTo: `${origin}/auth/callback?next=/reset-password`,
           captchaToken,
         });
