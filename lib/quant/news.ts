@@ -28,7 +28,7 @@ const HEADLINE_RX: Record<EdgarCatalystType, RegExp> = {
   earnings:
     /(earnings|quarterly results|fiscal .{0,12}results|revenue (beat|jump|surge|soar)|(beats?|tops?|misses?) (estimates|expectations)|raises? .{0,12}guidance)/i,
   regulatory:
-    /(fda (approval|clearance)|510\(k\)|phase [123]\b|clinical (trial|data|results)|topline (data|results)|breakthrough (therapy|device) designation|ce mark|emergency use authorization)/i,
+    /(fda (approval|clearance)|510\(k\)|phase [123]\b|clinical (trial|data|results)|top[- ]?line (data|results)|breakthrough (therapy|device) designation|ce mark|emergency use authorization)/i,
 };
 const PRECEDENCE: EdgarCatalystType[] = ["buyout", "offering", "earnings", "regulatory"];
 

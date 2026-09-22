@@ -46,7 +46,7 @@ const BUYOUT_TEXT_RX =
 const OFFERING_TEXT_RX =
   /(public offering|registered direct|private placement|securities purchase agreement|at-the-market offering|underwriting agreement)/i;
 const REGULATORY_TEXT_RX =
-  /(fda|510\(k\)|marketing clearance|marketing approval|topline (data|results)|phase [123]\b|clinical trial|ce mark|emergency use authorization)/i;
+  /(fda|510\(k\)|marketing clearance|marketing approval|top[- ]?line (data|results)|phase [123]\b|clinical trial|ce mark|emergency use authorization)/i;
 
 interface Filing {
   form: string;
