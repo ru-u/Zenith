@@ -45,6 +45,12 @@ export type AlertType =
   | "security_spike" // failed logins / authz denials / bad cron auth spiking from one IP
   | "prune_anomaly" // unconfirmed-account prune found an implausible number of rows
   | "calibration_drift" // a scoring constant now sits outside its realized confidence interval
+  // sitemap.xml rendered without its ticker pages. The try/catch in
+  // app/sitemap.ts is fail-open on purpose — a short sitemap beats a 500 — which
+  // means a degraded one is otherwise indistinguishable from a healthy one from
+  // the outside: it returns 200 and well-formed XML, just missing ~90% of the
+  // URLs. Nothing else covers it, because no request failed.
+  | "sitemap_degraded" // the sitemap fell back to static routes only
   // The email ceilings, kept apart on purpose: one is a free dashboard toggle,
   // one is a billing decision, and one is neither — and "email failed" would
   // leave you guessing which at the moment guessing is most expensive. The
