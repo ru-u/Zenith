@@ -1,7 +1,12 @@
 import { cache } from "react";
 import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-query";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { serveStoredGainers } from "@/lib/gainers";
+import {
+  serveStoredGainers,
+  withoutDayRanges,
+  type GainersPayload,
+} from "@/lib/gainers";
+import { getViewer } from "@/lib/viewer";
 import { getTodayET } from "@/lib/market-calendar";
 
 // Server-side seed for the ["gainers"] query, so "/" and /screener ship the real
@@ -64,23 +69,37 @@ import { getTodayET } from "@/lib/market-calendar";
 //
 // Failures are deliberately NOT cached — caching a null would stretch a
 // momentary DB blip into a full minute of degraded pages.
+//
+// The memo holds the RAW payload, not the dehydrated state, because what ships
+// is per-viewer: signed-out documents get the board without day ranges (see
+// withoutDayRanges — the meter is a free-account feature, and the dehydrated
+// state is readable in the HTML). Stripping after the memo keeps one shared DB
+// read per minute while never serving one viewer's variant to another.
 const SEED_TTL_MS = 60_000;
-let seedCache: { at: number; state: DehydratedState } | null = null;
+let seedCache: { at: number; payload: GainersPayload } | null = null;
 
 // cache() keeps this to a single resolution within one request too — the landing
 // renders <TopFive> and this seed in the same pass, same reasoning as getViewer().
+// getViewer() is cache()d per request and both seeded pages already resolve it,
+// so asking it here costs nothing extra.
 export const dehydratedGainers = cache(
   async (): Promise<DehydratedState | null> => {
-    if (seedCache && Date.now() - seedCache.at < SEED_TTL_MS) {
-      return seedCache.state;
-    }
     try {
-      const payload = await serveStoredGainers(createAdminClient(), getTodayET());
+      let payload: GainersPayload;
+      if (seedCache && Date.now() - seedCache.at < SEED_TTL_MS) {
+        payload = seedCache.payload;
+      } else {
+        payload = await serveStoredGainers(createAdminClient(), getTodayET());
+        seedCache = { at: Date.now(), payload };
+      }
+      const { user } = await getViewer();
       const queryClient = new QueryClient();
-      queryClient.setQueryData(["gainers"], payload, { updatedAt: 0 });
-      const state = dehydrate(queryClient);
-      seedCache = { at: Date.now(), state };
-      return state;
+      queryClient.setQueryData(
+        ["gainers"],
+        user ? payload : withoutDayRanges(payload),
+        { updatedAt: 0 },
+      );
+      return dehydrate(queryClient);
     } catch (e) {
       // Fail open: a DB blip degrades the page to today's behaviour (skeleton
       // then client fetch), it never blanks it.

@@ -21,6 +21,12 @@ export interface GainerRow {
   // under today's date (see persistGainers' session gate). Null only for a
   // provider that can't supply it, which the gate treats as fail-open.
   sessionDate: string | null;
+  // The session's high and low, from the same 15-min-delayed daily bar as
+  // `price` — so the three are self-consistent (low <= price <= high) and the
+  // day-range meter never has to reconcile two feeds. Null only for a provider
+  // that can't supply them; the UI renders an empty meter.
+  dayHigh: number | null;
+  dayLow: number | null;
   rank: number;
 }
 

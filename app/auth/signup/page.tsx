@@ -17,7 +17,7 @@ export default async function SignupPage({
       variant={variant}
       unique="signup"
       title="Create your account"
-      subtitle="Free — price charts, streak badges, favorites, and the last 5 trading days."
+      subtitle="Free — price charts, streak badges, day ranges, favorites, and the last 5 trading days."
     >
       <SignupForm />
     </AuthShell>

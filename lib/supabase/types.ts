@@ -35,6 +35,10 @@ export type DailyGainer = {
   relative_volume: number | null;
   market_cap: number | null;
   sector: string | null;
+  // The session's high/low (the day-range meter). Null on rows persisted
+  // before the columns existed.
+  day_high: number | null;
+  day_low: number | null;
   rank: number | null;
   is_final: boolean;
   scraped_at: string;

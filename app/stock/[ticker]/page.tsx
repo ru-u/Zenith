@@ -209,7 +209,7 @@ export default async function StockPage({
             </Link>{" "}
             shows the current session&apos;s ranked gainers — whether {p.ticker}{" "}
             is on it right now depends on the day. A free account adds price
-            charts and streak badges;{" "}
+            charts, streak badges and day ranges;{" "}
             <Link
               href="/upgrade"
               className="underline underline-offset-2 hover:text-foreground"

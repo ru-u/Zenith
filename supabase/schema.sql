@@ -39,6 +39,8 @@ create table if not exists public.daily_gainers (
   relative_volume numeric,
   market_cap      numeric,
   sector          text,
+  day_high        numeric,  -- session high (day-range meter); null on pre-column rows
+  day_low         numeric,  -- session low
   rank            integer,
   is_final        boolean not null default false,
   scraped_at      timestamptz not null default now(),

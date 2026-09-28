@@ -31,6 +31,8 @@ function toDbRow(row: GainerRow, dateKey: string, isFinal: boolean, scrapedAt: s
     relative_volume: row.relativeVolume,
     market_cap: row.marketCap == null ? null : Math.round(row.marketCap),
     sector: row.sector,
+    day_high: row.dayHigh,
+    day_low: row.dayLow,
     rank: row.rank,
     is_final: isFinal,
     scraped_at: scrapedAt,
@@ -391,6 +393,23 @@ export interface GainersPayload {
    */
   warmingUp: boolean;
   gainers: DailyGainer[];
+}
+
+/**
+ * The day-range meter is a free-ACCOUNT feature, so signed-out responses carry
+ * no high/low at all — hiding the meter in the UI alone would leave the figures
+ * one devtools click away in the payload. Applied at both exits a guest can
+ * reach: `GET /api/gainers` and the server-render seed (lib/gainersSeed.ts).
+ *
+ * Deliberately NOT enforced in the database: `daily_gainers` is public-read and
+ * a day's high/low is free on any quote site. This is a sign-up incentive, the
+ * same stance as the chart gate, not a secret.
+ */
+export function withoutDayRanges(payload: GainersPayload): GainersPayload {
+  return {
+    ...payload,
+    gainers: payload.gainers.map((g) => ({ ...g, day_high: null, day_low: null })),
+  };
 }
 
 /**

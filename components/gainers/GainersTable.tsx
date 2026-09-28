@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/table";
 import { GainerRow } from "./GainerRow";
 import { GainerRowSkeleton } from "./GainerRowSkeleton";
-import { GainerTableHead } from "./GainerTableHead";
+import { GAINER_COLUMNS, GainerTableHead } from "./GainerTableHead";
 import { ChartDialog } from "./ChartDialog";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { useFiltersStore } from "@/stores/filtersStore";
 import type { DailyGainer } from "@/lib/supabase/types";
@@ -22,6 +23,11 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
   const { data, isLoading, isError } = useGainers();
   const { data: streaks } = useStreaks();
   const { data: favorites } = useFavorites();
+  // Day range is a free-account feature. Not locked while the viewer is still
+  // resolving (it's seeded on /screener, so that's only a cold client nav):
+  // the server has already stripped a guest's ranges either way.
+  const { tier, loading: viewerLoading } = useSubscription();
+  const rangeLocked = !viewerLoading && tier === null;
   const { search, minPrice, minMarketCap, favoritesOnly } = useFiltersStore();
   const [selected, setSelected] = useState<DailyGainer | null>(null);
   const openTicker = useTickerOpen(setSelected);
@@ -67,6 +73,7 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
       gainer={selected}
       streak={selected ? streaks?.get(selected.ticker) : undefined}
       onClose={() => setSelected(null)}
+      live={selected ? !selected.is_final : false}
     />
     <div className="glass overflow-hidden rounded-2xl">
       <Table>
@@ -86,13 +93,17 @@ export function GainersTable({ limit = 50 }: { limit?: number }) {
                 displayRank={rankOf.get(g.ticker) ?? 0}
                 onClick={() => openTicker(g)}
                 showFavorite
+                // Intraday rows on today's board; the finalized close (after
+                // ~4:20, weekends, the morning warm-up) holds still.
+                live={!g.is_final}
+                rangeLocked={rangeLocked}
               />
             ))}
 
           {!isLoading && rows.length === 0 && (
             <TableRow className="border-foreground/5 hover:bg-transparent">
               <TableCell
-                colSpan={8}
+                colSpan={GAINER_COLUMNS}
                 className="py-12 text-center text-muted-foreground"
               >
                 {isError

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LineChart } from "lucide-react";
 import { StockChart, CHART_FOOTPRINT } from "./StockChart";
 import { ChartDayMeta } from "./ChartDayMeta";
+import { DayRangeMeter } from "./DayRangeMeter";
 import { ChartHeaderClose } from "./ChartHeaderClose";
 import { AuthGatePrompt } from "./AuthGatePrompt";
 import {
@@ -112,7 +113,7 @@ function ChartSignupGate({ ticker }: { ticker: string }) {
         <AuthGatePrompt
           icon={LineChart}
           title="Sign up to view charts"
-          description="A free account unlocks interactive price charts, streak badges, favorites, and the last 5 trading days of history."
+          description="A free account unlocks interactive price charts, streak badges, the day range meter, favorites, and the last 5 trading days of history."
           next={next}
         />
       </div>
@@ -129,10 +130,13 @@ export function ChartDialog({
   gainer,
   streak,
   onClose,
+  live = false,
 }: {
   gainer: DailyGainer | null;
   streak?: number;
   onClose: () => void;
+  /** Animate the day-range meter. Screener callers only — see GainerRow. */
+  live?: boolean;
 }) {
   // tier === null means signed out; the hook resolves on page load (the dialog
   // is mounted closed), so the gate decision is ready before the first click.
@@ -176,6 +180,26 @@ export function ChartDialog({
           </div>
           <ChartHeaderClose />
         </DialogHeader>
+        {/* Its own strip rather than a line inside the header: the close
+            button centers itself on the header's height, and a second row
+            there would drop it between the two. Signed-in only — the day range
+            is a free-account feature, and a guest's dialog is already the
+            sign-up gate below. */}
+        {gainer && signedIn && (
+          <div className="flex items-center gap-4 border-b border-foreground/10 px-6 py-3">
+            <span className="shrink-0 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+              Day range
+            </span>
+            <DayRangeMeter
+              price={gainer.price}
+              low={gainer.day_low}
+              high={gainer.day_high}
+              live={live}
+              size="wide"
+              className="max-w-90"
+            />
+          </div>
+        )}
         {gainer &&
           (signedIn ? (
             <StockChart

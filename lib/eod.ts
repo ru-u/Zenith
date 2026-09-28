@@ -75,6 +75,8 @@ function toGainerRows(cleaned: DailyGainer[], dateKey: string): GainerRow[] {
     marketCap: g.market_cap,
     sector: g.sector,
     sessionDate: dateKey,
+    dayHigh: g.day_high,
+    dayLow: g.day_low,
     rank: i + 1,
   }));
 }

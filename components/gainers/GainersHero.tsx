@@ -5,10 +5,12 @@ import { TrendingUp } from "lucide-react";
 import { CountUp } from "./CountUp";
 import { StreakBadge } from "./StreakBadge";
 import { FavoriteStar } from "./FavoriteStar";
+import { DayRangeMeter } from "./DayRangeMeter";
 import { ChartDialog } from "./ChartDialog";
 import { MarketStatusBadge } from "./MarketStatusBadge";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
 import { formatPrice, formatSessionDay } from "@/lib/format";
 import type { DailyGainer } from "@/lib/supabase/types";
@@ -31,11 +33,14 @@ function HeroCard({
   streak,
   index,
   onClick,
+  rangeLocked,
 }: {
   gainer: DailyGainer;
   streak?: number;
   index: number;
   onClick: () => void;
+  /** Signed-out viewer: the day range is a free-account feature. */
+  rangeLocked: boolean;
 }) {
   const change = gainer.change_percent ?? 0;
   // Big runners get no decimals + comma grouping so they fit inside the card.
@@ -79,9 +84,25 @@ function HeroCard({
           </span>
         </div>
 
-        <p className="text-sm tabular-nums text-muted-foreground">
-          {formatPrice(gainer.price)}
-        </p>
+        {/* Price and meter as one group with a tight gap, so the meter reads
+            as a detail under the price rather than a new row of the card:
+            under the card's own gap-2 plus a margin it added 36px (150 →
+            186); this is 26. */}
+        <div className="flex flex-col gap-1">
+          <p className="text-sm tabular-nums text-muted-foreground">
+            {formatPrice(gainer.price)}
+          </p>
+          <DayRangeMeter
+            price={gainer.price}
+            low={gainer.day_low}
+            high={gainer.day_high}
+            live={!gainer.is_final}
+            locked={rangeLocked}
+            rank={index + 1}
+            size="wide"
+            className="gap-0.5"
+          />
+        </div>
       </div>
     </div>
   );
@@ -90,6 +111,9 @@ function HeroCard({
 export function GainersHero() {
   const { data, isError } = useGainers();
   const { data: streaks } = useStreaks();
+  // See GainersTable: locked only once the viewer is known to be signed out.
+  const { tier, loading: viewerLoading } = useSubscription();
+  const rangeLocked = !viewerLoading && tier === null;
   const top = (data?.gainers ?? []).slice(0, 5);
   // The market is open but the provider is still 15 minutes behind, so these
   // cards are an EARLIER session's close. The headline says "Today's", so the
@@ -104,6 +128,7 @@ export function GainersHero() {
       gainer={selected}
       streak={selected ? streaks?.get(selected.ticker) : undefined}
       onClose={() => setSelected(null)}
+      live={selected ? !selected.is_final : false}
     />
     <section className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -163,6 +188,7 @@ export function GainersHero() {
                   streak={streaks?.get(g.ticker)}
                   index={i}
                   onClick={() => openTicker(g)}
+                  rangeLocked={rangeLocked}
                 />
               ))}
         </div>

@@ -1,7 +1,7 @@
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { SECONDARY_COL } from "./GainerTableHead";
+import { RANGE_COL, SECONDARY_COL } from "./GainerTableHead";
 
 /** A loading row shaped like a real <GainerRow>, cell for cell.
  *
@@ -27,6 +27,9 @@ export function GainerRowSkeleton() {
       </TableCell>
       <TableCell className={SECONDARY_COL}>
         <Skeleton className="h-4 w-36 bg-foreground/5" />
+      </TableCell>
+      <TableCell className={RANGE_COL}>
+        <Skeleton className="mx-auto h-5 w-36 bg-foreground/5 xl:w-38" />
       </TableCell>
       <TableCell>
         <Skeleton className="ml-auto h-4 w-14 bg-foreground/5" />

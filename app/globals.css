@@ -576,6 +576,95 @@
   }
 }
 
+/* --- Day-range meter (components/gainers/DayRangeMeter.tsx) --------------
+   The fill and marker slide in from the day's low on mount, then glide to the
+   new position on every refetch. `--pos` is the only input; the component sets
+   it with the per-row delays. Keyframes with no `to` animate toward the
+   element's own computed value, so one rule serves every row.
+
+   The comet (a light packet along the fill, echoing .trace-comet) and the ping
+   on the diamond run only on [data-live] — intraday rows — and are hidden at
+   rest so reduced motion never shows a parked fragment. Everything moving is
+   transform/opacity except the one-off width/left slide. */
+
+@keyframes day-range-grow {
+  from {
+    width: 0;
+  }
+}
+
+@keyframes day-range-slide {
+  from {
+    left: 0;
+  }
+}
+
+/* One pass (1.76s), then a long rest — the same "one packet, then a pause"
+   rhythm as the landing's trace, so staggered rows read as a wave rather than
+   a strobe. The cycle is 15s with the pass in the first 11.7%: at 3.2s, then
+   6.4s, fifty rows of it still read as too much flashing. To change the
+   frequency, change the duration below AND this percentage together
+   (1.76 / cycle), or the pass itself speeds up or slows down. */
+@keyframes day-range-comet {
+  0% {
+    transform: translateX(-100%);
+  }
+  11.7%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes day-range-ping {
+  0% {
+    scale: 1;
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    scale: 2.8;
+    opacity: 0;
+  }
+}
+
+/* White in both themes — `foreground` is near-black in light mode, which
+   turned the glint into a dark blot on the cyan line. */
+.day-range-comet {
+  visibility: hidden;
+  background: linear-gradient(
+    90deg,
+    transparent 0 30%,
+    oklch(1 0 0 / 0.95) 50%,
+    transparent 70% 100%
+  );
+}
+
+.day-range-ping {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .day-range-fill {
+    animation: day-range-grow 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: var(--dr-delay, 0ms);
+    transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .day-range-marker {
+    animation: day-range-slide 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: var(--dr-delay, 0ms);
+    transition: left 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .day-range[data-live] .day-range-comet {
+    visibility: visible;
+    animation: day-range-comet 15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-delay: calc(0.9s + var(--dr-comet-delay, 0ms));
+  }
+  .day-range[data-live] .day-range-ping {
+    animation: day-range-ping 2.4s ease-out infinite;
+    animation-delay: var(--dr-delay, 0ms);
+  }
+}
+
 /* Film grain — keeps the big soft glows from banding (and gives the dark
    sections their texture). Tile is a tiny inline SVG turbulence. */
 .grain {

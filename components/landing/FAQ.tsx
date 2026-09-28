@@ -33,7 +33,7 @@ export const QA = [
   {
     // Free vs Pro split — keep aligned with TIER_FEATURES in lib/pricing.ts.
     q: "What do I get without paying?",
-    a: `The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, favorite tickers pinned to the top of the screener, and the last 5 trading days of history. Pro (${PRO_PRICE_MONTHLY}) adds the daily short theses, the 3:30 drop email, and unlimited history.`,
+    a: `The full screener — today's ranked gainers — with no account at all. A free account adds price charts, streak badges, a day range meter, favorite tickers pinned to the top of the screener, and the last 5 trading days of history. Pro (${PRO_PRICE_MONTHLY}) adds the daily short theses, the 3:30 drop email, and unlimited history.`,
   },
   {
     q: "Is this investment advice?",

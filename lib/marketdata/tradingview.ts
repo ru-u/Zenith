@@ -47,6 +47,8 @@ const COLUMNS = [
   "type", // 8  security type: stock | fund | dr | structured | ...
   "typespecs", // 9  e.g. ["common"], ["preferred"]
   "time", // 10 daily bar open, epoch SECONDS — which session this row describes
+  "high", // 11 session high, same daily bar as `close`
+  "low", // 12 session low, same daily bar as `close`
 ] as const;
 
 // Realistic UA — TradingView blocks obvious bots. (Undocumented endpoint with
@@ -141,6 +143,8 @@ function mapRow(entry: { s: string; d: unknown[] }): RawGainer {
     marketCap: toNum(d[6]),
     sector: (d[7] as string) ?? null,
     sessionDate: sessionDateFromBar(toNum(d[10])),
+    dayHigh: toNum(d[11]),
+    dayLow: toNum(d[12]),
   };
 }
 

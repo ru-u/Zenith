@@ -52,6 +52,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
     // a strobe of table → skeleton → table.
     placeholderData: keepPreviousData,
   });
+  const hasRanges = (data?.gainers ?? []).some((g) => g.day_high != null);
 
   if (dates.length === 0) {
     return (
@@ -208,7 +209,10 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
 
         {!isLoading && data?.status === 200 && (
           <Table>
-            <GainerTableHead />
+            {/* Decided per session from the data, not a cutoff date: any day
+                with no stored ranges (everything before the columns existed,
+                or a day the writes missed) drops the column entirely. */}
+            <GainerTableHead showRange={hasRanges} />
             <TableBody>
               {data.gainers.slice(0, 50).map((g, i) => (
                 <GainerRow
@@ -216,6 +220,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
                   gainer={g}
                   displayRank={i + 1}
                   onClick={() => openTicker(g)}
+                  showRange={hasRanges}
                 />
               ))}
             </TableBody>

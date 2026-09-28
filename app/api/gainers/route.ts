@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { getProvider, ProviderError } from "@/lib/marketdata";
 import { runEodProcessing, runPreCloseProcessing } from "@/lib/eod";
 import { maybeAlert } from "@/lib/alerts";
@@ -9,6 +10,7 @@ import {
   latestScrapedAt,
   persistGainers,
   serveStoredGainers,
+  withoutDayRanges,
 } from "@/lib/gainers";
 import {
   getTodayET,
@@ -234,7 +236,30 @@ export async function GET(req: Request) {
   // prefetch on "/" and /screener — see serveStoredGainers. Everything above
   // this point (provider refresh, close capture, the pre-close drop) is the
   // half that must only ever run on a request, never from a render.
-  return NextResponse.json(await serveStoredGainers(admin, dateKey, { rows, asOf }), {
-    headers: { "cache-control": "no-store" },
-  });
+  //
+  // Signed-out callers get the board without day ranges (withoutDayRanges).
+  // `no-store` is what makes a per-viewer body safe on this route — nothing
+  // between here and the browser may cache one viewer's response for another.
+  const payload = await serveStoredGainers(admin, dateKey, { rows, asOf });
+  return NextResponse.json(
+    (await isSignedIn()) ? payload : withoutDayRanges(payload),
+    { headers: { "cache-control": "no-store" } },
+  );
+}
+
+/**
+ * Only the yes/no, for the day-range gate. getClaims() rather than getUser():
+ * this route is polled, it needs only `sub` (the same reasoning as proxy.ts),
+ * and with no session cookie it short-circuits with no network call — so the
+ * signed-out majority pays nothing. Any failure answers "signed out": the cost
+ * is a locked meter for one poll, never a failed board.
+ */
+async function isSignedIn(): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getClaims();
+    return Boolean(data?.claims?.sub);
+  } catch {
+    return false;
+  }
 }

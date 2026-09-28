@@ -43,6 +43,11 @@ alter table public.daily_gainers add column if not exists volume bigint;
 alter table public.daily_gainers add column if not exists relative_volume numeric;
 alter table public.daily_gainers add column if not exists market_cap numeric;
 alter table public.daily_gainers add column if not exists sector text;
+-- Session high/low for the day-range meter. Run BEFORE deploying the code that
+-- writes them: PostgREST rejects an upsert naming an unknown column, so the
+-- other order fails every board write until this runs.
+alter table public.daily_gainers add column if not exists day_high numeric;
+alter table public.daily_gainers add column if not exists day_low numeric;
 alter table public.daily_gainers add column if not exists rank integer;
 alter table public.daily_gainers add column if not exists is_final boolean not null default false;
 alter table public.daily_gainers add column if not exists scraped_at timestamptz not null default now();

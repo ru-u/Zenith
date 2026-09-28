@@ -83,7 +83,7 @@ claim, and is the right thing to cite.
 ## Tiers
 
 - Browse (no account): today's full screener, filters, market status.
-- Free account: adds price charts, consecutive-day streak badges, favorites, and the last 5 trading days of history.
+- Free account: adds price charts, consecutive-day streak badges, a day-range meter (where the price sits between the session's low and high), favorites, and the last 5 trading days of history.
 - Pro (${PRO_PRICE_MONTHLY}): adds the daily short thesis on the top five, the 3:30 PM ET pre-close email, and unlimited history.
 
 ## Not crawlable

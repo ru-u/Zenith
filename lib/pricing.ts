@@ -34,6 +34,7 @@ export const TIER_FEATURES = {
     "Everything in Browse",
     "Interactive price charts, built for all levels",
     "Consecutive-day streak badges",
+    "Day range meter: how far each gainer is off today's high",
     "Favorite tickers, pinned to the top of your screener",
     "The last 5 trading days of history",
   ],
