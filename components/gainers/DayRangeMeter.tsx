@@ -257,7 +257,10 @@ export function DayRangeMeter({
         // the endpoints are the figures that must never be clipped.
         <div className="flex items-baseline justify-between gap-1.5 text-[10px] leading-none tabular-nums">
           <span className="shrink-0 text-muted-foreground">{formatPrice(low)}</span>
-          <span className="min-w-0 truncate font-medium text-brand">{readout}</span>
+          {/* py/-my: `truncate` clips to the box, and at leading-none the box
+              is exactly 1em — the g in "high" lost its descender. The padding
+              gives the glyphs room; the negative margin keeps the row height. */}
+          <span className="-my-0.5 min-w-0 truncate py-0.5 font-medium text-brand">{readout}</span>
           <span className="shrink-0 text-muted-foreground">{formatPrice(high)}</span>
         </div>
       )}
