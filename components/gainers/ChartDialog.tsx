@@ -184,8 +184,10 @@ export function ChartDialog({
             button centers itself on the header's height, and a second row
             there would drop it between the two. Signed-in only — the day range
             is a free-account feature, and a guest's dialog is already the
-            sign-up gate below. */}
-        {gainer && signedIn && (
+            sign-up gate below. Omitted when the row has no stored range
+            (every session before 2026-09-28, opened from /history): a labelled
+            strip holding only "—" is a whole row of nothing. */}
+        {gainer && signedIn && gainer.day_high != null && gainer.day_low != null && (
           <div className="flex items-center gap-4 border-b border-foreground/10 px-6 py-3">
             <span className="shrink-0 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
               Day range
