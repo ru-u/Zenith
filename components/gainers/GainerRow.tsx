@@ -109,10 +109,19 @@ export function GainerRow({
       <TableCell
         className={cn(
           "text-right font-semibold tabular-nums lg:pl-5",
-          up ? "text-up" : "text-down",
+          // Brand for a gain, by choice (2026-09-28): every board row is a
+          // gainer, so the column was a solid wall of green competing with the
+          // cyan meter beside it. Red stays for the rare negative.
+          !up && "text-down",
         )}
       >
-        {formatPercent(gainer.change_percent)}
+        {/* On an inline span so the glow hugs the figure, not the whole
+            (right-aligned, much wider) cell. */}
+        {up ? (
+          <span className="brand-figure">{formatPercent(gainer.change_percent)}</span>
+        ) : (
+          formatPercent(gainer.change_percent)
+        )}
       </TableCell>
       <TableCell className={cn(SECONDARY_COL, "text-right tabular-nums text-muted-foreground")}>
         {formatMarketCap(gainer.market_cap)}

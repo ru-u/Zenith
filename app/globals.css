@@ -576,6 +576,37 @@
   }
 }
 
+/* --- Brand figure: the gain % in the table and the top-five cards ---------
+   A vertical sheen: `foreground` at the top of the glyphs into brand at the
+   bottom, so every character is lit the same way (a left-to-right gradient was
+   tried first — on a figure as short as "+14.19%" it lit the "+" and the "%"
+   differently). In dark mode that reads as light catching a cyan figure; in
+   light mode `foreground` is near-black, so it's a dark-to-cyan shade instead.
+
+   The bloom is brand-2, the deeper blue the meter's fill starts from: a bloom
+   in dark mode's (very light) brand reads as a white haze.
+
+   drop-shadow rather than text-shadow: with a transparent fill, text-shadow
+   paints a solid copy of each glyph behind the gradient, which smudges it;
+   drop-shadow follows the painted gradient's alpha. Static on purpose: there
+   are fifty of these on the board. */
+.brand-figure {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--foreground) 92%, transparent) 0%,
+    var(--brand) 70%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 5px color-mix(in oklab, var(--brand-2) 45%, transparent));
+}
+
+/* The top-five cards' big figure: a wider bloom at that size. */
+.brand-figure-lg {
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--brand-2) 55%, transparent));
+}
+
 /* --- Day-range meter (components/gainers/DayRangeMeter.tsx) --------------
    The fill and marker slide in from the day's low on mount, then glide to the
    new position on every refetch. `--pos` is the only input; the component sets

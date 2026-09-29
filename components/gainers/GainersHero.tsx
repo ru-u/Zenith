@@ -78,8 +78,9 @@ function HeroCard({
         </p>
 
         <div className="mt-auto flex min-w-0 items-baseline gap-1.5">
-          <TrendingUp className="h-4 w-4 shrink-0 text-up" />
-          <span className="min-w-0 text-2xl font-bold leading-none text-up tabular-nums">
+          {/* The table's brand figure (GainerRow), with a bigger bloom. */}
+          <TrendingUp className="h-4 w-4 shrink-0 text-brand" />
+          <span className="brand-figure brand-figure-lg min-w-0 text-2xl font-bold leading-none tabular-nums">
             <CountUp value={change} prefix="+" suffix="%" decimals={decimals} />
           </span>
         </div>

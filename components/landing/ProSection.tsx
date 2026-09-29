@@ -116,7 +116,7 @@ export function ProSection({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </span>
                 <span className="min-w-0">
                   QNTM
-                  <span className="ml-2 font-mono text-sm font-bold text-up tabular-nums">
+                  <span className="brand-figure ml-2 font-mono text-sm font-bold tabular-nums">
                     +64.2%
                   </span>
                   {/* Own line under the ticker on mobile: inline, the name wraps

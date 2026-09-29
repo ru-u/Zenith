@@ -144,11 +144,13 @@ function Row({
           filtered to change > 0, and a thesis ticker was a top-5 gainer at the
           drop. Do NOT feed scored_day_change_percent through here; it is the
           ticker's actual CLOSE and can be deeply negative (AIFU 2026-09-04
-          closed -18.58%), which would render as a green "+-18.6%". That figure
+          closed -18.58%), which would render as a "+-18.6%" gain. That figure
           belongs on /analysis, which renders it sign-aware. */}
       <span
         className={`text-right font-mono text-sm font-semibold tabular-nums ${
-          change != null ? "text-up" : "text-muted-foreground"
+          // The screener's brand figure (app/globals.css), not green: the
+          // board renders gains the same way (GainerRow / GainersHero).
+          change != null ? "brand-figure" : "text-muted-foreground"
         }`}
       >
         {change != null ? `+${change.toFixed(decimals)}%` : "—"}
