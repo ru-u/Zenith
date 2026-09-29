@@ -170,6 +170,7 @@ export async function generateAnalysis(
         path: snapshot?.path ?? null,
         listingAgeDays: effectiveAgeDays(snapshot?.listing ?? null),
         priorCall: snapshot?.prior_call ?? null,
+        dayRange: snapshot?.day_range ?? null,
         earnings,
       },
       proseDeadline,

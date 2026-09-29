@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { dayRangePosition, formatOffHigh } from "@/lib/dayRange";
 import { useSignupPromptStore } from "@/stores/signupPromptStore";
 
 // ---------------------------------------------------------------------------
@@ -23,53 +24,10 @@ import { useSignupPromptStore } from "@/stores/signupPromptStore";
 // `is_final = false`, i.e. intraday data — so the motion itself says "this is
 // moving"; a finalized day, history and the morning warm-up (which serves a
 // finalized day) render still.
+//
+// The math (position, off-high) lives in lib/dayRange.ts, shared with the
+// quant engine so the meter and the engine's recorded feature agree.
 // ---------------------------------------------------------------------------
-
-export interface DayRange {
-  /** 0 = at the day's low, 1 = at the high. */
-  pos: number;
-  /** % below the day's high; null when the range is a single print. */
-  offHigh: number | null;
-}
-
-/**
- * Null when any input is missing (rows stored before the columns existed) or
- * the range is inverted, which means bad upstream data rather than a real
- * session — rendering a confident marker off it would be worse than nothing.
- *
- * The clamp is only for float/rounding: the three figures come from one daily
- * bar, and a live probe of the top 40 rows (2026-09-25) had 40/40 inside it.
- */
-export function dayRangePosition(
-  price: number | null | undefined,
-  low: number | null | undefined,
-  high: number | null | undefined,
-): DayRange | null {
-  if (price == null || low == null || high == null) return null;
-  if (![price, low, high].every(Number.isFinite) || high < low || high <= 0) {
-    return null;
-  }
-  // A halted name or a single print has no range to place the price within.
-  if (high === low) return { pos: 0.5, offHigh: null };
-  const pos = Math.min(1, Math.max(0, (price - low) / (high - low)));
-  const offHigh = Math.max(0, ((high - price) / high) * 100);
-  return { pos, offHigh };
-}
-
-/**
- * "−2.7% off high" / "−29% off high", or "At high" when it rounds to zero.
- * The decimal goes at 10%+ because it buys nothing there and the label row has
- * to fit a 144px column between two prices (measured: 27 of 50 rows overflowed
- * with it).
- */
-export function formatOffHigh(offHigh: number | null): string {
-  if (offHigh == null) return "Flat range";
-  const rounded = Math.round(offHigh * 10) / 10;
-  if (rounded === 0) return "At high";
-  return rounded >= 10
-    ? `−${Math.round(offHigh)}% off high`
-    : `−${rounded.toFixed(1)}% off high`;
-}
 
 type Size = "full" | "mini" | "wide";
 

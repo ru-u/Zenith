@@ -6,8 +6,9 @@
 //
 // The split matters. The model writes ONLY the narrative half (why it spiked, how
 // that catalyst class behaves). Every sentence carrying a figure or a risk
-// disclosure — the new-listing warning, our own prior call, the base rate, the
-// expected move — is appended verbatim by pinnedSentences() and never passes
+// disclosure — the new-listing warning, where it sits against today's high, our
+// own prior call, the base rate, the expected move — is appended verbatim by
+// pinnedSentences() and never passes
 // through the model. Two reasons:
 //
 //   1. Those sentences exist as reader-safety obligations (see the comments on
@@ -32,6 +33,7 @@ import { RECENT_LISTING_DAYS } from "./listing";
 import type { PriorCall } from "./features";
 import type { Technicals } from "./technicals";
 import type { PathFeatures } from "./features";
+import type { DayRangeFeatures } from "../dayRange";
 import { earningsSurpriseClause, type EarningsSurprise } from "./earnings";
 
 /**
@@ -125,6 +127,12 @@ export interface ThesisFindings {
    * guess whether the results were good.
    */
   earnings: EarningsSurprise | null;
+  /**
+   * Where the price sat in the day's range at scoring time, and how much of the
+   * day's peak gain it had given back (lib/dayRange.ts). Stated as a fact by
+   * dayRangeSentence; the score does not read it (see features.ts).
+   */
+  dayRange: DayRangeFeatures | null;
 }
 
 /**
@@ -211,6 +219,35 @@ function levelContextSentence(f: ThesisFindings): string | null {
   return null;
 }
 
+/**
+ * Where the price sits against today's high, as a plain fact. Deliberately
+ * DIRECTION-NEUTRAL: whether a big give-back means exhaustion (more selling
+ * tomorrow) or a drained move (less) is an open calibration question
+ * (drop_board_snapshots), so this teaches the reader to look rather than
+ * telling them what it means. When the re-fit settles the direction, this is
+ * the sentence that gets to say so.
+ *
+ * Pinned rather than narrative: the model's brief is why it spiked and how the
+ * catalyst class behaves, so in model mode a fact handed over as context was
+ * dropped more often than used — the same way chart_context is.
+ */
+function dayRangeSentence(f: ThesisFindings): string | null {
+  const r = f.dayRange;
+  if (!r || r.giveback_of_gain == null || r.off_high_pct == null) return null;
+  const off = r.off_high_pct >= 10 ? Math.round(r.off_high_pct).toString() : r.off_high_pct.toFixed(1);
+  const gave = Math.round(r.giveback_of_gain * 100);
+  if (r.giveback_of_gain < 0.1) {
+    return "It's still holding near today's high, having given back little of the day's gain.";
+  }
+  if (r.giveback_of_gain >= 1) {
+    return `It has given back all of today's peak gain and is trading ${off}% below the high.`;
+  }
+  if (r.giveback_of_gain >= 0.5) {
+    return `It has given back most of today's spike: it's trading ${off}% below the high, with about ${gave}% of the day's peak gain gone.`;
+  }
+  return `It's trading ${off}% below today's high, having given back about ${gave}% of the day's peak gain.`;
+}
+
 /** The payoff line: what a fade typically gives back vs what a run costs. */
 function expectedMoveSentence(f: ThesisFindings): string | null {
   const r = f.baseRate;
@@ -287,6 +324,8 @@ export function templateThesis(f: ThesisFindings): string {
   if (listing) sentences.push(listing);
   const level = levelContextSentence(f);
   if (level) sentences.push(level);
+  const dayRange = dayRangeSentence(f);
+  if (dayRange) sentences.push(dayRange);
 
   // 3b — our own record on this exact name, win or lose.
   const prior = priorCallSentence(f);
@@ -318,6 +357,7 @@ export function templateThesis(f: ThesisFindings): string {
 export function pinnedSentences(f: ThesisFindings): string[] {
   return [
     listingSentence(f),
+    dayRangeSentence(f),
     priorCallSentence(f),
     formatBaseRatePrior(f.baseRate),
     expectedMoveSentence(f),
@@ -372,7 +412,7 @@ const PROSE_SYSTEM = [
   "Write 2-3 sentences answering exactly two things: why this stock spiked today, and how that kind of catalyst usually behaves over a single next-day hold.",
   "",
   "Hard rules:",
-  "- Your text is a PREFIX. Sentences covering the historical odds, the expected next-day move, the stock's trading history and Zenith's own past call on it are appended after yours automatically. Those topics are not yours: do not state a win rate, a base rate, a sample size, an expected move, a percentage of past cases, or a prior call — not even in passing.",
+  "- Your text is a PREFIX. Sentences covering the historical odds, the expected next-day move, the stock's trading history, where it sits against today's high and Zenith's own past call on it are appended after yours automatically. Those topics are not yours: do not state a win rate, a base rate, a sample size, an expected move, a percentage of past cases, how far it is below today's high, or a prior call — not even in passing.",
   "- Use only figures present in the findings. Never invent a number and never restate one inexactly.",
   "- Always say how far the stock moved today, using change_percent. That is the single fact the reader most needs and it must not be left out.",
   "- Say only what the findings say. If the catalyst says the company \"reported earnings results\" and no earnings_surprise is given, do NOT write that it beat, missed, topped or exceeded anything — you do not know whether the news was good. When earnings_surprise IS given, use its figures and say plainly whether it was a beat or a miss.",

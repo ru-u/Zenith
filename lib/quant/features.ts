@@ -21,6 +21,7 @@ import { SCAN_URL, USER_AGENT } from "../marketdata/tradingview";
 import { withRetry } from "../retry";
 import { tradingDaysAgoKey } from "../market-calendar";
 import { fetchShortVolumeRatios } from "./finra";
+import { computeDayRange, type DayRangeFeatures } from "../dayRange";
 
 export interface PathFeatures {
   /** Close's position inside the 1M / 3M high-low range, 0..1. */
@@ -103,6 +104,16 @@ export interface FeatureSnapshot {
   prior_call: PriorCall | null;
   base_rate_bucket: { cap_band: string; relvol_band: string; n: number } | null;
   sector: SectorContext | null;
+  /**
+   * Where the price sat in the day's range at scoring time, and how much of the
+   * day's peak gain it had given back (lib/dayRange.ts). Storage-only, like the
+   * rest of this struct: whether a big give-back predicts MORE next-day selling
+   * (exhaustion) or LESS (the selling already happened) is exactly what the
+   * re-fit has to decide, and the whole-board 3:30 capture in
+   * drop_board_snapshots is the larger sample it will be decided on. The thesis
+   * states it as a fact (thesis.ts dayRangeSentence); the score ignores it.
+   */
+  day_range: DayRangeFeatures | null;
 }
 
 function ratio(num: number, den: number): number | null {
@@ -456,6 +467,16 @@ export async function buildFeatureSnapshots(
         ? { cap_band: br.cap_band, relvol_band: br.relvol_band, n: br.n }
         : null,
       sector: computeSectorContext(g.sector, etfChanges, sectorCounts),
+      // The board row's own high/low first: they come off the same fetch as
+      // g.price, so the three always agree. The technicals fetch is a second,
+      // slightly later request — fine as a fallback, but mixing its high with
+      // the board's price can put the price outside the range.
+      day_range: computeDayRange(
+        g.price,
+        g.changePercent,
+        g.dayHigh ?? tech?.dayHigh ?? null,
+        g.dayLow ?? tech?.dayLow ?? null,
+      ),
     });
   }
   return out;

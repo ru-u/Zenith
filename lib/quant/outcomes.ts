@@ -19,6 +19,8 @@ import type { SymbolRef } from "./technicals";
 import { withRetry } from "../retry";
 import { tradingDaysAgoKey } from "../market-calendar";
 import { dayRangePct } from "../baseRates";
+import { computeDayRange } from "../dayRange";
+import type { GainerRow } from "../marketdata/types";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -26,9 +28,13 @@ const REQUEST_TIMEOUT_MS = 8_000;
 export interface Quote {
   close: number;
   changePercent: number | null;
-  /** Session high/low — only recordBoardDay needs these, for day_range_pct. */
+  /**
+   * Session high/low/open. recordBoardDay reads high/low for day_range_pct;
+   * recordDropSnapshot reads all three. Every other caller ignores them.
+   */
   high: number | null;
   low: number | null;
+  open: number | null;
 }
 
 /**
@@ -65,9 +71,10 @@ export async function fetchQuotes(refs: SymbolRef[]): Promise<Map<string, Quote>
           },
           // "change" is the same column the gainer scanner ranks on
           // (lib/marketdata/tradingview.ts) — proven name, same feed.
-          // high/low ride along for recordBoardDay's range band; the thesis
-          // callers ignore them. One POST either way.
-          columns: ["name", "close", "change", "high", "low"],
+          // high/low/open ride along for recordBoardDay's range band and the
+          // 3:30 drop snapshot; the thesis callers ignore them. One POST either
+          // way. Positional — append only.
+          columns: ["name", "close", "change", "high", "low", "open"],
           options: { lang: "en" },
         }),
         signal: controller.signal,
@@ -102,6 +109,7 @@ export async function fetchQuotes(refs: SymbolRef[]): Promise<Map<string, Quote>
         changePercent: num(change),
         high: num(entry.d[3]),
         low: num(entry.d[4]),
+        open: num(entry.d[5]),
       });
     }
   }
@@ -381,6 +389,161 @@ export async function recordBoardOutcomes(
     console.log(
       `[outcomes] recorded ${recorded}/${pending.length} board outcomes for ${prevKey}`,
     );
+  }
+  return recorded;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The 3:30 drop snapshot — the whole board at the moment a DECA student
+// decides, with its own close and next-day outcome. See drop_board_snapshots
+// in supabase/schema.sql for why board_outcomes can't stand in for it (it
+// records the close, and loses every ticker that fell off the board after
+// 3:30 — the give-back case this exists to study).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Snapshot the drop's board. Called from runPreCloseProcessing with the same
+ * rows the theses were scored from. One fresh scanner POST supplies price,
+ * high, low and open together (the board row carries no open), so the four are
+ * one consistent reading; a ticker the scanner doesn't return falls back to the
+ * board row's own figures with a null open rather than being lost.
+ *
+ * First drop wins (ignoreDuplicates): a re-run later in the day must not
+ * overwrite the 3:30 reading with a 3:55 one.
+ */
+export async function recordDropSnapshot(
+  admin: SupabaseClient<Database>,
+  dateKey: string,
+  rows: GainerRow[],
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const quotes = await fetchQuotes(
+    rows.map((r) => ({ ticker: r.ticker, exchange: r.exchange ?? null })),
+  );
+  const out = rows.map((g) => {
+    const q = quotes.get(g.ticker);
+    const price = q?.close ?? g.price;
+    const change = q?.changePercent ?? g.changePercent;
+    const high = q?.high ?? g.dayHigh;
+    const low = q?.low ?? g.dayLow;
+    const dr = computeDayRange(price, change, high, low);
+    return {
+      date: dateKey,
+      ticker: g.ticker,
+      exchange: g.exchange ?? null,
+      rank: g.rank,
+      price,
+      open: q?.open ?? null,
+      high,
+      low,
+      change_percent: change,
+      position: dr?.position ?? null,
+      off_high_pct: dr?.off_high_pct ?? null,
+      giveback_of_gain: dr?.giveback_of_gain ?? null,
+    };
+  });
+  const { error } = await admin
+    .from("drop_board_snapshots")
+    .upsert(out, { onConflict: "date,ticker", ignoreDuplicates: true });
+  if (error) {
+    console.error(`[outcomes] drop snapshot ${dateKey} failed:`, error.message);
+    return 0;
+  }
+  console.log(
+    `[outcomes] drop snapshot ${dateKey}: ${out.length} rows (${quotes.size} fresh quotes)`,
+  );
+  return out.length;
+}
+
+/**
+ * Stamp day `dateKey`'s drop snapshot with that session's official close — the
+ * price a DECA short entered at 3:30 actually fills at. Runs from
+ * runEodProcessing after the close has settled. Quote-by-symbol, so a ticker
+ * that left the board still resolves. Idempotent: only null day_close rows.
+ */
+export async function recordDropCloses(
+  admin: SupabaseClient<Database>,
+  dateKey: string,
+): Promise<number> {
+  const { data: pending } = await admin
+    .from("drop_board_snapshots")
+    .select("id, ticker, exchange")
+    .eq("date", dateKey)
+    .is("day_close", null);
+  if (!pending || pending.length === 0) return 0;
+
+  const quotes = await fetchQuotes(
+    pending.map((r) => ({ ticker: r.ticker, exchange: r.exchange ?? null })),
+  );
+  let stamped = 0;
+  for (const row of pending) {
+    const close = quotes.get(row.ticker)?.close;
+    if (close == null) continue; // stays null for a later same-day run
+    const { error } = await admin
+      .from("drop_board_snapshots")
+      .update({ day_close: close })
+      .eq("id", row.id)
+      .is("day_close", null);
+    if (error) {
+      console.error(`[outcomes] drop close ${row.ticker} failed:`, error.message);
+    } else {
+      stamped++;
+    }
+  }
+  if (stamped > 0) {
+    console.log(`[outcomes] stamped ${stamped}/${pending.length} drop closes for ${dateKey}`);
+  }
+  return stamped;
+}
+
+/**
+ * Stamp the previous trading day's drop snapshot with today's close — the
+ * next-day outcome, measured from the DECA fill (day_close), exactly as
+ * recordBoardOutcomes measures board_outcomes. Runs from runEodProcessing on
+ * day D; never intraday. Idempotent: only null next_close rows.
+ */
+export async function recordDropOutcomes(
+  admin: SupabaseClient<Database>,
+  dateKey: string,
+): Promise<number> {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const prevKey = tradingDaysAgoKey(2, new Date(Date.UTC(y, m - 1, d, 12)));
+  if (prevKey === dateKey) return 0;
+
+  const { data: pending } = await admin
+    .from("drop_board_snapshots")
+    .select("id, ticker, exchange, day_close")
+    .eq("date", prevKey)
+    .is("next_close", null);
+  if (!pending || pending.length === 0) return 0;
+
+  const resolvable = pending.filter((r) => r.day_close != null && r.day_close > 0);
+  const quotes = await fetchQuotes(
+    resolvable.map((r) => ({ ticker: r.ticker, exchange: r.exchange ?? null })),
+  );
+  let recorded = 0;
+  for (const row of resolvable) {
+    const prev = row.day_close as number;
+    const next = quotes.get(row.ticker)?.close;
+    if (next == null) continue;
+    const { error } = await admin
+      .from("drop_board_snapshots")
+      .update({
+        next_date: dateKey,
+        next_close: next,
+        next_day_return: (next - prev) / prev,
+        next_day_down: next < prev,
+      })
+      .eq("id", row.id)
+      .is("next_close", null);
+    if (error) {
+      console.error(`[outcomes] drop outcome ${row.ticker} failed:`, error.message);
+    } else {
+      recorded++;
+    }
+  }
+  if (recorded > 0) {
+    console.log(`[outcomes] recorded ${recorded}/${pending.length} drop outcomes for ${prevKey}`);
   }
   return recorded;
 }

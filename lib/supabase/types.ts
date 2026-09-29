@@ -162,6 +162,30 @@ export type BoardOutcome = {
   created_at: string;
 };
 
+// The whole board at the ~3:30 drop, with its own outcomes (schema.sql,
+// lib/quant/outcomes.ts recordDropSnapshot). Service-role only.
+export type DropBoardSnapshot = {
+  id: number;
+  date: string;
+  ticker: string;
+  exchange: string | null;
+  rank: number | null;
+  price: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  change_percent: number | null;
+  position: number | null;
+  off_high_pct: number | null;
+  giveback_of_gain: number | null;
+  captured_at: string;
+  day_close: number | null;
+  next_date: string | null;
+  next_close: number | null;
+  next_day_return: number | null;
+  next_day_down: boolean | null;
+};
+
 // Precomputed "closed lower next day" base rates by feature bucket.
 export type GainerBaseRate = {
   cap_band: string;
@@ -196,6 +220,7 @@ export type Database = {
       ai_analyses: Table<AIAnalysis>;
       historical_gainers: Table<HistoricalGainer>;
       board_outcomes: Table<BoardOutcome>;
+      drop_board_snapshots: Table<DropBoardSnapshot>;
       gainer_base_rates: Table<GainerBaseRate>;
       fetch_locks: Table<{ key: string; locked_at: string }>;
       system_alerts: Table<{

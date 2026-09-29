@@ -9,6 +9,9 @@ import { type BaseRate } from "./baseRates";
 import {
   recordBoardDay,
   recordBoardOutcomes,
+  recordDropCloses,
+  recordDropOutcomes,
+  recordDropSnapshot,
   recordScoredDayCloses,
   recordThesisOutcomes,
 } from "./quant/outcomes";
@@ -118,6 +121,15 @@ export async function runPreCloseProcessing(
   } catch (e) {
     console.error("[eod] pre-close email:", (e as Error)?.message);
   }
+
+  // The whole board as it stands at the drop, for the give-back calibration
+  // (drop_board_snapshots). Last, so it can never delay the theses or the
+  // email a student acts on; best-effort, so it can never fail the drop.
+  try {
+    await recordDropSnapshot(admin, dateKey, rows);
+  } catch (e) {
+    console.error("[eod] drop snapshot:", (e as Error)?.message);
+  }
   return created;
 }
 
@@ -202,6 +214,21 @@ export async function runEodProcessing(
     await recordBoardDay(admin, dateKey);
   } catch (e) {
     console.error("[eod] board snapshot:", (e as Error)?.message);
+  }
+
+  // The same pair for the 3:30 drop snapshot: yesterday's rows get today's
+  // close as their next-day outcome, today's rows get today's close as their
+  // fill. Separate from the board passes because the drop set is a different
+  // set of tickers (it keeps the ones that fell off the board after 3:30).
+  try {
+    await recordDropOutcomes(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] drop outcomes:", (e as Error)?.message);
+  }
+  try {
+    await recordDropCloses(admin, dateKey);
+  } catch (e) {
+    console.error("[eod] drop closes:", (e as Error)?.message);
   }
 
   return created;

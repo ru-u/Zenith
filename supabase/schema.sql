@@ -168,6 +168,48 @@ create index if not exists historical_gainers_bucket_idx
 -- scanner serves only current quotes, which is why this records forward.
 -- Internal: RLS on, NO policy (deny-all to anon/auth; service role bypasses).
 -- ─────────────────────────────────────────────────────────────────────────────
+-- drop_board_snapshots — the WHOLE board as it stood at the ~3:30 drop, with its
+-- own outcomes. The candidate signal is how much of the day's peak gain a
+-- gainer has given back by 3:30 (lib/dayRange.ts), and it has to be measured
+-- at 3:30 because that is when a DECA student decides; the fill is the close.
+-- board_outcomes can't answer it: it records the close, and only for tickers
+-- still on the FINALIZED board, so a 3:30 top gainer that collapsed into the
+-- close — the give-back case this exists to study — is missing from it.
+-- Written by recordDropSnapshot (runPreCloseProcessing); day_close and the
+-- next-day outcome are stamped by the EOD passes in lib/quant/outcomes.ts.
+-- Forward-only: the scanner serves current quotes, so nothing can be backfilled.
+-- Internal: RLS on, NO policy (deny-all to anon/auth; service role bypasses).
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.drop_board_snapshots (
+  id                bigint generated always as identity primary key,
+  date              date not null,     -- the session
+  ticker            text not null,
+  exchange          text,
+  rank              integer,           -- board rank at the drop
+  price             numeric,           -- last trade at the drop (15-min delayed feed)
+  open              numeric,
+  high              numeric,           -- session high/low SO FAR at the drop
+  low               numeric,
+  change_percent    numeric,           -- vs the previous close, signed
+  position          numeric,           -- lib/dayRange.ts computeDayRange(), 0..1
+  off_high_pct      numeric,           -- % below the day's high
+  giveback_of_gain  numeric,           -- share of the day's peak gain given back
+  captured_at       timestamptz not null default now(),
+  day_close         numeric,           -- that session's official close — the DECA fill
+  next_date         date,
+  next_close        numeric,
+  next_day_return   numeric,           -- (next_close - day_close) / day_close
+  next_day_down     boolean,           -- next_day_return < 0 (a winning next-day short)
+  unique (date, ticker)
+);
+-- The stamp passes' only hot queries: rows still awaiting a close / an outcome.
+create index if not exists drop_board_snapshots_pending_close_idx
+  on public.drop_board_snapshots (date) where day_close is null;
+create index if not exists drop_board_snapshots_pending_next_idx
+  on public.drop_board_snapshots (date) where next_close is null;
+alter table public.drop_board_snapshots enable row level security;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.board_outcomes (
   id              bigint generated always as identity primary key,
   date            date not null,     -- the spike session
