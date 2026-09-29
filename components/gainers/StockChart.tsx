@@ -10,7 +10,14 @@ import { cn } from "@/lib/utils";
 // under the user when auth resolves). 680px is the desktop size this has
 // always been; on a phone that alone overflowed the viewport, so it becomes a
 // fraction of the small viewport height with a floor for landscape.
-export const CHART_FOOTPRINT = "h-[60svh] min-h-72 sm:h-170";
+//
+// On desktop it is 680px OR the viewport minus a 10rem budget, whichever is
+// smaller. The dialog caps itself at 100dvh - 2rem, and a fixed 680px chart
+// under a header pushed the dialog past that on an ordinary laptop screen,
+// which put a scroll bar on the popup for no reason. 10rem covers that 2rem
+// margin plus the header even when it wraps to two lines below `md`.
+export const CHART_FOOTPRINT =
+  "h-[60svh] min-h-72 sm:h-[min(42.5rem,calc(100dvh-10rem))]";
 
 declare global {
   interface Window {

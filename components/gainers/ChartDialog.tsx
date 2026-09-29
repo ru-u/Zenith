@@ -152,18 +152,25 @@ export function ChartDialog({
         initialFocus={(openType) => openType === "keyboard"}
         className="gap-0 overflow-x-hidden overflow-y-auto bg-background p-0 sm:max-w-5xl"
       >
-        <DialogHeader className="relative px-6 py-5.25 border-b border-foreground/10">
-          {/* One line at the dialog's desktop width: the meta cluster holds its
-              size and the long company name truncates beside it, so the divider
-              + gap between the title and the date stay consistent. On a phone
-              there isn't room for both — the row wraps instead, which is why
-              ChartDayMeta drops its `shrink-0` below `sm:`. */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pr-10 sm:flex-nowrap">
-            <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base font-semibold tracking-tight">
-              <span className="shrink-0">{gainer?.ticker}</span>
+        {/* One slim row: identity, the day's figures, and the day range —
+            which used to be a second strip under the header, and that extra
+            ~50px is what put a scroll bar on the popup. Wraps below `md`, the
+            meter onto its own line; from `md` it's a single 56px row.
+            A faint top wash and a brand hairline in place of the flat border
+            (fading out to the right, like the landing's trace) tie it to the
+            rest of the site. */}
+        <DialogHeader className="relative gap-0 bg-linear-to-b from-foreground/[0.035] to-transparent px-5 py-3 md:h-14 md:justify-center md:py-0">
+          {/* pr leaves room for the close button plus a little air between
+              it and the meter's high label. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pr-12 md:flex-nowrap md:pr-16">
+            <DialogTitle className="flex min-w-0 items-baseline gap-2 text-[15px] font-semibold tracking-tight">
+              {/* The page headline's gradient (GainersHero's h1). */}
+              <span className="shrink-0 bg-linear-to-br from-foreground to-brand bg-clip-text text-transparent">
+                {gainer?.ticker}
+              </span>
               {gainer?.company_name && (
-                <span className="min-w-0 truncate font-normal text-muted-foreground">
-                  — {gainer.company_name}
+                <span className="min-w-0 truncate text-sm font-normal text-muted-foreground">
+                  {gainer.company_name}
                 </span>
               )}
             </DialogTitle>
@@ -177,31 +184,32 @@ export function ChartDialog({
                 showFavorite={signedIn}
               />
             )}
+            {/* Signed-in only — the day range is a free-account feature, and a
+                guest's dialog is already the sign-up gate below. Omitted when
+                the row has no stored range (every session before 2026-09-28,
+                opened from /history). */}
+            {gainer && signedIn && gainer.day_high != null && gainer.day_low != null && (
+              // From `md` it sits right after the star, grouped with the rest
+              // of the day's figures rather than pushed to the close button:
+              // 240px, shrinking to a 144px floor (where its labels still fit)
+              // before a long company name has to truncate.
+              <div className="flex basis-full items-center md:ml-2 md:w-60 md:min-w-36 md:shrink md:basis-auto">
+                <DayRangeMeter
+                  price={gainer.price}
+                  low={gainer.day_low}
+                  high={gainer.day_high}
+                  live={live}
+                  size="wide"
+                />
+              </div>
+            )}
           </div>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-brand/45 via-foreground/10 to-transparent"
+          />
           <ChartHeaderClose />
         </DialogHeader>
-        {/* Its own strip rather than a line inside the header: the close
-            button centers itself on the header's height, and a second row
-            there would drop it between the two. Signed-in only — the day range
-            is a free-account feature, and a guest's dialog is already the
-            sign-up gate below. Omitted when the row has no stored range
-            (every session before 2026-09-28, opened from /history): a labelled
-            strip holding only "—" is a whole row of nothing. */}
-        {gainer && signedIn && gainer.day_high != null && gainer.day_low != null && (
-          <div className="flex items-center gap-4 border-b border-foreground/10 px-6 py-3">
-            <span className="shrink-0 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-              Day range
-            </span>
-            <DayRangeMeter
-              price={gainer.price}
-              low={gainer.day_low}
-              high={gainer.day_high}
-              live={live}
-              size="wide"
-              className="max-w-90"
-            />
-          </div>
-        )}
         {gainer &&
           (signedIn ? (
             <StockChart

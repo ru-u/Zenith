@@ -53,14 +53,18 @@ export function ChartDayMeta({
       <span className="font-medium text-muted-foreground tabular-nums">
         {formatDayLabel(date)}
       </span>
+      {/* A gain uses the board's brand figure (app/globals.css), matching
+          the table and cards it was opened from; a loss stays red. */}
       <span
         className={cn(
           "inline-flex items-center gap-1 font-semibold tabular-nums",
-          up ? "text-up" : "text-down",
+          up ? "text-brand" : "text-down",
         )}
       >
         <Arrow className="h-3.5 w-3.5 shrink-0" />
-        {formatPercent(changePercent)}
+        <span className={up ? "brand-figure" : undefined}>
+          {formatPercent(changePercent)}
+        </span>
       </span>
       {rank != null && (
         <span className="shrink-0 rounded-full border border-foreground/10 bg-foreground/4 px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted-foreground">
