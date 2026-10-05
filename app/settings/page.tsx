@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getViewer } from "@/lib/viewer";
 import { ThemeToggle } from "@/components/settings/ThemeToggle";
 import { TickerClickToggle } from "@/components/settings/TickerClickToggle";
+import { DiversificationToggle } from "@/components/settings/DiversificationToggle";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { FeedbackForm } from "@/components/settings/FeedbackForm";
 import { ManageBillingButton } from "@/components/settings/ManageBillingButton";
@@ -114,6 +115,13 @@ export default async function SettingsPage() {
             description="What opens when you click a stock on the screener or in history."
           >
             <TickerClickToggle />
+          </Section>
+
+          <Section
+            title="DECA deadline reminder"
+            description="The diversification countdown next to the market status on the screener."
+          >
+            <DiversificationToggle />
           </Section>
         </Group>
 

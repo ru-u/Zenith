@@ -8,6 +8,7 @@ import { FavoriteStar } from "./FavoriteStar";
 import { DayRangeMeter } from "./DayRangeMeter";
 import { ChartDialog } from "./ChartDialog";
 import { MarketStatusBadge } from "./MarketStatusBadge";
+import { DiversificationChip } from "./DiversificationChip";
 import { useGainers } from "@/hooks/useGainers";
 import { useStreaks } from "@/hooks/useStreaks";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -148,14 +149,17 @@ export function GainersHero() {
             )}
           </p>
         </div>
-        {data && (
-          <MarketStatusBadge
-            asOf={data.asOf}
-            date={data.date}
-            isFinal={(data.gainers ?? []).some((g) => g.is_final)}
-            warmingUp={warmingUp}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {data && (
+            <MarketStatusBadge
+              asOf={data.asOf}
+              date={data.date}
+              isFinal={(data.gainers ?? []).some((g) => g.is_final)}
+              warmingUp={warmingUp}
+            />
+          )}
+          <DiversificationChip />
+        </div>
       </div>
 
       {/* A failed fetch used to fall through to the skeleton below, because the

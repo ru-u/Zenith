@@ -9,6 +9,10 @@ export type TickerClickAction = "chart" | "google";
 interface PreferencesState {
   tickerClick: TickerClickAction;
   setTickerClick: (action: TickerClickAction) => void;
+  // The DECA diversification deadline (date key) this device marked as done.
+  // Keyed by date rather than a boolean so next season's chip comes back.
+  diversifiedFor: string | null;
+  setDiversifiedFor: (deadline: string | null) => void;
 }
 
 // Device-local (localStorage), not per-account: it's a browsing preference,
@@ -18,6 +22,8 @@ export const usePreferencesStore = create<PreferencesState>()(
     (set) => ({
       tickerClick: "chart",
       setTickerClick: (tickerClick) => set({ tickerClick }),
+      diversifiedFor: null,
+      setDiversifiedFor: (diversifiedFor) => set({ diversifiedFor }),
     }),
     { name: "zenith-preferences" },
   ),
