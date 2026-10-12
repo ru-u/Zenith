@@ -71,8 +71,21 @@ jobs:
 
       - run: npm ci
 
-      - name: Audit dependencies
+      # Blocking on the PRODUCTION tree only. On 2026-10-12 `braces` (high)
+      # had no patched release at all — 3.0.3 was already the latest — and it
+      # reached us solely through dev tooling (the `shadcn` CLI and
+      # eslint-config-next), which never runs on the server. Gating on the
+      # full tree meant a red X every Monday that no commit could clear, which
+      # trains everyone to ignore this job; the same run also carried a real
+      # critical against `next`, and that is exactly the signal it would have
+      # buried.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # Dev-tooling advisories stay visible in the log but cannot fail the run.
+      - name: Audit all dependencies (informational)
         run: npm audit --audit-level=high
+        continue-on-error: true
 
   secret-scan:
     runs-on: ubuntu-latest
