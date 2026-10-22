@@ -35,19 +35,20 @@ export function LandingHero({
         </p>
 
         <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-          {/* Free/guest: quiet translucent pill so the paid CTA beside it
-              carries the brand gradient on its own. Pro: the upgrade CTA is
-              gone, so the screener link inherits the gradient as the page's
-              primary action. */}
+          {/* Pro keeps the gradient — it's the action we want — but the free
+              screener is a brand-tinted outline that says "free" outright,
+              not a quiet grey pill. Grey-beside-gradient read as a paywall,
+              as if Pro were the only way in. Pro users: the upgrade CTA is
+              gone, so the screener link inherits the gradient. */}
           <Link
             href="/screener"
             className={
               isPro
                 ? "rounded-full bg-brand btn-brand px-6 py-3 text-sm font-semibold text-brand-foreground shadow-[0_0_44px_-10px] shadow-brand/80 transition-[transform,box-shadow] hover:scale-[1.03] hover:shadow-brand"
-                : "rounded-full bg-white/5 px-6 py-3 text-sm font-semibold text-foreground ring-1 ring-white/10 transition-colors hover:text-brand hover:ring-brand/30"
+                : "rounded-full bg-brand/10 px-6 py-3 text-sm font-semibold text-foreground ring-1 ring-brand/40 transition-[color,background-color,box-shadow] hover:bg-brand/15 hover:text-brand hover:ring-brand/70"
             }
           >
-            {isLoggedIn ? "Launch screener" : "See today's movers"}
+            {isPro ? "Launch Screener" : "Launch Free Screener"}
           </Link>
           {!isPro && (
             <Link
