@@ -20,7 +20,11 @@ const REQUEST_TIMEOUT_MS = 8_000;
 // overrides everything, offering overrides earnings/regulatory). Conservative
 // on purpose — a false "buyout" would wrongly cap the score to 2, so the
 // buyout patterns demand deal language, not just the word "acquire".
-const HEADLINE_RX: Record<EdgarCatalystType, RegExp> = {
+// special_dividend is EDGAR-only: a headline can't be sized against the price
+// (see isMaterialDividend in ./edgar), and that class caps the score.
+type NewsCatalystType = Exclude<EdgarCatalystType, "special_dividend">;
+
+const HEADLINE_RX: Record<NewsCatalystType, RegExp> = {
   buyout:
     /(buyout|takeover|to be acquired|being acquired|agrees? to (be )?acquir|acquisition (of|by)|merger agreement|definitive (merger )?agreement|per[- ]share.{0,12}cash|tender offer|take[- ]private)/i,
   offering:
@@ -30,9 +34,9 @@ const HEADLINE_RX: Record<EdgarCatalystType, RegExp> = {
   regulatory:
     /(fda (approval|clearance)|510\(k\)|phase [123]\b|clinical (trial|data|results)|top[- ]?line (data|results)|breakthrough (therapy|device) designation|ce mark|emergency use authorization)/i,
 };
-const PRECEDENCE: EdgarCatalystType[] = ["buyout", "offering", "earnings", "regulatory"];
+const PRECEDENCE: NewsCatalystType[] = ["buyout", "offering", "earnings", "regulatory"];
 
-function describe(type: EdgarCatalystType, ticker: string, headline: string): string {
+function describe(type: NewsCatalystType, ticker: string, headline: string): string {
   const quoted = `("${headline.length > 100 ? `${headline.slice(0, 97)}…` : headline}")`;
   switch (type) {
     case "buyout":
@@ -108,7 +112,7 @@ export async function detectNewsCatalyst(
     });
 
     // Newest headline wins within a class; precedence picks across classes.
-    const found = new Map<EdgarCatalystType, FinnhubArticle>();
+    const found = new Map<NewsCatalystType, FinnhubArticle>();
     const sorted = [...articles].sort((a, b) => (b.datetime ?? 0) - (a.datetime ?? 0));
     for (const a of sorted) {
       const h = a.headline;

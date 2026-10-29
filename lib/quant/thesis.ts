@@ -133,6 +133,20 @@ export interface ThesisFindings {
    * dayRangeSentence; the score does not read it (see features.ts).
    */
   dayRange: DayRangeFeatures | null;
+  /**
+   * Filings in the window that matched no catalyst class, already phrased
+   * ("a SCHEDULE 13D/A and a Form 4 (Oct 27)" — edgar.ts describeUnclassified).
+   * Only set when `catalyst` is null. Narrative half: it answers "why it spiked",
+   * and it exists so neither renderer says "no SEC filing" when there was one.
+   */
+  unclassifiedFilings?: string | null;
+}
+
+/** The no-catalyst opener's claim, for whichever renderer is speaking. */
+function noCatalystClaim(f: ThesisFindings): string {
+  return f.unclassifiedFilings
+    ? `It did file ${f.unclassifiedFilings} with the SEC, but none of them matched a catalyst type the engine classifies, so the reason behind the move is unconfirmed.`
+    : "No SEC filing found — the move looks like momentum or hype rather than hard news.";
 }
 
 /**
@@ -278,6 +292,8 @@ const BEHAVIOR: Record<string, string> = {
     "Squeeze moves are violent in both directions — dangerous to short even when a fade feels obvious.",
   macro:
     "Careful with the usual fade play: sector-wide moves have real fuel behind them, and they don't give it back the way single-stock hype spikes do.",
+  special_dividend:
+    "Careful with the usual fade play: a special dividend is real value paid out to shareholders, and it stays attached to the shares until the stock goes ex-dividend — this isn't the kind of hype spike that reliably gives it back.",
 };
 
 /** The $0 deterministic rendering. Exported for scripts/thesis-preview.mjs, which
@@ -297,9 +313,13 @@ export function templateThesis(f: ThesisFindings): string {
       g.relativeVolume != null && g.relativeVolume >= 2
         ? ` on ${Math.round(g.relativeVolume)}x its normal volume`
         : "";
-    sentences.push(
-      `${g.ticker} jumped ${pct} today${rv} with no fresh SEC filing behind the move — that usually means momentum or hype rather than hard news.`,
-    );
+    if (f.unclassifiedFilings) {
+      sentences.push(`${g.ticker} jumped ${pct} today${rv}.`, noCatalystClaim(f));
+    } else {
+      sentences.push(
+        `${g.ticker} jumped ${pct} today${rv} with no fresh SEC filing behind the move — that usually means momentum or hype rather than hard news.`,
+      );
+    }
   }
 
   // 2 — what that catalyst type does over a single next-day hold.
@@ -417,6 +437,7 @@ const PROSE_SYSTEM = [
   "- Always say how far the stock moved today, using change_percent. That is the single fact the reader most needs and it must not be left out.",
   "- Say only what the findings say. If the catalyst says the company \"reported earnings results\" and no earnings_surprise is given, do NOT write that it beat, missed, topped or exceeded anything — you do not know whether the news was good. When earnings_surprise IS given, use its figures and say plainly whether it was a beat or a miss.",
   "- Do not characterise a trial, approval or filing outcome as positive or negative unless the findings say so.",
+  "- If the catalyst names filings the engine did not classify, do not guess what they contain or what they mean — a Form 4 can be a sale as easily as a purchase. Say only that they were filed and that the reason for the move is unconfirmed.",
   "- `catalyst_behavior` describes how this CLASS of event behaves in general. It is not a fact about this company — never convert it into one. (Its earnings note mentions a \"real earnings beat\"; that does not mean this company beat.)",
   "- If `catalyst_behavior` is null, the engine is deliberately making no claim about which way this one tends to go. Say nothing about how it \"tends\" to behave — describe what happened and stop.",
   "- Never give advice, predict a price, or tell the reader what to do.",
@@ -454,9 +475,7 @@ export async function modelNarrative(
   const remaining = deadline - Date.now();
   if (remaining < 2_000) return miss("prose budget spent");
 
-  const catalystText =
-    f.catalyst ??
-    "No SEC filing found — the move looks like momentum or hype rather than hard news.";
+  const catalystText = f.catalyst ?? noCatalystClaim(f);
   const chartContext = levelContextSentence(f);
 
   try {

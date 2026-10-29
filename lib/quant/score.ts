@@ -230,6 +230,13 @@ export function scoreShort(
   // scored 8/10 as "hype"). Commodity-backed rallies have real fuel and don't
   // mean-revert like single-stock hype — never a top pick.
   if (catalystType === "macro") score = Math.min(score, 4);
+  // Large special dividend (AIOK 2026-10-27: $3.50/share declared on a stock
+  // that was ~$6 before the spike, trading with due bills; EDGAR only read 8-Ks,
+  // so it scored 7/10 as hype and closed +109.7% the next session). The payout
+  // stays attached to the shares until the ex-date, so it is fuel, not hype. A
+  // cap and NOT a Δ on `win`: the class has no outcome sample at all, and a Δ
+  // would spend calibration the same way BUYOUT_WIN_CEILING once did.
+  if (catalystType === "special_dividend") score = Math.min(score, 4);
   // Pinned tape without a known catalyst: the deal-price signature of a merger
   // announced by press release before any 8-K exists — EDGAR sees nothing, the
   // move would otherwise score 6-7 as "other". A cap only prevents recommending

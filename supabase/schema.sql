@@ -72,7 +72,7 @@ create table if not exists public.ai_analyses (
   short_thesis         text not null,
   catalyst             text,  -- why it spiked today (from web search)
   catalyst_url         text,  -- source link the model found
-  catalyst_type        text,  -- buyout|earnings|offering|regulatory|partnership|meme_squeeze|other
+  catalyst_type        text,  -- buyout|special_dividend|earnings|offering|regulatory|partnership|meme_squeeze|macro|other
   short_score          smallint check (short_score is null or short_score between 1 and 10),
   percent_win_estimate smallint check (percent_win_estimate is null or percent_win_estimate between 0 and 100),
   invalidation         text,  -- deprecated: no longer written or shown (kept for reversibility)

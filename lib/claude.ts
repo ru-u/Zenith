@@ -19,7 +19,7 @@ import {
   resolveBaseRate,
   type BaseRate,
 } from "@/lib/baseRates";
-import { detectCatalyst } from "./quant/edgar";
+import { describeUnclassified, detectFilings } from "./quant/edgar";
 import { detectNewsCatalyst } from "./quant/news";
 import { fetchEarningsSurprise } from "./quant/earnings";
 import { fetchTechnicals, type Technicals } from "./quant/technicals";
@@ -46,7 +46,9 @@ export { aiThesesEnabled, ANALYSIS_MODEL } from "./quant/thesis";
 // v2: pinned-tape cap + expected-move/level-context prose + feature capture.
 // v3: macro/sector-move class + ≤4 cap (SKYQ 2026-07-23: oil spiked on Middle
 //     East strikes, no filing → the engine called it hype and scored 8/10).
-const QUANT_VERSION = "quant-v3";
+// v4: 6-Ks are read + special_dividend class + ≤4 cap (AIOK 2026-10-27: a
+//     $3.50 special dividend in a 6-K, never read, scored 7/10 as hype).
+const QUANT_VERSION = "quant-v4";
 
 // Catalyst classification — drives shortability (a buyout pins; a parabolic runner fades).
 const CATALYST_TYPES = [
@@ -57,6 +59,7 @@ const CATALYST_TYPES = [
   "partnership",
   "meme_squeeze",
   "macro",
+  "special_dividend",
   "other",
 ] as const;
 
@@ -123,7 +126,8 @@ export async function generateAnalysis(
     // anything (deals announced by press release before the 8-K arrives).
     // Both degrade to null on their own — null means "nothing decisive" and
     // the score falls back to price-action + base rate.
-    const edgarCat = await detectCatalyst(g.ticker, dateKey, g.companyName ?? null);
+    const filings = await detectFilings(g.ticker, dateKey, g.companyName ?? null, g.price ?? null);
+    const edgarCat = filings.catalyst;
     const cat =
       edgarCat ?? (await detectNewsCatalyst(g.ticker, dateKey, g.companyName ?? null));
     // No company-specific catalyst but the whole sector is in motion → the
@@ -132,6 +136,11 @@ export async function generateAnalysis(
     const sectorCtx = snapshot?.sector ?? null;
     const macroLine =
       !cat && sectorCtx?.is_sector_move ? macroCatalystLine(g.ticker, sectorCtx) : null;
+    // Filings that were on file but matched no class. Said out loud rather than
+    // claiming none existed (AIOK 2026-10-28: a Form 4 and a 13D/A in the window,
+    // "No fresh SEC filing found" on the card). Score-neutral by design.
+    const unclassified =
+      !cat && !macroLine ? describeUnclassified(filings.unclassified) : null;
     const catalyst_type = macroLine
       ? "macro"
       : normalizeCatalystType(cat?.catalyst_type ?? "other");
@@ -172,6 +181,7 @@ export async function generateAnalysis(
         priorCall: snapshot?.prior_call ?? null,
         dayRange: snapshot?.day_range ?? null,
         earnings,
+        unclassifiedFilings: unclassified,
       },
       proseDeadline,
     );
@@ -179,8 +189,10 @@ export async function generateAnalysis(
       catalyst:
         cat?.catalyst ??
         macroLine ??
-        `No fresh SEC filing found for ${g.ticker} — the move looks driven by momentum, social buzz, or news outside official filings.`,
-      catalyst_url: cat?.catalyst_url ?? "",
+        (unclassified
+          ? `${g.ticker} filed ${unclassified} with the SEC, but none matched a catalyst type the engine classifies — so it can't say whether those filings explain the move.`
+          : `No fresh SEC filing found for ${g.ticker} — the move looks driven by momentum, social buzz, or news outside official filings.`),
+      catalyst_url: cat?.catalyst_url ?? (unclassified ? filings.unclassified[0].url : ""),
       catalyst_type,
       short_thesis: prose.text,
       short_score: clampInt(scored.short_score, 1, 10, 5),
@@ -293,7 +305,7 @@ export async function generateAndStoreTopAnalyses(
     // Records the model ID rather than a generic "+model" suffix: this column is
     // the audit trail, ANALYSIS_MODEL has already changed once (Haiku 4.5 →
     // Sonnet 5), and "which model wrote this row" is exactly the question it
-    // will be asked. Prefix-match on `quant-v3` to group by scoring version.
+    // will be asked. Prefix-match on `quant-vN` to group by scoring version.
     const model =
       a.prose_source === "model" ? `${QUANT_VERSION}+${ANALYSIS_MODEL}` : QUANT_VERSION;
     if (a.prose_source === "model") modelRows++;
