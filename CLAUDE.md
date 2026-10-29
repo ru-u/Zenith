@@ -681,6 +681,14 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
   token. Both keys start `0x4AAAAAAA`, so only length distinguishes them: 24 =
   site key, ~35 = secret. A secret pasted into this `NEXT_PUBLIC_*` var ships
   to every browser and has to be rotated, not just corrected.
+- `ADMIN_EMAILS` — comma-separated, confirmed addresses allowed onto owner-only
+  pages (`lib/admin.ts`), currently just `/admin/track-record` — the live
+  paper-trade record of shorting every 7+ thesis since the SMG open
+  (`lib/trackRecord.ts`: `scripts/backtest.mjs`'s rule plus a 50% per-position
+  cap, a $0 floor, and calls with no board market cap excluded as untradeable
+  in DECA — so the two won't agree to the dollar). Unset = nobody;
+  everyone else gets a real 404. Server-only, so a restart (not a rebuild)
+  picks up a change.
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
 - `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` (optional — scraper
   failure alerts via `lib/alerts.ts`; if unset, alerts log to console only, no
