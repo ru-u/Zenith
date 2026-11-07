@@ -16,7 +16,7 @@ export function HistoryShell({ children }: { children: React.ReactNode }) {
       <PageHeader
         eyebrow="Past sessions"
         title="History"
-        description="Past trading days. Free accounts can browse the last 5 trading days."
+        description="Past trading days. Free accounts can browse the last 5 trading days; Pro can look up every day a ticker made the board."
         unique="history"
       />
       {children}

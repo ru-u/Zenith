@@ -243,10 +243,10 @@ function near(a: number | null, b: number | null, eps: number): boolean {
  * move today — exclude it and re-rank. (Three-field match makes false positives
  * effectively impossible for a stock that genuinely traded.)
  */
-export function dropFrozenRepeats(
-  rows: DailyGainer[],
+export function dropFrozenRepeats<T extends CleanableRow>(
+  rows: T[],
   prev: FrozenRepeatProbe[],
-): DailyGainer[] {
+): T[] {
   if (prev.length === 0) return rows;
   const prevByTicker = new Map(prev.map((p) => [p.ticker, p]));
   return rows
@@ -269,7 +269,7 @@ export function dropFrozenRepeats(
  * already filtered in rankAndFilter; this heals rows persisted before the
  * guard existed (e.g. ENLV 2026-07-09: a 15:1 reverse split stored as +1414%).
  */
-export function dropSplitArtifacts(rows: DailyGainer[]): DailyGainer[] {
+export function dropSplitArtifacts<T extends CleanableRow>(rows: T[]): T[] {
   const kept = rows.filter(
     (r) => !isLikelySplitArtifact(r.change_percent, r.relative_volume),
   );
@@ -286,7 +286,7 @@ export function dropSplitArtifacts(rows: DailyGainer[]): DailyGainer[] {
  * (3.9 a day, worst 9), the smallest surviving board is 86 rows, and rank 1
  * changes on 26 of them — the damage was always concentrated at the top.
  */
-export function dropIneligible(rows: DailyGainer[]): DailyGainer[] {
+export function dropIneligible<T extends CleanableRow>(rows: T[]): T[] {
   const kept = rows.filter((r) =>
     isGameEligible(r.price, r.change_percent, r.market_cap),
   );
@@ -302,12 +302,28 @@ export function dropIneligible(rows: DailyGainer[]): DailyGainer[] {
  * Order doesn't affect the result — the three predicates are independent, and
  * whichever runs last re-ranks — so it reads cheapest-first.
  */
-export function cleanStoredGainers(
-  rows: DailyGainer[],
+export function cleanStoredGainers<T extends CleanableRow>(
+  rows: T[],
   prev: FrozenRepeatProbe[],
-): DailyGainer[] {
+): T[] {
   return dropFrozenRepeats(dropIneligible(dropSplitArtifacts(rows)), prev);
 }
+
+/**
+ * Every field the read-path filters read, plus the `rank` they rewrite. Generic
+ * so lib/tickerHistory.ts can clean a slim projection of many sessions instead
+ * of `select("*")` on each one — same predicates, so it cannot drift.
+ */
+export type CleanableRow = Pick<
+  DailyGainer,
+  | "ticker"
+  | "price"
+  | "change_percent"
+  | "volume"
+  | "relative_volume"
+  | "market_cap"
+  | "rank"
+>;
 
 /** The only fields dropFrozenRepeats compares. */
 export type FrozenRepeatProbe = Pick<

@@ -6,6 +6,7 @@ import { GainersHero } from "@/components/gainers/GainersHero";
 import { TradeWindowBanner } from "@/components/gainers/TradeWindowBanner";
 import { FilterBar } from "@/components/gainers/FilterBar";
 import { GainersTable } from "@/components/gainers/GainersTable";
+import { BOARD_ROWS } from "@/lib/board";
 import { AIAnalysisCard } from "@/components/ai/AIAnalysisCard";
 import { SignupPromptDialog } from "@/components/gainers/SignupPromptDialog";
 
@@ -62,7 +63,7 @@ export default async function ScreenerPage() {
           <AIAnalysisCard />
           <section className="flex flex-col gap-3">
             <FilterBar />
-            <GainersTable limit={50} />
+            <GainersTable limit={BOARD_ROWS} />
           </section>
           {/* No repeat below the table: <AppFooter> lands immediately after it and
             carries the same two lines. */}

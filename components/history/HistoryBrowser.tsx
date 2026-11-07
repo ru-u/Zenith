@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
@@ -10,6 +10,8 @@ import { GainerRowSkeleton } from "@/components/gainers/GainerRowSkeleton";
 import { GainerTableHead } from "@/components/gainers/GainerTableHead";
 import { ChartDialog } from "@/components/gainers/ChartDialog";
 import { useTickerOpen } from "@/hooks/useTickerOpen";
+import { BOARD_ROWS } from "@/lib/board";
+import { TickerLookup } from "./TickerLookup";
 import { cn } from "@/lib/utils";
 import type { DailyGainer } from "@/lib/supabase/types";
 
@@ -41,6 +43,12 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
   const [chartGainer, setChartGainer] = useState<DailyGainer | null>(null);
   const openTicker = useTickerOpen(setChartGainer);
   const strip = useRef<HTMLElement>(null);
+  const board = useRef<HTMLDivElement>(null);
+  // The ticker a lookup result jumped to: highlighted on whichever date is
+  // showing, until the lookup is cleared.
+  const [focusTicker, setFocusTicker] = useState<string | null>(null);
+  // Set by a lookup pick, consumed once that date's rows have rendered.
+  const pendingScroll = useRef(false);
 
   const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ["gainers", selected],
@@ -54,6 +62,17 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
   });
   const hasRanges = (data?.gainers ?? []).some((g) => g.day_high != null);
 
+  // Scroll the looked-up row into view, but only once the PICKED date's rows
+  // are on screen: during placeholder data the table still holds the previous
+  // date, which may carry the same ticker at a different rank.
+  useEffect(() => {
+    if (!pendingScroll.current || !data || isPlaceholderData) return;
+    pendingScroll.current = false;
+    (
+      board.current?.querySelector("[data-highlighted]") ?? board.current
+    )?.scrollIntoView({ block: "center" });
+  }, [data, isPlaceholderData]);
+
   if (dates.length === 0) {
     return (
       <div className="glass rounded-2xl p-10 text-center text-muted-foreground">
@@ -62,7 +81,27 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
     );
   }
 
-  const idx = selected ? dates.indexOf(selected) : -1;
+  // The server lists the newest 60 sessions; a lookup can reach further back.
+  // Give a picked date outside that window its own chip so the strip still
+  // shows which day the table is.
+  const stripDates =
+    selected && !dates.includes(selected)
+      ? [...dates, selected].sort().reverse()
+      : dates;
+  const idx = selected ? stripDates.indexOf(selected) : -1;
+
+  const scrollChip = (d: string) =>
+    strip.current
+      ?.querySelector(`[data-date="${d}"]`)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+  const pickFromLookup = (date: string, ticker: string) => {
+    setSelected(date);
+    setFocusTicker(ticker);
+    pendingScroll.current = true;
+    // After the render that adds an out-of-window chip.
+    requestAnimationFrame(() => scrollChip(date));
+  };
 
   // Step one trading day without touching the strip. Swiping it is not a
   // reliable input on a phone: iOS hands a screen-edge drag to its own
@@ -70,7 +109,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
   // scroller, and no CSS overrides that. These two buttons are the path no
   // gesture recognizer can steal. `dates` is newest-first, so left = newer.
   const step = (delta: number) => {
-    const next = dates[idx + delta];
+    const next = stripDates[idx + delta];
     if (!next) return;
     setSelected(next);
     // Every chip is already in the DOM, so the target can be scrolled into view
@@ -79,14 +118,17 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
     // scrollIntoView walks every scrollable ancestor, not just this one. No
     // `behavior`, so it resolves from the element's own `scroll-behavior`,
     // which `scroll-smooth motion-reduce:scroll-auto` below already handles.
-    strip.current
-      ?.querySelector(`[data-date="${next}"]`)
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    scrollChip(next);
   };
 
   return (
     <>
     <ChartDialog gainer={chartGainer} onClose={() => setChartGainer(null)} />
+    <TickerLookup
+      activeDate={selected}
+      onPick={pickFromLookup}
+      onClear={() => setFocusTicker(null)}
+    />
     <div className="grid gap-4 md:grid-cols-[200px_1fr]">
       {/* A vertical list beside the table on desktop; a horizontal strip of
           chips above it on a phone. Stacked vertically it put up to 70vh of
@@ -129,7 +171,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
           ref={strip}
           className="glass flex flex-1 gap-1 scroll-px-8 scroll-smooth overflow-x-auto overscroll-x-contain rounded-2xl p-2 motion-reduce:scroll-auto md:max-h-[70dvh] md:flex-col md:overflow-x-hidden md:overflow-y-auto"
         >
-          {dates.map((d) => (
+          {stripDates.map((d) => (
             <button
               key={d}
               type="button"
@@ -156,7 +198,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
         <button
           type="button"
           onClick={() => step(1)}
-          disabled={idx < 0 || idx >= dates.length - 1}
+          disabled={idx < 0 || idx >= stripDates.length - 1}
           aria-label="Older trading day"
           className="glass inline-flex h-11 w-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors disabled:opacity-30 md:hidden"
         >
@@ -169,6 +211,7 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
           the panel busy so it never presents one day's numbers under another
           day's label. */}
       <div
+        ref={board}
         aria-busy={isPlaceholderData || undefined}
         className={cn(
           "glass overflow-hidden rounded-2xl transition-opacity",
@@ -214,13 +257,14 @@ export function HistoryBrowser({ dates }: { dates: string[] }) {
                 or a day the writes missed) drops the column entirely. */}
             <GainerTableHead showRange={hasRanges} />
             <TableBody>
-              {data.gainers.slice(0, 50).map((g, i) => (
+              {data.gainers.slice(0, BOARD_ROWS).map((g, i) => (
                 <GainerRow
                   key={g.ticker}
                   gainer={g}
                   displayRank={i + 1}
                   onClick={() => openTicker(g)}
                   showRange={hasRanges}
+                  highlighted={g.ticker === focusTicker}
                 />
               ))}
             </TableBody>

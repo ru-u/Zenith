@@ -49,5 +49,6 @@ export const TIER_FEATURES = {
     "Quant short thesis on the top 5, every trading day",
     "The 3:30 drop email: top movers + thesis in your inbox before the close",
     "Unlimited history: all of Zenith's past trading days",
+    "Ticker lookup: every past day a stock made the board",
   ],
 } as const;

@@ -24,6 +24,7 @@ export function GainerRow({
   live = false,
   showRange = true,
   rangeLocked = false,
+  highlighted = false,
 }: {
   gainer: DailyGainer;
   streak?: number;
@@ -41,6 +42,9 @@ export function GainerRow({
   showRange?: boolean;
   // Signed-out viewer: the day range is a free-account feature.
   rangeLocked?: boolean;
+  // The ticker the /history lookup jumped to. `data-highlighted` is also the
+  // hook HistoryBrowser scrolls into view once the date's rows land.
+  highlighted?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const up = (gainer.change_percent ?? 0) >= 0;
@@ -54,7 +58,12 @@ export function GainerRow({
   };
   return (
     <TableRow
-      className={cn("group border-foreground/5", onClick && "cursor-pointer")}
+      data-highlighted={highlighted || undefined}
+      className={cn(
+        "group border-foreground/5",
+        onClick && "cursor-pointer",
+        highlighted && "bg-brand/10",
+      )}
       style={
         onClick && hovered
           ? {
