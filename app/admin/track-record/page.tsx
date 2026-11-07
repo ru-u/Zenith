@@ -4,7 +4,8 @@ import { getViewer } from "@/lib/viewer";
 import { isAdmin } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DECA_SMG_SEASON } from "@/lib/deca";
-import { buildTrackRecord, tradeKey } from "@/lib/trackRecord";
+import { buildTrackRecord, tradeKey, type ExcludedReason, type TrackRow } from "@/lib/trackRecord";
+import { isGameEligible, MIN_MARKET_CAP, MIN_PRICE } from "@/lib/marketdata/normalize";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EquityCurve } from "@/components/admin/EquityCurve";
 import { fmtDay, fmtPct, fmtUsd } from "@/components/admin/format";
@@ -29,14 +30,54 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const MIN_SCORE = 7;
-// DECA SMG's starting balance.
+// DECA SMG's trading rules (DECA Guide 2026-27, HS SMG p. 113, plus SMG's Rules
+// of the Game) — see lib/trackRecord.ts for how each is applied.
 const STARTING_CASH = 100_000;
-// Largest share of the account in any one short — ours, not DECA's; see
-// lib/trackRecord.ts. At 50% it only binds on single-call sessions, the case
-// that took the uncapped account below zero.
-const MAX_POSITION = 0.5;
+// "20% of their Total Equity multiplied by 1.5 in any one security". Binds on
+// any session with 1-3 qualifying calls; 4+ split evenly under it.
+const MAX_POSITION = 0.2 * 1.5;
+const COMMISSION = 5;
+const pct = (f: number) => `${Math.round(f * 100)}%`;
 
 const pnlClass = (v: number) => (v > 0 ? "text-up" : v < 0 ? "text-down" : "");
+
+// tradeKey()s of 7+ calls under DECA's $25M floor, read off the previous-close
+// cap backed out of the board row (isGameEligible with the price half skipped —
+// the $3 rule is applied from the thesis row in lib/trackRecord.ts). A null cap
+// is a fail too: the floor can't be met on no data (AIOK's four, Oct 2026). A
+// thesis ticker with no board row that day — it left the board after the drop —
+// has nothing to check against and stays in. Paged: daily_gainers is ~100 rows a
+// session, past PostgREST's 1,000-row default within a season.
+async function underCapFloor(
+  admin: ReturnType<typeof createAdminClient>,
+  rows: TrackRow[],
+): Promise<Set<string>> {
+  const calls = new Set(
+    rows.filter((r) => (r.short_score ?? 0) >= MIN_SCORE).map((r) => tradeKey(r.date, r.ticker)),
+  );
+  const tickers = [...new Set(rows.filter((r) => (r.short_score ?? 0) >= MIN_SCORE).map((r) => r.ticker))];
+  const out = new Set<string>();
+  if (!tickers.length) return out;
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin
+      .from("daily_gainers")
+      .select("date, ticker, change_percent, market_cap")
+      .in("ticker", tickers)
+      .gte("date", DECA_SMG_SEASON.start)
+      .lt("date", DECA_SMG_SEASON.end)
+      .order("date")
+      .order("ticker")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`track record read failed: ${error.message}`);
+    for (const r of data) {
+      const key = tradeKey(r.date, r.ticker);
+      if (!calls.has(key)) continue;
+      if (r.market_cap == null || !isGameEligible(null, r.change_percent, r.market_cap)) out.add(key);
+    }
+    if (data.length < PAGE) return out;
+  }
+}
 
 // Awaits at the top on purpose, unlike /analysis: the gate must run BEFORE any
 // byte streams. notFound() thrown inside a Suspense boundary after the shell has
@@ -46,36 +87,103 @@ export default async function TrackRecordPage() {
   if (!isAdmin(user)) notFound();
 
   const admin = createAdminClient();
-  const [theses, uncapped] = await Promise.all([
-    admin
-      .from("ai_analyses")
-      .select("date, ticker, rank, short_score, next_date, scored_day_close, next_close, next_change_percent")
-      .gte("date", DECA_SMG_SEASON.start)
-      // A short opened on the last day has no next close inside the game.
-      .lt("date", DECA_SMG_SEASON.end),
-    // No market cap on the board row → DECA's $25M floor can't be met, so the
-    // call couldn't have been placed (AIOK, Oct 2026). An explicit null only: a
-    // thesis ticker that later left the board has no row and stays in.
-    admin
-      .from("daily_gainers")
-      .select("date, ticker")
-      .is("market_cap", null)
-      .gte("date", DECA_SMG_SEASON.start)
-      .lt("date", DECA_SMG_SEASON.end),
-  ]);
+  const theses = await admin
+    .from("ai_analyses")
+    .select(
+      "date, ticker, rank, short_score, next_date, scored_day_close, scored_day_change_percent, next_close, next_change_percent",
+    )
+    .gte("date", DECA_SMG_SEASON.start)
+    // A short opened on the last day has no next close inside the game.
+    .lt("date", DECA_SMG_SEASON.end);
   if (theses.error) throw new Error(`track record read failed: ${theses.error.message}`);
-  if (uncapped.error) throw new Error(`track record read failed: ${uncapped.error.message}`);
+  const rows = theses.data ?? [];
 
-  const rec = buildTrackRecord(theses.data ?? [], {
+  const rec = buildTrackRecord(rows, {
     minScore: MIN_SCORE,
     startDate: DECA_SMG_SEASON.start,
     startingCash: STARTING_CASH,
     maxPosition: MAX_POSITION,
-    untradeable: new Set((uncapped.data ?? []).map((r) => tradeKey(r.date, r.ticker))),
+    commission: COMMISSION,
+    minPrice: MIN_PRICE,
+    untradeable: await underCapFloor(admin, rows),
   });
   const { stats } = rec;
   const last = rec.points.at(-1)!;
   const sessions = rec.points.slice(1).reverse();
+  const excludedFor = (reason: ExcludedReason) =>
+    rec.excluded.filter((e) => e.reason === reason).map((e) => `${e.ticker} ${fmtDay(e.date)}`);
+  const priceOut = excludedFor("price");
+  const capOut = excludedFor("cap");
+
+  const rules: { rule: string; deca: string; status: "Applied" | "Met" | "Not modeled"; here: string }[] = [
+    {
+      rule: "Max per security",
+      deca: `20% of Total Equity × 1.5 = ${pct(MAX_POSITION)} in any one security, checked at the order`,
+      status: "Applied",
+      here: `Each short is ${pct(MAX_POSITION)} of the account or an even split, whichever is smaller. Largest taken: ${pct(stats.largestWeight)}.`,
+    },
+    {
+      rule: "End-of-Day fills",
+      deca: "Orders in market hours fill at that day's close; cancelable until 4 PM ET",
+      status: "Applied",
+      here: "Short at the scored day's close, cover at the next session's close.",
+    },
+    {
+      rule: "$3 price floor",
+      deca: `No short of a stock under $${MIN_PRICE} the day before or the day of the order`,
+      status: "Applied",
+      here: priceOut.length
+        ? `Checked on both closes. Excluded: ${priceOut.join(", ")}.`
+        : "Checked on both closes. No 7+ call has failed it.",
+    },
+    {
+      rule: "$25M market cap",
+      deca: `Minimum market cap $${MIN_MARKET_CAP / 1e6}M`,
+      status: "Applied",
+      here: capOut.length
+        ? `Checked on the board row's previous-close cap; no cap data counts as a fail. Excluded: ${capOut.join(", ")}.`
+        : "Checked on the board row's previous-close cap. No 7+ call has failed it.",
+    },
+    {
+      rule: "Commission",
+      deca: `$${COMMISSION} per transaction`,
+      status: "Applied",
+      here: `$${COMMISSION * 2} per position (short + cover), ${fmtUsd(stats.commissions)} so far.`,
+    },
+    {
+      rule: "Minimum order",
+      deca: "Short sells must be at least 10 shares",
+      status: "Met",
+      here:
+        stats.fewestShares != null
+          ? `Smallest short was ${stats.fewestShares.toLocaleString("en-US")} shares.`
+          : "No shorts yet.",
+    },
+    {
+      rule: "Margin",
+      deca: "Margin account; may borrow 50% of Total Equity. No shorting in cash accounts",
+      status: "Met",
+      here: "Total short exposure tops out at 100% of the account (4+ calls × 25%), so nothing is borrowed.",
+    },
+    {
+      rule: "Interest",
+      deca: "7%/yr charged on negative cash; 0.75%/yr credited on positive cash, weekly",
+      status: "Not modeled",
+      here: "Cash never goes negative (short proceeds are credited to it). The 0.75% credit is worth under half a percent over the season.",
+    },
+    {
+      rule: "SEC fee",
+      deca: "Charged on all sell transactions (a short sale is a sell)",
+      status: "Not modeled",
+      here: "A few dollars per $100k sold.",
+    },
+    {
+      rule: "Diversification",
+      deca: "$10k each in long stock, mutual funds and bonds from Oct 23; shorts don't count",
+      status: "Not modeled",
+      here: "This is the short sleeve alone, sized off its own balance. A real team's Total Equity also counts those longs.",
+    },
+  ];
 
   const tiles = [
     {
@@ -105,7 +213,7 @@ export default async function TrackRecordPage() {
       <PageHeader
         eyebrow="Engine · paper trade"
         title={`Shorting every ${MIN_SCORE}+ call`}
-        description={`From ${fmtUsd(STARTING_CASH)} on ${fmtDay(rec.startDate)}, the DECA SMG open. Each session the account shorts that day's theses scored ${MIN_SCORE} or higher at the close, split evenly with no position over ${Math.round(MAX_POSITION * 100)}% of the account, and covers at the next session's close — DECA's End-of-Day fills. Whatever isn't shorted sits in cash.`}
+        description={`From ${fmtUsd(STARTING_CASH)} on ${fmtDay(rec.startDate)}, the DECA SMG open. Each session the account shorts that day's theses scored ${MIN_SCORE} or higher at the close, split evenly with no position over DECA's ${pct(MAX_POSITION)} limit, and covers at the next session's close — DECA's End-of-Day fills. Whatever isn't shorted sits in cash. Played by the SMG rules below.`}
         unique="track-record"
         motif={false}
       />
@@ -146,6 +254,52 @@ export default async function TrackRecordPage() {
             <span className="text-down">{fmtPct(stats.worst.pnl)}</span>.
           </p>
         )}
+      </section>
+
+      <section className="glass overflow-hidden rounded-2xl">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 sm:px-5">
+          <h2 className="text-sm font-semibold">DECA SMG rules this record plays by</h2>
+          <a
+            href={DECA_SMG_SEASON.rulesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            DECA Guide 2026-27, p. 113 ↗
+          </a>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="mt-2 w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-2 font-medium sm:pl-5">Rule</th>
+                <th className="px-3 py-2 font-medium">DECA / SMG</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium sm:pr-5">In this record</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((r) => (
+                <tr key={r.rule} className="border-b border-border align-top last:border-0">
+                  <td className="whitespace-nowrap px-4 py-2 font-medium sm:pl-5">{r.rule}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{r.deca}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 font-mono text-[11px] ${
+                        r.status === "Not modeled"
+                          ? "border-border text-muted-foreground"
+                          : "border-brand/40 text-brand"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground sm:pr-5">{r.here}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {rec.open.length > 0 && (
@@ -218,12 +372,10 @@ export default async function TrackRecordPage() {
       </section>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Simulated, not traded. No borrow fees or commissions. The {Math.round(MAX_POSITION * 100)}% position
-        cap is this page&apos;s rule, not DECA&apos;s. Returns compound: each session&apos;s size is the account
-        after the previous one, and a loss past $0 ends the record rather than going negative. Source:{" "}
+        Simulated, not traded. Session returns are net of commissions. Returns compound: each
+        session&apos;s size is the account after the previous one, and a loss past $0 ends the record rather
+        than going negative (that floor is this page&apos;s rule, not DECA&apos;s). Source:{" "}
         <code className="font-mono">ai_analyses</code>, live.
-        {rec.excluded.length > 0 &&
-          ` Excluded — no market-cap data, so not tradeable in DECA: ${rec.excluded.map((u) => `${u.ticker} ${fmtDay(u.date)}`).join(", ")}.`}
         {rec.unresolved.length > 0 &&
           ` Excluded — no outcome recorded: ${rec.unresolved.map((u) => `${u.ticker} ${fmtDay(u.date)}`).join(", ")}.`}
       </p>

@@ -684,9 +684,11 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
 - `ADMIN_EMAILS` — comma-separated, confirmed addresses allowed onto owner-only
   pages (`lib/admin.ts`), currently just `/admin/track-record` — the live
   paper-trade record of shorting every 7+ thesis since the SMG open
-  (`lib/trackRecord.ts`: `scripts/backtest.mjs`'s rule plus a 50% per-position
-  cap, a $0 floor, and calls with no board market cap excluded as untradeable
-  in DECA — so the two won't agree to the dollar). Unset = nobody;
+  (`lib/trackRecord.ts`: `scripts/backtest.mjs`'s rule played by DECA's SMG
+  trading rules — the 30% per-security cap ("20% of Total Equity × 1.5", DECA
+  Guide 2026-27 p. 113; it was wrongly 50% "ours, not DECA's" until 2026-11-06),
+  the $3 floor on both closes, the $25M cap floor, $5 per transaction — plus
+  our $0 floor, so the two won't agree to the dollar). Unset = nobody;
   everyone else gets a real 404. Server-only, so a restart (not a rebuild)
   picks up a change.
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)
