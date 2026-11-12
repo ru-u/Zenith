@@ -321,7 +321,10 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
 - **TradingView is the sole market-data source** — an undocumented endpoint with
   ToS risk. There's no provider fallback; revisit the licensing/source question
   before any commercial scale. The `MarketDataProvider` interface stays as the
-  seam if another source is added.
+  seam if another source is added. The one exception is `lib/dailyCloses.ts`
+  (Yahoo's unofficial chart API for SO/VFIAX, plus Treasury.gov's official yield-curve CSV for the note), which
+  exists only to mark the track record's diversification longs — **owner-only,
+  and nothing public may read it**.
 - **The 9:30–9:47 warm-up: the provider does not have today's session yet.**
   The scanner reports `update_mode: "delayed_streaming_900"` — a 15-minute
   delayed feed — so from the open until ~9:47 ET it still returns the
@@ -687,8 +690,10 @@ cost: 53 tickers left the archive and 8 `/stock` pages fell under
   (`lib/trackRecord.ts`: `scripts/backtest.mjs`'s rule played by DECA's SMG
   trading rules — the 30% per-security cap ("20% of Total Equity × 1.5", DECA
   Guide 2026-27 p. 113; it was wrongly 50% "ours, not DECA's" until 2026-11-06),
-  the $3 floor on both closes, the $25M cap floor, $5 per transaction — plus
-  our $0 floor, so the two won't agree to the dollar). Unset = nobody;
+  the $3 floor on both closes, the $25M cap floor, $5 per transaction, and the
+  diversification rule as SO (picked in hindsight as the flattest low-vol blue chip, so it barely moves the record) / VFIAX / a 10-year Treasury note (a real bond — a bond ETF is not one in SMG — repriced from Treasury.gov's daily 10-year yield) bought at the Oct 23 deadline
+  close, ≥$10k each in whole shares, held to the end and counted in Total
+  Equity — plus our $0 floor, so the two won't agree to the dollar). Unset = nobody;
   everyone else gets a real 404. Server-only, so a restart (not a rebuild)
   picks up a change.
 - `CRON_SECRET` (Vercel cron sends `Authorization: Bearer $CRON_SECRET`)

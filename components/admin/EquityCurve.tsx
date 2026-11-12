@@ -18,7 +18,16 @@ function niceStep(span: number, target: number) {
   return [1, 2, 2.5, 5, 10].map((x) => x * mag).find((x) => span / x <= target) ?? mag * 10;
 }
 
-export function EquityCurve({ points, startingCash }: { points: TrackPoint[]; startingCash: number }) {
+export function EquityCurve({
+  points,
+  startingCash,
+  marker,
+}: {
+  points: TrackPoint[];
+  startingCash: number;
+  /** A dated event drawn as a rule at the first close on or after `date`. */
+  marker?: { date: string; label: string };
+}) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -47,6 +56,7 @@ export function EquityCurve({ points, startingCash }: { points: TrackPoint[]; st
   const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join("");
   const area = `${line}L${x(n - 1).toFixed(1)},${y(startingCash).toFixed(1)}L${x(0).toFixed(1)},${y(startingCash).toFixed(1)}Z`;
 
+  const markIdx = marker ? points.findIndex((p) => p.coverDate >= marker.date) : -1;
   const labelEvery = Math.max(1, Math.ceil(n / (w < 520 ? 3 : 6)));
   const last = points[n - 1];
   const hp = hover != null ? points[hover] : null;
@@ -99,6 +109,28 @@ export function EquityCurve({ points, startingCash }: { points: TrackPoint[]; st
               </text>
             ) : null,
           )}
+          {marker && markIdx > 0 && (
+            <g pointerEvents="none">
+              <line
+                x1={x(markIdx)}
+                x2={x(markIdx)}
+                y1={M.t}
+                y2={M.t + ph}
+                stroke="var(--muted-foreground)"
+                strokeDasharray="2 3"
+                opacity={0.7}
+              />
+              <text
+                x={x(markIdx) + (x(markIdx) > M.l + pw - 80 ? -6 : 6)}
+                y={M.t + 10}
+                textAnchor={x(markIdx) > M.l + pw - 80 ? "end" : "start"}
+                fontSize={11}
+                fill="var(--muted-foreground)"
+              >
+                {marker.label}
+              </text>
+            </g>
+          )}
           <path d={area} fill="var(--brand)" opacity={0.08} />
           <path d={line} fill="none" stroke="var(--brand)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
           <circle cx={x(n - 1)} cy={y(last.equity)} r={4} fill="var(--brand)" stroke="var(--background)" strokeWidth={2} />
@@ -141,8 +173,14 @@ export function EquityCurve({ points, startingCash }: { points: TrackPoint[]; st
             <div className="flex justify-between gap-4 font-mono tabular-nums">
               <span className="text-muted-foreground">Session</span>
               <span className={hp.ret > 0 ? "text-up" : hp.ret < 0 ? "text-down" : ""}>
-                {hp.trades.length ? fmtPct(hp.ret) : "cash"}
+                {hp.trades.length || hp.longValue ? fmtPct(hp.ret) : "cash"}
               </span>
+            </div>
+          )}
+          {hp.longValue > 0 && (
+            <div className="flex justify-between gap-4 font-mono tabular-nums">
+              <span className="text-muted-foreground">Longs</span>
+              <span>{fmtUsd(hp.longValue)}</span>
             </div>
           )}
           {hp.trades.length > 0 && (

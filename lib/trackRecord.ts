@@ -23,10 +23,17 @@
 //     board row, since ai_analyses stores no cap.
 //   - $5 per transaction: a short and its cover are two, so $10 per position,
 //     taken from the account at the cover.
+//   - Diversification: at least $10k each in long stock, mutual funds and bonds
+//     by the deadline, held to the end; shorts don't count. Modeled as the
+//     plainest fill (`longs`): whole shares, rounded UP so each leg clears $10k,
+//     bought at the deadline's close and never traded. They're bought from cash
+//     and are part of Total Equity, so they move the account and every later
+//     short's size, which is still a fraction of Total Equity.
 // Not modeled, because each is too small to move the curve: the SEC fee on
-// sells, and 0.75%/yr credited on cash. 7% on negative cash never applies —
-// short proceeds are credited to cash, and total exposure tops out at 100% of
-// the account (4+ calls × 25%), inside DECA's 50% margin allowance.
+// sells, fund distributions, and 0.75%/yr credited on cash. 7% on negative cash
+// never applies — short proceeds are credited to cash, so cash stays above the
+// ~$31k the longs cost, and total short exposure tops out at 100% of the
+// account (4+ calls × 25%), inside DECA's 50% margin allowance.
 //
 // The $0 floor is ours: a loss past the account ends the record (`bustedOn`)
 // instead of compounding on a negative balance and inverting every sign.
@@ -74,6 +81,32 @@ export type TrackPoint = {
   /** Commissions paid that session, $. */
   fees: number;
   trades: TrackTrade[];
+  /** Market value of the diversification longs at this close. 0 before. */
+  longValue: number;
+  /** Their $ move this session, before the buy commissions (in `fees`). */
+  longPnl: number;
+};
+
+export type LongLeg = {
+  symbol: string;
+  name: string;
+  assetClass: string;
+  /** ET date → close. Null when the history couldn't be fetched. */
+  closes: ReadonlyMap<string, number> | null;
+};
+
+export type LongPosition = {
+  symbol: string;
+  name: string;
+  assetClass: string;
+  shares: number;
+  buyAt: number;
+  cost: number;
+  /** Close at the record's last mark, carried forward over a missing day. */
+  lastAt: number;
+  value: number;
+  pnl: number;
+  pnlPct: number;
 };
 
 export type TrackRecord = {
@@ -111,7 +144,29 @@ export type TrackRecord = {
   unresolved: { date: string; ticker: string; score: number }[];
   /** Qualifying calls left out because they weren't tradeable in the game. */
   excluded: { date: string; ticker: string; score: number; reason: ExcludedReason }[];
+  /** The diversification sleeve, or null when none was configured. */
+  longs: {
+    buyDate: string;
+    /** Bought yet — false while the record ends before `buyDate`. */
+    bought: boolean;
+    positions: LongPosition[];
+    cost: number;
+    value: number;
+    pnl: number;
+    /** Legs left out — no history, or no close on `buyDate`. */
+    missing: string[];
+  } | null;
 };
+
+/** Close on `date`, else the latest before it (a fund NAV not posted yet, a
+ *  feed gap). Null only when nothing precedes it. */
+function closeOn(closes: ReadonlyMap<string, number>, date: string): number | null {
+  const exact = closes.get(date);
+  if (exact != null) return exact;
+  let best: string | null = null;
+  for (const d of closes.keys()) if (d < date && (best == null || d > best)) best = d;
+  return best == null ? null : closes.get(best)!;
+}
 
 /** True when SMG would refuse to open this short on the $3 floor. Null figures
  *  skip the check — exclusion needs positive evidence, as in isGameEligible. */
@@ -142,10 +197,26 @@ export function buildTrackRecord(
     minPrice: number;
     /** tradeKey()s of calls under the market-cap floor (or with no cap). */
     untradeable?: ReadonlySet<string>;
+    /** Diversification longs: `minPerLeg` of each, bought at `buyDate`'s
+     *  close in whole shares, held to the end. */
+    longs?: { buyDate: string; minPerLeg: number; legs: LongLeg[] };
   },
 ): TrackRecord {
   const { minScore, startDate, startingCash, maxPosition, commission, minPrice } = opts;
   const untradeable = opts.untradeable ?? new Set<string>();
+
+  // Sized once off the buy-day close; rounded up, since rounding down would
+  // leave the leg under the minimum.
+  const buyDate = opts.longs?.buyDate ?? "";
+  const legs = (opts.longs?.legs ?? []).flatMap((l) => {
+    const buyAt = l.closes?.get(buyDate);
+    if (!l.closes || buyAt == null) return [];
+    return [{ ...l, closes: l.closes, buyAt, shares: Math.ceil(opts.longs!.minPerLeg / buyAt) }];
+  });
+  const missing = (opts.longs?.legs ?? []).filter((l) => !legs.some((x) => x.symbol === l.symbol)).map((l) => l.symbol);
+  // At the close of `date`; a leg with no close yet sits at its buy price.
+  const longsAt = (date: string) =>
+    date < buyDate ? 0 : legs.reduce((a, l) => a + l.shares * (closeOn(l.closes, date) ?? l.buyAt), 0);
   const inWindow = rows.filter((r) => r.date >= startDate && r.short_score != null);
 
   // A session is settled once ANY of its theses has an outcome — they all cover
@@ -190,16 +261,21 @@ export function buildTrackRecord(
           notional: weight * equity,
         }))
         .sort((a, b) => b.score - a.score || (a.rank ?? 99) - (b.rank ?? 99));
+      const cover = settled.get(date)!;
       const before = equity;
       const gross = trades.reduce((a, t) => a + t.pnl * t.weight, 0);
-      const fees = trades.length * 2 * commission;
+      // The session whose close the longs were bought at pays their commission
+      // and marks them at cost; every later one carries their close-to-close.
+      const buying = legs.length > 0 && date < buyDate && cover >= buyDate;
+      const longPnl = cover >= buyDate ? longsAt(cover) - (buying ? longsAt(buyDate) : longsAt(date)) : 0;
+      const fees = trades.length * 2 * commission + (buying ? legs.length * commission : 0);
       commissions += fees;
-      equity = Math.max(0, equity * (1 + gross / 100) - fees);
+      equity = Math.max(0, equity * (1 + gross / 100) + longPnl - fees);
       const ret = before > 0 ? (equity / before - 1) * 100 : 0;
-      if (equity === 0) bustedOn = settled.get(date)!;
+      if (equity === 0) bustedOn = cover;
       peak = Math.max(peak, equity);
       maxDD = Math.min(maxDD, equity / peak - 1);
-      points.push({ scoredDate: date, coverDate: settled.get(date)!, equity, ret, fees, trades });
+      points.push({ scoredDate: date, coverDate: cover, equity, ret, fees, trades, longValue: longsAt(cover), longPnl });
     }
     return { points, equity, maxDD, bustedOn, commissions };
   };
@@ -216,7 +292,28 @@ export function buildTrackRecord(
     ret: 0,
     fees: 0,
     trades: [],
+    longValue: 0,
+    longPnl: 0,
   };
+  const markedThrough = main.points.at(-1)?.coverDate ?? startDate;
+  const bought = legs.length > 0 && markedThrough >= buyDate;
+  const positions: LongPosition[] = legs.map((l) => {
+    const lastAt = bought ? (closeOn(l.closes, markedThrough) ?? l.buyAt) : l.buyAt;
+    const cost = l.shares * l.buyAt;
+    const value = l.shares * lastAt;
+    return {
+      symbol: l.symbol,
+      name: l.name,
+      assetClass: l.assetClass,
+      shares: l.shares,
+      buyAt: l.buyAt,
+      cost,
+      lastAt,
+      value,
+      pnl: value - cost,
+      pnlPct: (lastAt / l.buyAt - 1) * 100,
+    };
+  });
   const shares = all
     .filter((t) => t.shortAt != null && t.shortAt > 0)
     .map((t) => Math.floor(t.notional / t.shortAt!));
@@ -253,5 +350,16 @@ export function buildTrackRecord(
       .filter((r) => exclusion(r) != null)
       .map((r) => ({ date: r.date, ticker: r.ticker, score: r.short_score!, reason: exclusion(r)! }))
       .sort((a, b) => a.date.localeCompare(b.date)),
+    longs: opts.longs
+      ? {
+          buyDate,
+          bought,
+          positions,
+          cost: positions.reduce((a, p) => a + p.cost, 0),
+          value: positions.reduce((a, p) => a + p.value, 0),
+          pnl: positions.reduce((a, p) => a + p.pnl, 0),
+          missing,
+        }
+      : null,
   };
 }

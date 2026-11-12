@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DECA_SMG_SEASON } from "@/lib/deca";
 import { buildTrackRecord, tradeKey, type ExcludedReason, type TrackRow } from "@/lib/trackRecord";
+import { fetchDailyCloses, fetchTreasuryNoteCloses } from "@/lib/dailyCloses";
 import { isGameEligible, MIN_MARKET_CAP, MIN_PRICE } from "@/lib/marketdata/normalize";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EquityCurve } from "@/components/admin/EquityCurve";
@@ -37,7 +38,26 @@ const STARTING_CASH = 100_000;
 // any session with 1-3 qualifying calls; 4+ split evenly under it.
 const MAX_POSITION = 0.2 * 1.5;
 const COMMISSION = 5;
+// DECA's diversification rule, filled the plainest way a team could: one flat
+// stock, an S&P 500 index fund and a new 10-year Treasury note, bought at the
+// deadline's close. ETFs don't count as their underlying class in SMG, so the
+// stock is a single name and the bond a real bond.
+//
+// The stock was picked IN HINDSIGHT, on 2026-11-11, so it is chosen to move the
+// record as little as possible rather than to flatter it: of a dozen low-vol
+// blue chips (KO, PG, JNJ, PEP, DUK, SO, BRK-B, WMT, MCD, CL, MRK, VZ), SO had
+// the smallest move from the Oct 23 close (+0.8% to Nov 10, never past 1.9%)
+// and the lowest daily volatility. Don't re-pick it off later prices — that
+// turns a neutral choice into a tuned one. Marks and the note's pricing model
+// are in lib/dailyCloses.ts.
+const MIN_PER_CLASS = 10_000;
+const MARKET_LONGS = [
+  { symbol: "SO", name: "Southern Company", assetClass: "Long stock" },
+  { symbol: "VFIAX", name: "Vanguard 500 Index Admiral", assetClass: "Mutual fund" },
+] as const;
+const BOND = "UST 10Y";
 const pct = (f: number) => `${Math.round(f * 100)}%`;
+const signedUsd = (n: number) => `${n < 0 ? "−" : "+"}${fmtUsd(Math.abs(n))}`;
 
 const pnlClass = (v: number) => (v > 0 ? "text-up" : v < 0 ? "text-down" : "");
 
@@ -87,14 +107,28 @@ export default async function TrackRecordPage() {
   if (!isAdmin(user)) notFound();
 
   const admin = createAdminClient();
-  const theses = await admin
-    .from("ai_analyses")
-    .select(
-      "date, ticker, rank, short_score, next_date, scored_day_close, scored_day_change_percent, next_close, next_change_percent",
-    )
-    .gte("date", DECA_SMG_SEASON.start)
-    // A short opened on the last day has no next close inside the game.
-    .lt("date", DECA_SMG_SEASON.end);
+  const buyDate = DECA_SMG_SEASON.diversificationDeadline;
+  const [theses, note, ...histories] = await Promise.all([
+    admin
+      .from("ai_analyses")
+      .select(
+        "date, ticker, rank, short_score, next_date, scored_day_close, scored_day_change_percent, next_close, next_change_percent",
+      )
+      .gte("date", DECA_SMG_SEASON.start)
+      // A short opened on the last day has no next close inside the game.
+      .lt("date", DECA_SMG_SEASON.end),
+    fetchTreasuryNoteCloses(buyDate),
+    ...MARKET_LONGS.map((l) => fetchDailyCloses(l.symbol, buyDate)),
+  ]);
+  const legs = [
+    ...MARKET_LONGS.map((l, i) => ({ ...l, closes: histories[i] })),
+    {
+      symbol: BOND,
+      name: note ? `10-year Treasury note, ${note.couponPct.toFixed(2)}% coupon` : "10-year Treasury note",
+      assetClass: "Bond",
+      closes: note?.closes ?? null,
+    },
+  ];
   if (theses.error) throw new Error(`track record read failed: ${theses.error.message}`);
   const rows = theses.data ?? [];
 
@@ -106,8 +140,14 @@ export default async function TrackRecordPage() {
     commission: COMMISSION,
     minPrice: MIN_PRICE,
     untradeable: await underCapFloor(admin, rows),
+    longs: {
+      buyDate,
+      minPerLeg: MIN_PER_CLASS,
+      legs,
+    },
   });
   const { stats } = rec;
+  const longs = rec.longs!;
   const last = rec.points.at(-1)!;
   const sessions = rec.points.slice(1).reverse();
   const excludedFor = (reason: ExcludedReason) =>
@@ -163,7 +203,7 @@ export default async function TrackRecordPage() {
       rule: "Margin",
       deca: "Margin account; may borrow 50% of Total Equity. No shorting in cash accounts",
       status: "Met",
-      here: "Total short exposure tops out at 100% of the account (4+ calls × 25%), so nothing is borrowed.",
+      here: "Total short exposure tops out at 100% of the account (4+ calls × 25%), and the longs are paid from cash that short proceeds keep positive, so nothing is borrowed.",
     },
     {
       rule: "Interest",
@@ -179,9 +219,11 @@ export default async function TrackRecordPage() {
     },
     {
       rule: "Diversification",
-      deca: "$10k each in long stock, mutual funds and bonds from Oct 23; shorts don't count",
-      status: "Not modeled",
-      here: "This is the short sleeve alone, sized off its own balance. A real team's Total Equity also counts those longs.",
+      deca: `${fmtUsd(MIN_PER_CLASS)} each in long stock, mutual funds and bonds by ${fmtDay(buyDate)}, held to the end; shorts don't count`,
+      status: longs.positions.length === legs.length ? "Applied" : "Not modeled",
+      here: longs.missing.length
+        ? `No price history for ${longs.missing.join(", ")} — ${longs.positions.length ? "the account leaves it out" : "the account is the short sleeve alone"}.`
+        : `${longs.positions.map((p) => p.symbol).join(", ")} bought at the ${fmtDay(buyDate)} close, whole shares rounded up past ${fmtUsd(MIN_PER_CLASS)} (${fmtUsd(longs.cost)} in all), plus ${fmtUsd(COMMISSION * longs.positions.length)} commission. They count in Total Equity, so later shorts are sized off them too.`,
     },
   ];
 
@@ -202,9 +244,9 @@ export default async function TrackRecordPage() {
       s: "peak to trough, at closes",
     },
     {
-      k: "Sessions in market",
+      k: "Sessions shorting",
       v: `${stats.sessionsInMarket} of ${stats.sessions}`,
-      s: "the rest had no 7+ call",
+      s: `the rest had no ${MIN_SCORE}+ call`,
     },
   ];
 
@@ -213,7 +255,7 @@ export default async function TrackRecordPage() {
       <PageHeader
         eyebrow="Engine · paper trade"
         title={`Shorting every ${MIN_SCORE}+ call`}
-        description={`From ${fmtUsd(STARTING_CASH)} on ${fmtDay(rec.startDate)}, the DECA SMG open. Each session the account shorts that day's theses scored ${MIN_SCORE} or higher at the close, split evenly with no position over DECA's ${pct(MAX_POSITION)} limit, and covers at the next session's close — DECA's End-of-Day fills. Whatever isn't shorted sits in cash. Played by the SMG rules below.`}
+        description={`From ${fmtUsd(STARTING_CASH)} on ${fmtDay(rec.startDate)}, the DECA SMG open. Each session the account shorts that day's theses scored ${MIN_SCORE} or higher at the close, split evenly with no position over DECA's ${pct(MAX_POSITION)} limit, and covers at the next session's close — DECA's End-of-Day fills. At the ${fmtDay(buyDate)} diversification deadline it also bought ${fmtUsd(MIN_PER_CLASS)} each of SO, VFIAX and a 10-year Treasury note and holds them to the end. Played by the SMG rules below.`}
         unique="track-record"
         motif={false}
       />
@@ -236,7 +278,11 @@ export default async function TrackRecordPage() {
           </p>
         </div>
         {rec.points.length > 1 ? (
-          <EquityCurve points={rec.points} startingCash={STARTING_CASH} />
+          <EquityCurve
+            points={rec.points}
+            startingCash={STARTING_CASH}
+            marker={longs.positions.length ? { date: buyDate, label: "Diversified" } : undefined}
+          />
         ) : (
           <p className="py-16 text-center text-sm text-muted-foreground">No settled sessions yet.</p>
         )}
@@ -255,6 +301,68 @@ export default async function TrackRecordPage() {
           </p>
         )}
       </section>
+
+      {longs.positions.length > 0 && (
+        <section className="glass overflow-hidden rounded-2xl">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 sm:px-5">
+            <h2 className="text-sm font-semibold">
+              Diversification longs {longs.bought ? `— bought ${fmtDay(buyDate)} close` : `— buy at the ${fmtDay(buyDate)} close`}
+            </h2>
+            {longs.bought && (
+              <p className="font-mono text-xs text-muted-foreground">
+                <span className={pnlClass(longs.pnl)}>{signedUsd(longs.pnl)}</span> on {fmtUsd(longs.cost)}
+              </p>
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="mt-2 w-full min-w-[640px] text-sm tabular-nums">
+              <thead>
+                <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-2 font-medium sm:pl-5">Class</th>
+                  <th className="px-3 py-2 font-medium">Holding</th>
+                  <th className="px-3 py-2 text-right font-medium">Shares</th>
+                  <th className="px-3 py-2 text-right font-medium">Bought at</th>
+                  <th className="px-3 py-2 text-right font-medium">Last close</th>
+                  <th className="px-3 py-2 text-right font-medium">Value</th>
+                  <th className="px-4 py-2 text-right font-medium sm:pr-5">P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {longs.positions.map((p) => (
+                  <tr key={p.symbol} className="border-b border-border last:border-0">
+                    <td className="whitespace-nowrap px-4 py-1.5 text-muted-foreground sm:pl-5">{p.assetClass}</td>
+                    <td className="px-3 py-1.5">
+                      <span className="font-medium">{p.symbol}</span>{" "}
+                      <span className="text-xs text-muted-foreground">{p.name}</span>
+                    </td>
+                    {/* The note is quoted the bond way: face held, price per 100 of face. */}
+                    <td className="px-3 py-1.5 text-right font-mono">
+                      {p.symbol === BOND ? `${fmtUsd(p.shares * 1000)} face` : p.shares}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono">
+                      {p.symbol === BOND ? (p.buyAt / 10).toFixed(2) : formatPrice(p.buyAt)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono">
+                      {p.symbol === BOND ? (p.lastAt / 10).toFixed(2) : formatPrice(p.lastAt)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono">{fmtUsd(p.value)}</td>
+                    <td className={`px-4 py-1.5 text-right font-mono sm:pr-5 ${pnlClass(p.pnl)}`}>
+                      {signedUsd(p.pnl)} <span className="text-xs">{fmtPct(p.pnlPct)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-muted-foreground sm:px-5">
+            The bond is a new 10-year Treasury note bought at par, its coupon set to that day&apos;s 10-year yield.
+            No free source quotes one note&apos;s daily price, so it&apos;s repriced from Treasury&apos;s official
+            10-year yield each session, priced per 100 of face. Its value includes interest earned so far; its
+            first coupon falls after the game ends. Fund distributions aren&apos;t credited. A fund&apos;s NAV posts
+            in the evening, so until it does the newest session carries the prior one.
+          </p>
+        </section>
+      )}
 
       <section className="glass overflow-hidden rounded-2xl">
         <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 sm:px-5">
@@ -315,7 +423,7 @@ export default async function TrackRecordPage() {
       <section className="glass overflow-hidden rounded-2xl">
         <h2 className="px-4 pt-4 text-sm font-semibold sm:px-5">Every session, newest first</h2>
         <div className="overflow-x-auto">
-          <table className="mt-2 w-full min-w-[700px] text-sm tabular-nums">
+          <table className="mt-2 w-full min-w-[780px] text-sm tabular-nums">
             <thead>
               <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2 font-medium sm:pl-5">Shorted → covered</th>
@@ -325,6 +433,7 @@ export default async function TrackRecordPage() {
                 <th className="px-3 py-2 text-right font-medium">Short at</th>
                 <th className="px-3 py-2 text-right font-medium">Cover at</th>
                 <th className="px-3 py-2 text-right font-medium">Short P&amp;L</th>
+                <th className="px-3 py-2 text-right font-medium">Longs</th>
                 <th className="px-4 py-2 text-right font-medium sm:pr-5">Account</th>
               </tr>
             </thead>
@@ -352,13 +461,24 @@ export default async function TrackRecordPage() {
                       </>
                     ) : (
                       <td colSpan={6} className="px-3 py-1.5 text-muted-foreground">
-                        Cash — no {MIN_SCORE}+ call
+                        {p.longValue > 0 ? "No short" : "Cash"} — no {MIN_SCORE}+ call
+                      </td>
+                    )}
+                    {i === 0 && (
+                      <td rowSpan={rows.length} className="px-3 py-1.5 text-right align-top font-mono">
+                        {p.longValue === 0 ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : p.scoredDate < buyDate ? (
+                          <span className="text-xs text-brand">bought</span>
+                        ) : (
+                          <span className={pnlClass(p.longPnl)}>{signedUsd(p.longPnl)}</span>
+                        )}
                       </td>
                     )}
                     {i === 0 && (
                       <td rowSpan={rows.length} className="px-4 py-1.5 text-right align-top font-mono sm:pr-5">
                         {fmtUsd(p.equity)}
-                        {p.trades.length > 0 && (
+                        {(p.trades.length > 0 || p.longValue > 0) && (
                           <span className={`block text-xs ${pnlClass(p.ret)}`}>{fmtPct(p.ret)}</span>
                         )}
                       </td>
@@ -372,7 +492,7 @@ export default async function TrackRecordPage() {
       </section>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Simulated, not traded. Session returns are net of commissions. Returns compound: each
+        Simulated, not traded. Session returns are net of commissions and include the longs. Returns compound: each
         session&apos;s size is the account after the previous one, and a loss past $0 ends the record rather
         than going negative (that floor is this page&apos;s rule, not DECA&apos;s). Source:{" "}
         <code className="font-mono">ai_analyses</code>, live.
