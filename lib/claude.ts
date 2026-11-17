@@ -34,7 +34,8 @@ import {
   activeProseMode,
   ANALYSIS_MODEL,
   generateThesisText,
-  PROSE_BUDGET_MS,
+  proseBudget,
+  type ProseBudget,
   type ProseSource,
 } from "./quant/thesis";
 
@@ -118,8 +119,8 @@ export async function generateAnalysis(
   baseRate: BaseRate | null,
   tech: Technicals | null,
   snapshot: FeatureSnapshot | null = null,
-  /** Epoch-ms ceiling shared across the batch's prose calls; see PROSE_BUDGET_MS. */
-  proseDeadline: number = Number.POSITIVE_INFINITY,
+  /** Model-call time shared across the batch's prose calls; see PROSE_BUDGET_MS. */
+  budget?: ProseBudget,
 ): Promise<AnalysisResult | null> {
   try {
     // EDGAR is authoritative; headlines only fill the gap when no filing says
@@ -183,7 +184,7 @@ export async function generateAnalysis(
         earnings,
         unclassifiedFilings: unclassified,
       },
-      proseDeadline,
+      budget,
     );
     return {
       catalyst:
@@ -276,9 +277,10 @@ export async function generateAndStoreTopAnalyses(
   // scoring (the safety cap); every input degrades independently.
   const snapshots = await buildFeatureSnapshots(admin, top, dateKey, techs, streaks, baseRates);
 
-  // Shared wall-clock budget for the whole batch's prose. Only bites in model
-  // mode; in template mode nothing reads it.
-  const proseDeadline = Date.now() + PROSE_BUDGET_MS;
+  // Shared budget for the whole batch's model calls — charged only for time
+  // inside them, not the EDGAR/news fetches interleaved in this loop (see
+  // PROSE_BUDGET_MS). Only bites in model mode; in template mode nothing reads it.
+  const batchBudget = proseBudget();
   let modelRows = 0;
 
   let created = 0;
@@ -293,7 +295,7 @@ export async function generateAndStoreTopAnalyses(
       baseRates.get(g.ticker) ?? null,
       techs.get(g.ticker) ?? null,
       snapshot,
-      proseDeadline,
+      batchBudget,
     );
     if (!a) continue;
     // Self-describing rows: the scoring version, plus the prose source THIS row

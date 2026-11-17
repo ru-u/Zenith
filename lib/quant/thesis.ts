@@ -61,13 +61,29 @@ const PROSE_TIMEOUT_MS = 12_000;
 const PROSE_MAX_TOKENS = 500;
 
 /**
- * Whole-batch ceiling for prose. The five calls run sequentially, AFTER EDGAR's
- * 8s-per-ticker budget, inside a single cron invocation. When this is spent the
- * remaining tickers render from the template rather than pushing the email late
- * — a templated thesis that arrives before the close beats a model-written one that
- * doesn't.
+ * Whole-batch ceiling for prose. The five calls run sequentially inside a single
+ * cron invocation. When this is spent the remaining tickers render from the
+ * template rather than pushing the email late — a templated thesis that arrives
+ * before the close beats a model-written one that doesn't.
+ *
+ * Charged ONLY for time spent inside model calls (see ProseBudget), never as a
+ * wall-clock deadline. Each ticker's EDGAR / Finnhub lookups run inside the same
+ * loop, interleaved with the prose calls, so a deadline set before the loop paid
+ * for them too: on 2026-11-16 two aborted Finnhub retries on the first ticker
+ * (NCT) ate the whole 20s before a single Anthropic call was made, and all five
+ * rows fell back to the template. Those fetches carry their own timeouts.
  */
 export const PROSE_BUDGET_MS = 20_000;
+
+/** Prose time left in a batch; mutated by modelNarrative() as calls complete.
+ *  Safe to share because the batch runs its calls sequentially. */
+export interface ProseBudget {
+  remainingMs: number;
+}
+
+export function proseBudget(ms: number = PROSE_BUDGET_MS): ProseBudget {
+  return { remainingMs: ms };
+}
 
 // One client per process, built lazily: app/engine/page.tsx imports this module
 // purely for activeProseMode(), and that must never require an API key.
@@ -463,7 +479,7 @@ export interface ProseAttempt {
  */
 export async function modelNarrative(
   f: ThesisFindings,
-  deadline: number = Number.POSITIVE_INFINITY,
+  budget: ProseBudget = proseBudget(Number.POSITIVE_INFINITY),
 ): Promise<ProseAttempt> {
   const miss = (reason: string): ProseAttempt => ({
     text: null,
@@ -472,12 +488,13 @@ export async function modelNarrative(
     outputTokens: null,
   });
 
-  const remaining = deadline - Date.now();
+  const remaining = budget.remainingMs;
   if (remaining < 2_000) return miss("prose budget spent");
 
   const catalystText = f.catalyst ?? noCatalystClaim(f);
   const chartContext = levelContextSentence(f);
 
+  const started = Date.now();
   try {
     const findings = {
       ticker: f.g.ticker,
@@ -591,6 +608,8 @@ export async function modelNarrative(
     return { text, reason: null, inputTokens, outputTokens };
   } catch (err) {
     return miss((err as Error).message);
+  } finally {
+    budget.remainingMs -= Date.now() - started;
   }
 }
 
@@ -606,14 +625,14 @@ export interface ProseResult {
 
 /**
  * Thesis prose from structured findings — template by default, the model behind
- * the flag. `deadline` is an epoch-ms budget shared across a whole batch.
+ * the flag. `budget` is shared across a whole batch; see PROSE_BUDGET_MS.
  */
 export async function generateThesisText(
   f: ThesisFindings,
-  deadline: number = Number.POSITIVE_INFINITY,
+  budget?: ProseBudget,
 ): Promise<ProseResult> {
   if (activeProseMode() === "model") {
-    const attempt = await modelNarrative(f, deadline);
+    const attempt = await modelNarrative(f, budget);
     if (attempt.text) {
       return { text: [attempt.text, ...pinnedSentences(f)].join(" "), source: "model" };
     }
